@@ -2,6 +2,7 @@ package Controllers
 
 import (
 	"cuento-backend/src/Entities"
+	"cuento-backend/src/Events"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
@@ -83,7 +84,7 @@ func CreateEpisode(c *gin.Context, db *sql.DB) {
 		},
 	}
 
-	createdEntity, _, err := Services.CreateEntity("episode", &episode, tx)
+	createdEntity, episodeID, err := Services.CreateEntity("episode", &episode, tx)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create episode entity: " + err.Error()})
 		c.Abort()
@@ -122,6 +123,12 @@ func CreateEpisode(c *gin.Context, db *sql.DB) {
 		c.Abort()
 		return
 	}
+
+	// Emit EpisodeCreated event
+	Events.Publish(db, Events.EpisodeCreated, Events.EpisodeCreatedEvent{
+		EpisodeID:  episodeID,
+		SubforumID: req.SubforumID,
+	})
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Episode created successfully", "episode_id": createdEpisode.Id, "topic_id": topicID})
 }

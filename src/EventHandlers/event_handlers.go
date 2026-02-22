@@ -9,4 +9,5 @@ func RegisterEventHandlers(db *sql.DB) {
 	RegisterPostEventHandlers()
 	RegisterNotificationEventHandlers()
 	RegisterCharacterEventHandlers()
+	RegisterEpisodeEventHandlers()
 }

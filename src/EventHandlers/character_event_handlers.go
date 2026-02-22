@@ -18,6 +18,11 @@ func RegisterCharacterEventHandlers() {
 		if err != nil {
 			fmt.Printf("Error updating global character stats: %v\n", err)
 		}
+
+		_, err = db.Exec("UPDATE global_stats SET stat_value = stat_value + 1 WHERE stat_name = 'total_topic_number'")
+		if err != nil {
+			fmt.Printf("Error updating global topic stats on character created: %v\n", err)
+		}
 	})
 
 	// Subscriber 8: Update Subforum Stats on Character Created
