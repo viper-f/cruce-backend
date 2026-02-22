@@ -38,7 +38,7 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 	// 2. Construct the main query
 	query := fmt.Sprintf(`
 		SELECT
-			p.id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
+			p.id, p.topic_id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
 			u.username, u.avatar,
 			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar
 			%s
@@ -82,6 +82,9 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 	var post Entities.Post
 	if val, ok := rowMap["id"]; ok {
 		post.Id, _ = strconv.Atoi(val.(string))
+	}
+	if val, ok := rowMap["topic_id"]; ok {
+		post.TopicId, _ = strconv.Atoi(val.(string))
 	}
 	if val, ok := rowMap["author_user_id"]; ok {
 		post.AuthorUserId, _ = strconv.Atoi(val.(string))

@@ -22,7 +22,7 @@ func RegisterPostEventHandlers() {
 		users := Services.ActivityStorage.GetUsersOnPage("topic", topicIDStr)
 
 		notification := map[string]interface{}{
-			"type": "new_post",
+			"type": "post_created",
 			"data": event.Post,
 		}
 
