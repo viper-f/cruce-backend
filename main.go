@@ -50,6 +50,9 @@ func main() {
 	publicRouter.GET("/user/profile/:userID", "Get user profile details", func(c *gin.Context) {
 		Controllers.GetUserProfile(c, Services.DB)
 	})
+	publicRouter.GET("/character/get/:id", "Get character details by ID", func(c *gin.Context) {
+		Controllers.GetCharacter(c, Services.DB)
+	})
 
 	// Optional Auth routes (Context populated if token present, otherwise Guest)
 	optionalAuthGroup := r.Group("/")
@@ -110,9 +113,6 @@ func main() {
 	protectedGroup.Use(Middlewares.PermissionsMiddleware(Services.DB))
 	protectedRouter := Router.NewCustomRouter(protectedGroup)
 
-	protectedRouter.GET("/character/get/:id", "Get character details by ID", func(c *gin.Context) {
-		Controllers.GetCharacter(c, Services.DB)
-	})
 	protectedRouter.POST("/character/create", "Create a new character", func(c *gin.Context) {
 		Controllers.CreateCharacter(c, Services.DB)
 	})

@@ -39,6 +39,54 @@ func GetCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	if character, ok := entity.(*Entities.Character); ok {
+		// Fetch episodes for this character
+		query := `
+			SELECT e.id, e.name, e.topic_id, t.date_last_post, u.username as last_post_author_username
+			FROM episode_base e
+			JOIN episode_character ec ON e.id = ec.episode_id
+			JOIN topics t ON e.topic_id = t.id
+			LEFT JOIN users u ON t.last_post_author_user_id = u.id
+			WHERE ec.character_id = ?
+			ORDER BY t.date_last_post DESC
+		`
+		rows, err := db.Query(query, character.Id)
+		if err == nil {
+			defer rows.Close()
+			var episodes []Entities.EpisodeListItem
+			for rows.Next() {
+				var ep Entities.EpisodeListItem
+				if err := rows.Scan(&ep.Id, &ep.Name, &ep.TopicId, &ep.DateLastPost, &ep.LastPostAuthorUsername); err == nil {
+					// Fetch all characters for this episode
+					charRows, err := db.Query(`
+						SELECT cb.id, cb.name 
+						FROM character_base cb 
+						JOIN episode_character ec ON cb.id = ec.character_id 
+						WHERE ec.episode_id = ?`, ep.Id)
+					if err == nil {
+						var characters []*Entities.ShortCharacter
+						for charRows.Next() {
+							var char Entities.ShortCharacter
+							if err := charRows.Scan(&char.Id, &char.Name); err == nil {
+								characters = append(characters, &char)
+							}
+						}
+						ep.Characters = characters
+						charRows.Close()
+					}
+					episodes = append(episodes, ep)
+				}
+			}
+			character.Episodes = episodes
+		}
+
+		// Fetch factions
+		character.Factions, _ = Services.GetFactionTreeByCharacter(character.Id, db)
+
+		c.JSON(http.StatusOK, character)
+		return
+	}
+
 	c.JSON(http.StatusOK, entity)
 }
 

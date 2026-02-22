@@ -1,5 +1,7 @@
 package Entities
 
+import "time"
+
 type Character struct {
 	Id              int               `json:"id"`
 	UserId          int               `json:"user_id"`
@@ -10,6 +12,16 @@ type Character struct {
 	TopicId         int               `json:"topic_id"`
 	TotalEpisodes   int               `json:"total_episodes"`
 	Factions        []Faction         `json:"factions" db:"-"`
+	Episodes        []EpisodeListItem `json:"episodes" db:"-"`
+}
+
+type EpisodeListItem struct {
+	Id                     int               `json:"id"`
+	Name                   string            `json:"name"`
+	TopicId                int               `json:"topic_id"`
+	Characters             []*ShortCharacter `json:"characters"`
+	DateLastPost           *time.Time        `json:"date_last_post"`
+	LastPostAuthorUsername *string           `json:"last_post_author_username"`
 }
 
 func (c *Character) GetBaseFields() []string {
