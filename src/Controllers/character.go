@@ -367,3 +367,62 @@ func GetCharacterProfilesByUser(c *gin.Context, db *sql.DB) {
 
 	c.JSON(http.StatusOK, profiles)
 }
+
+func GetCharacterProfile(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid ID"})
+		c.Abort()
+		return
+	}
+
+	entity, err := Services.GetEntity(int64(id), "character_profile", db)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character profile not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character profile: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	if profile, ok := entity.(*Entities.CharacterProfile); ok {
+		// Fetch character name and avatar from character_base
+		err := db.QueryRow("SELECT name, avatar FROM character_base WHERE id = ?", profile.CharacterId).Scan(&profile.CharacterName, &profile.Avatar)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character details: " + err.Error()})
+			c.Abort()
+			return
+		}
+		c.JSON(http.StatusOK, profile)
+		return
+	}
+
+	c.JSON(http.StatusOK, entity)
+}
+
+func CharacterProfileUpdate(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid ID"})
+		c.Abort()
+		return
+	}
+
+	var jsonMap map[string]interface{}
+	if err := c.ShouldBindJSON(&jsonMap); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	updatedEntity, err := Services.PatchEntity(int64(id), "character_profile", jsonMap, db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update character profile: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedEntity)
+}
