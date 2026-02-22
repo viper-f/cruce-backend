@@ -6,27 +6,37 @@ import (
 	"cuento-backend/src/Services"
 	"database/sql"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtKey = []byte("your_secret_key") // In production, use environment variable
-
 type Credentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
-type Claims struct {
-	Username string `json:"username"`
-	UserID   int    `json:"user_id"`
-	jwt.RegisteredClaims
-}
-
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+type UserProfileResponse struct {
+	UserId           int                        `json:"user_id"`
+	Username         string                     `json:"username"`
+	Avatar           *string                    `json:"avatar"`
+	RegistrationDate time.Time                  `json:"registration_date"`
+	Characters       []CharacterProfileListItem `json:"characters"`
+}
+
+type CharacterProfileListItem struct {
+	Id            int                `json:"id"`
+	Name          string             `json:"name"`
+	TotalEpisodes int                `json:"total_episodes"`
+	TotalPosts    int                `json:"total_posts"`
+	LastPostDate  *time.Time         `json:"last_post_date"`
+	Factions      []Entities.Faction `json:"factions"`
 }
 
 func Register(c *gin.Context, db *sql.DB) {
@@ -143,7 +153,7 @@ func Login(c *gin.Context, db *sql.DB) {
 
 	// Generate Access Token
 	expirationTime := time.Now().Add(24 * time.Hour)
-	claims := &Claims{
+	claims := &Middlewares.Claims{
 		Username: user.Username,
 		UserID:   user.Id,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -153,7 +163,7 @@ func Login(c *gin.Context, db *sql.DB) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtKey)
+	tokenString, err := token.SignedString(Middlewares.JwtKey)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to generate token"})
 		c.Abort()
@@ -162,7 +172,7 @@ func Login(c *gin.Context, db *sql.DB) {
 
 	// Generate Refresh Token
 	refreshExpirationTime := time.Now().Add(7 * 24 * time.Hour)
-	refreshClaims := &Claims{
+	refreshClaims := &Middlewares.Claims{
 		Username: user.Username,
 		UserID:   user.Id,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -171,7 +181,7 @@ func Login(c *gin.Context, db *sql.DB) {
 		},
 	}
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-	refreshTokenString, err := refreshToken.SignedString(jwtKey)
+	refreshTokenString, err := refreshToken.SignedString(Middlewares.JwtKey)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to generate refresh token"})
 		c.Abort()
@@ -195,9 +205,9 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	claims := &Claims{}
+	claims := &Middlewares.Claims{}
 	token, err := jwt.ParseWithClaims(req.RefreshToken, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
+		return Middlewares.JwtKey, nil
 	})
 
 	if err != nil || !token.Valid {
@@ -208,7 +218,7 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 
 	// Generate new Access Token
 	expirationTime := time.Now().Add(24 * time.Hour)
-	newClaims := &Claims{
+	newClaims := &Middlewares.Claims{
 		Username: claims.Username,
 		UserID:   claims.UserID,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -218,7 +228,7 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 	}
 
 	newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, newClaims)
-	newTokenString, err := newToken.SignedString(jwtKey)
+	newTokenString, err := newToken.SignedString(Middlewares.JwtKey)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to generate new access token"})
 		c.Abort()
@@ -250,4 +260,64 @@ func GetUsersByPage(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, shortUsers)
+}
+
+func GetUserProfile(c *gin.Context, db *sql.DB) {
+	userIDStr := c.Param("userID")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid user ID"})
+		c.Abort()
+		return
+	}
+
+	var profile UserProfileResponse
+	err = db.QueryRow("SELECT id, username, avatar, date_registered FROM users WHERE id = ?", userID).Scan(&profile.UserId, &profile.Username, &profile.Avatar, &profile.RegistrationDate)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "User not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user details: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	// Fetch characters for this user
+	charRows, err := db.Query("SELECT id, name, total_episodes, total_posts, date_last_post FROM character_base WHERE user_id = ?", userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer charRows.Close()
+
+	for charRows.Next() {
+		var char CharacterProfileListItem
+		if err := charRows.Scan(&char.Id, &char.Name, &char.TotalEpisodes, &char.TotalPosts, &char.LastPostDate); err != nil {
+			continue
+		}
+
+		// Fetch factions of level 0 (root factions) for this character
+		factionRows, err := db.Query("SELECT f.id, f.name FROM factions f JOIN character_faction cf ON f.id = cf.faction_id WHERE cf.character_id = ? AND f.level = 0", char.Id)
+		if err == nil {
+			var factions []Entities.Faction
+			for factionRows.Next() {
+				var faction Entities.Faction
+				if err := factionRows.Scan(&faction.Id, &faction.Name); err == nil {
+					factions = append(factions, faction)
+				}
+			}
+			char.Factions = factions
+			factionRows.Close()
+		}
+
+		profile.Characters = append(profile.Characters, char)
+	}
+
+	if profile.Characters == nil {
+		profile.Characters = []CharacterProfileListItem{}
+	}
+
+	c.JSON(http.StatusOK, profile)
 }

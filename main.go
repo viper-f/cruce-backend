@@ -47,6 +47,9 @@ func main() {
 	publicRouter.GET("/board/info", "Get board information", func(c *gin.Context) {
 		Controllers.GetBoard(c, Services.DB)
 	})
+	publicRouter.GET("/user/profile/:userID", "Get user profile details", func(c *gin.Context) {
+		Controllers.GetUserProfile(c, Services.DB)
+	})
 
 	// Optional Auth routes (Context populated if token present, otherwise Guest)
 	optionalAuthGroup := r.Group("/")
