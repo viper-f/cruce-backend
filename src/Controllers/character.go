@@ -369,27 +369,36 @@ func GetCharacterProfilesByUser(c *gin.Context, db *sql.DB) {
 }
 
 func GetCharacterProfile(c *gin.Context, db *sql.DB) {
-	id, err := strconv.Atoi(c.Param("id"))
+	characterID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid ID"})
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid character ID"})
 		c.Abort()
 		return
 	}
 
-	entity, err := Services.GetEntity(int64(id), "character_profile", db)
+	// Find profile ID for this character
+	var profileID int
+	err = db.QueryRow("SELECT id FROM character_profile_base WHERE character_id = ?", characterID).Scan(&profileID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character profile not found"})
 		} else {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character profile: " + err.Error()})
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character profile ID: " + err.Error()})
 		}
 		c.Abort()
 		return
 	}
 
+	entity, err := Services.GetEntity(int64(profileID), "character_profile", db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character profile: " + err.Error()})
+		c.Abort()
+		return
+	}
+
 	if profile, ok := entity.(*Entities.CharacterProfile); ok {
-		// Fetch character name and avatar from character_base
-		err := db.QueryRow("SELECT name, avatar FROM character_base WHERE id = ?", profile.CharacterId).Scan(&profile.CharacterName, &profile.Avatar)
+		// Fetch character name from character_base and avatar from character_profile_base
+		err := db.QueryRow("SELECT cb.name, cpb.avatar FROM character_base cb JOIN character_profile_base cpb ON cb.id = cpb.character_id WHERE cpb.id = ?", profile.Id).Scan(&profile.CharacterName, &profile.Avatar)
 		if err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character details: " + err.Error()})
 			c.Abort()
@@ -403,9 +412,22 @@ func GetCharacterProfile(c *gin.Context, db *sql.DB) {
 }
 
 func CharacterProfileUpdate(c *gin.Context, db *sql.DB) {
-	id, err := strconv.Atoi(c.Param("id"))
+	characterID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid ID"})
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid character ID"})
+		c.Abort()
+		return
+	}
+
+	// Find profile ID for this character
+	var profileID int
+	err = db.QueryRow("SELECT id FROM character_profile_base WHERE character_id = ?", characterID).Scan(&profileID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character profile not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character profile ID: " + err.Error()})
+		}
 		c.Abort()
 		return
 	}
@@ -417,7 +439,7 @@ func CharacterProfileUpdate(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	updatedEntity, err := Services.PatchEntity(int64(id), "character_profile", jsonMap, db)
+	updatedEntity, err := Services.PatchEntity(int64(profileID), "character_profile", jsonMap, db)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update character profile: " + err.Error()})
 		c.Abort()

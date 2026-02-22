@@ -53,7 +53,7 @@ func main() {
 	publicRouter.GET("/character/get/:id", "Get character details by ID", func(c *gin.Context) {
 		Controllers.GetCharacter(c, Services.DB)
 	})
-	publicRouter.GET("/character-profile/get/:id", "Get character profile details by ID", func(c *gin.Context) {
+	publicRouter.GET("/character-profile/:id/get", "Get character profile details by ID", func(c *gin.Context) {
 		Controllers.GetCharacterProfile(c, Services.DB)
 	})
 
@@ -150,6 +150,9 @@ func main() {
 	})
 	protectedRouter.POST("/post/create", "Create a new post in a topic", func(c *gin.Context) {
 		Controllers.CreatePost(c, Services.DB)
+	})
+	protectedRouter.POST("/character-profile/:id/update", "Update character profile by ID", func(c *gin.Context) {
+		Controllers.CharacterProfileUpdate(c, Services.DB)
 	})
 
 	// WebSocket route with special authentication
