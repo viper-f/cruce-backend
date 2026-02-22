@@ -2,6 +2,7 @@ package Controllers
 
 import (
 	"cuento-backend/src/Entities"
+	"cuento-backend/src/Events"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
@@ -126,6 +127,12 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 		c.Abort()
 		return
 	}
+
+	// Emit CharacterCreated event
+	Events.Publish(db, Events.CharacterCreated, Events.CharacterCreatedEvent{
+		CharacterID: characterID,
+		SubforumID:  req.SubforumID,
+	})
 
 	c.JSON(http.StatusCreated, createdEntity)
 }

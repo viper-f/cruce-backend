@@ -2,6 +2,7 @@ package main
 
 import (
 	"cuento-backend/src/Controllers"
+	"cuento-backend/src/EventHandlers"
 	"cuento-backend/src/Install"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Router"
@@ -16,7 +17,7 @@ import (
 
 func main() {
 	Services.InitDB()
-	Services.RegisterEventHandlers(Services.DB)
+	EventHandlers.RegisterEventHandlers(Services.DB)
 
 	// Start WebSocket Hub
 	go Websockets.MainHub.Run()

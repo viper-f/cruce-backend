@@ -13,6 +13,7 @@ const (
 	PostCreated         EventType = "PostCreated"
 	NotificationCreated EventType = "NotificationCreated"
 	UserReadingTopic    EventType = "UserReadingTopic"
+	CharacterCreated    EventType = "CharacterCreated"
 )
 
 type EventData interface{}
@@ -43,6 +44,11 @@ type NotificationEvent struct {
 
 type UserReadingTopicEvent struct {
 	TopicID string `json:"topic_id"`
+}
+
+type CharacterCreatedEvent struct {
+	CharacterID int64
+	SubforumID  int
 }
 
 type EventHandler func(db *sql.DB, data EventData)

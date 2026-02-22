@@ -1,0 +1,12 @@
+package EventHandlers
+
+import (
+	"database/sql"
+)
+
+func RegisterEventHandlers(db *sql.DB) {
+	RegisterTopicEventHandlers()
+	RegisterPostEventHandlers()
+	RegisterNotificationEventHandlers()
+	RegisterCharacterEventHandlers()
+}
