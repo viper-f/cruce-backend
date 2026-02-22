@@ -448,3 +448,122 @@ func CharacterProfileUpdate(c *gin.Context, db *sql.DB) {
 
 	c.JSON(http.StatusOK, updatedEntity)
 }
+
+func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	topicIDStr := c.Param("topicID")
+	topicID, err := strconv.Atoi(topicIDStr)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid topic ID"})
+		c.Abort()
+		return
+	}
+
+	// 1. Get topic type
+	var topicType Entities.TopicType
+	err = db.QueryRow("SELECT type FROM topics WHERE id = ?", topicID).Scan(&topicType)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Topic not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get topic type: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	var profiles []Entities.CharacterProfile = []Entities.CharacterProfile{}
+
+	switch topicType {
+	case Entities.CharacterSheetTopic:
+		// Array is always empty for character sheet topics
+		c.JSON(http.StatusOK, profiles)
+		return
+
+	case Entities.EpisodeTopic:
+		// Return only characters who participate in this episode
+		query := `
+			SELECT cp.id, cp.character_id, cb.name, cp.avatar 
+			FROM character_profile_base cp 
+			JOIN character_base cb ON cp.character_id = cb.id 
+			JOIN episode_character ec ON cb.id = ec.character_id
+			JOIN episode_base e ON ec.episode_id = e.id
+			WHERE cb.user_id = ? AND e.topic_id = ?
+		`
+		rows, err := db.Query(query, userID, topicID)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get episode characters: " + err.Error()})
+			c.Abort()
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var id int
+			var characterId int
+			var name string
+			var avatar *string
+			if err := rows.Scan(&id, &characterId, &name, &avatar); err != nil {
+				continue
+			}
+
+			entity, err := Services.GetEntity(int64(id), "character_profile", db)
+			if err != nil {
+				continue
+			}
+
+			if profile, ok := entity.(*Entities.CharacterProfile); ok {
+				profile.CharacterId = characterId
+				profile.CharacterName = name
+				profile.Avatar = avatar
+				profiles = append(profiles, *profile)
+			}
+		}
+
+	case Entities.GeneralTopic:
+		// Return all active user's character profiles
+		query := `
+			SELECT cp.id, cp.character_id, cb.name, cp.avatar 
+			FROM character_profile_base cp 
+			JOIN character_base cb ON cp.character_id = cb.id 
+			WHERE cb.user_id = ? AND cb.character_status = 0
+		`
+		rows, err := db.Query(query, userID)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character profiles: " + err.Error()})
+			c.Abort()
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var id int
+			var characterId int
+			var name string
+			var avatar *string
+			if err := rows.Scan(&id, &characterId, &name, &avatar); err != nil {
+				continue
+			}
+
+			entity, err := Services.GetEntity(int64(id), "character_profile", db)
+			if err != nil {
+				continue
+			}
+
+			if profile, ok := entity.(*Entities.CharacterProfile); ok {
+				profile.CharacterId = characterId
+				profile.CharacterName = name
+				profile.Avatar = avatar
+				profiles = append(profiles, *profile)
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, profiles)
+}
