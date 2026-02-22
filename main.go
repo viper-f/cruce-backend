@@ -154,6 +154,9 @@ func main() {
 	protectedRouter.POST("/character-profile/:id/update", "Update character profile by ID", func(c *gin.Context) {
 		Controllers.CharacterProfileUpdate(c, Services.DB)
 	})
+	protectedRouter.POST("/topic/create", "Create topic", func(c *gin.Context) {
+		Controllers.CreateTopic(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")
