@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -68,4 +69,30 @@ func GetUnreadNotifications(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func DismissNotification(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	notificationIDStr := c.Param("id")
+	notificationID, err := strconv.Atoi(notificationIDStr)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid notification ID"})
+		c.Abort()
+		return
+	}
+
+	_, err = db.Exec("UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?", notificationID, userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to dismiss notification: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Notification dismissed"})
 }

@@ -163,6 +163,9 @@ func main() {
 	protectedRouter.GET("/notifications/unread", "Get unread notifications for the current user", func(c *gin.Context) {
 		Controllers.GetUnreadNotifications(c, Services.DB)
 	})
+	protectedRouter.POST("/notifications/dismiss/:id", "Mark a notification as read", func(c *gin.Context) {
+		Controllers.DismissNotification(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")
