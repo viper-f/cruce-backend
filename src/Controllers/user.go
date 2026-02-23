@@ -216,11 +216,39 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	// Fetch user details
+	var user Entities.User
+	query := "SELECT id, username, avatar, email FROM users WHERE id = ?"
+	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.Email)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch user details"})
+		c.Abort()
+		return
+	}
+
+	// Fetch user roles
+	rolesQuery := `
+		SELECT r.id, r.name
+		FROM roles r
+		INNER JOIN user_role ur ON r.id = ur.role_id
+		WHERE ur.user_id = ?`
+	rows, err := db.Query(rolesQuery, user.Id)
+	if err == nil {
+		defer rows.Close()
+		user.Roles = []Entities.Role{}
+		for rows.Next() {
+			var role Entities.Role
+			if err := rows.Scan(&role.Id, &role.Name); err == nil {
+				user.Roles = append(user.Roles, role)
+			}
+		}
+	}
+
 	// Generate new Access Token
 	expirationTime := time.Now().Add(24 * time.Hour)
 	newClaims := &Middlewares.Claims{
-		Username: claims.Username,
-		UserID:   claims.UserID,
+		Username: user.Username,
+		UserID:   user.Id,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			Issuer:    "cuento-backend",
@@ -235,8 +263,28 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	// Generate new Refresh Token
+	refreshExpirationTime := time.Now().Add(7 * 24 * time.Hour)
+	newRefreshClaims := &Middlewares.Claims{
+		Username: user.Username,
+		UserID:   user.Id,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(refreshExpirationTime),
+			Issuer:    "cuento-backend",
+		},
+	}
+	newRefreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, newRefreshClaims)
+	newRefreshTokenString, err := newRefreshToken.SignedString(Middlewares.JwtKey)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to generate new refresh token"})
+		c.Abort()
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": newTokenString,
+		"access_token":  newTokenString,
+		"refresh_token": newRefreshTokenString,
+		"user":          user,
 	})
 }
 
