@@ -166,6 +166,9 @@ func main() {
 	protectedRouter.POST("/notifications/dismiss/:id", "Mark a notification as read", func(c *gin.Context) {
 		Controllers.DismissNotification(c, Services.DB)
 	})
+	protectedRouter.POST("/character/accept/:id", "Accept a character", func(c *gin.Context) {
+		Controllers.AcceptCharacter(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")

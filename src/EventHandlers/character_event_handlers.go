@@ -37,4 +37,54 @@ func RegisterCharacterEventHandlers() {
 			fmt.Printf("Error updating subforum topic count for character: %v\n", err)
 		}
 	})
+
+	// Subscriber 12: Update Global Stats on Character Accepted
+	Events.Subscribe(Events.CharacterAccepted, func(db *sql.DB, data Events.EventData) {
+		_, ok := data.(Events.CharacterAcceptedEvent)
+		if !ok {
+			return
+		}
+
+		_, err := db.Exec("UPDATE global_stats SET stat_value = stat_value + 1 WHERE stat_name = 'total_active_character_number'")
+		if err != nil {
+			fmt.Printf("Error updating global active character stats: %v\n", err)
+		}
+	})
+
+	// Subscriber 13: Post Welcome Message on Character Accepted
+	Events.Subscribe(Events.CharacterAccepted, func(db *sql.DB, data Events.EventData) {
+		event, ok := data.(Events.CharacterAcceptedEvent)
+		if !ok {
+			return
+		}
+
+		// Get topic ID for the character
+		var topicID int
+		err := db.QueryRow("SELECT topic_id FROM character_base WHERE id = ?", event.CharacterID).Scan(&topicID)
+		if err != nil {
+			fmt.Printf("Error getting topic ID for welcome message: %v\n", err)
+			return
+		}
+
+		// Insert welcome post
+		_, err = db.Exec("INSERT INTO posts (topic_id, author_user_id, content, date_created) VALUES (?, 0, 'Welcome to the game!', NOW())", topicID)
+		if err != nil {
+			fmt.Printf("Error posting welcome message: %v\n", err)
+		}
+	})
+
+	// Subscriber 14: Send System Notification on Character Accepted
+	Events.Subscribe(Events.CharacterAccepted, func(db *sql.DB, data Events.EventData) {
+		event, ok := data.(Events.CharacterAcceptedEvent)
+		if !ok {
+			return
+		}
+
+		Events.Publish(db, Events.NotificationCreated, Events.NotificationEvent{
+			UserID:  event.UserID,
+			Type:    "system",
+			Message: fmt.Sprintf("Your character %s has been accepted", event.CharacterName),
+			Data:    nil,
+		})
+	})
 }

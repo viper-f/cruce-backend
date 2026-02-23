@@ -567,3 +567,67 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 
 	c.JSON(http.StatusOK, profiles)
 }
+
+func AcceptCharacter(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid character ID"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	// 1. Change character's status to Active (0)
+	var userID int
+	var name string
+	var avatar *string
+	err = tx.QueryRow("SELECT user_id, name, avatar FROM character_base WHERE id = ?", id).Scan(&userID, &name, &avatar)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character not found"})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec("UPDATE character_base SET character_status = 0 WHERE id = ?", id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update character status"})
+		c.Abort()
+		return
+	}
+
+	// 2. Create a character profile
+	profile := Entities.CharacterProfile{
+		CharacterId:   id,
+		CharacterName: name,
+		Avatar:        avatar,
+	}
+
+	_, profileID, err := Services.CreateEntity("character_profile", &profile, tx)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create character profile: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	// 3. Send event to EventBus
+	Events.Publish(db, Events.CharacterAccepted, Events.CharacterAcceptedEvent{
+		CharacterID:   id,
+		CharacterName: name,
+		UserID:        userID,
+	})
+
+	c.JSON(http.StatusOK, gin.H{"message": "Character accepted", "profile_id": profileID})
+}
