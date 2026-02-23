@@ -24,9 +24,11 @@ type NotificationMention struct {
 }
 
 type NotificationGame struct {
-	TopicId         int    `json:"topic_id"`
-	TopicName       string `json:"topic_name"`
-	Type            string `json:"type"`
-	UserCharacterId int    `json:"user_character_id"`
-	CharacterId     int    `json:"character_id"`
+	TopicId           int    `json:"topic_id"`
+	TopicName         string `json:"topic_name"`
+	Type              string `json:"type"`
+	UserCharacterId   int    `json:"user_character_id"`
+	UserCharacterName string `json:"user_character_name"`
+	CharacterId       int    `json:"character_id"`
+	CharacterName     string `json:"character_name"`
 }

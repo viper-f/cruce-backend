@@ -1,6 +1,7 @@
 package EventHandlers
 
 import (
+	"cuento-backend/src/Entities"
 	"cuento-backend/src/Events"
 	"cuento-backend/src/Services"
 	"cuento-backend/src/Websockets"
@@ -71,6 +72,64 @@ func RegisterPostEventHandlers() {
 			event.TopicID, topicTitle, event.Post.Id, username, event.SubforumID)
 		if err != nil {
 			fmt.Printf("Error updating subforum stats: %v\n", err)
+		}
+	})
+
+	// Subscriber 11: Send Game Notifications for Episode Posts
+	Events.Subscribe(Events.PostCreated, func(db *sql.DB, data Events.EventData) {
+		event, ok := data.(Events.PostCreatedEvent)
+		if !ok {
+			return
+		}
+
+		// 1. Check if topic type is episode
+		var topicType Entities.TopicType
+		err := db.QueryRow("SELECT type FROM topics WHERE id = ?", event.TopicID).Scan(&topicType)
+		if err != nil || topicType != Entities.EpisodeTopic {
+			return
+		}
+
+		// 2. Get author character ID
+		var authorCharacterID int
+		if event.Post.CharacterProfile != nil {
+			authorCharacterID = event.Post.CharacterProfile.CharacterId
+		} else {
+			return
+		}
+
+		// 3. Get all participants of the episode
+		query := `
+			SELECT cb.user_id, cb.id as character_id
+			FROM character_base cb
+			JOIN episode_character ec ON cb.id = ec.character_id
+			JOIN episode_base e ON ec.episode_id = e.id
+			WHERE e.topic_id = ? AND cb.user_id != ?
+		`
+		rows, err := db.Query(query, event.TopicID, event.Post.AuthorUserId)
+		if err != nil {
+			fmt.Printf("Error fetching episode participants: %v\n", err)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var participantUserID int
+			var participantCharacterID int
+			if err := rows.Scan(&participantUserID, &participantCharacterID); err == nil {
+				gameData := Entities.NotificationGame{
+					TopicId:         int(event.TopicID),
+					Type:            "post_created",
+					UserCharacterId: participantCharacterID,
+					CharacterId:     authorCharacterID,
+				}
+
+				Events.Publish(db, Events.NotificationCreated, Events.NotificationEvent{
+					UserID:  participantUserID,
+					Type:    "game",
+					Message: fmt.Sprintf("New post in episode by %s", event.Post.CharacterProfile.CharacterName),
+					Data:    gameData,
+				})
+			}
 		}
 	})
 }
