@@ -485,14 +485,36 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 					var mUsername string
 					if err := rows.Scan(&mUserID, &mUsername); err == nil {
 						if mUserID != userID {
+							// Fetch author details for the mention
+							var authorName string
+							var authorCharacterID *int
+							var authorCharacterName *string
+
+							err = db.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&authorName)
+							if req.UseCharacterProfile && req.CharacterProfileID != nil {
+								var charID int
+								var charName string
+								err = db.QueryRow("SELECT character_id, cb.name FROM character_profile_base cpb JOIN character_base cb ON cpb.character_id = cb.id WHERE cpb.id = ?", *req.CharacterProfileID).Scan(&charID, &charName)
+								if err == nil {
+									authorCharacterID = &charID
+									authorCharacterName = &charName
+								}
+							}
+
+							mentionData := Entities.NotificationMention{
+								UserId:        userID,
+								UserName:      authorName,
+								CharacterId:   authorCharacterID,
+								CharacterName: authorCharacterName,
+								PostId:        int(postID),
+								TopicId:       req.TopicID,
+							}
+
 							Events.Publish(db, Events.NotificationCreated, Events.NotificationEvent{
 								UserID:  mUserID,
-								Type:    "notification",
-								Message: fmt.Sprintf("You were mentioned in a post by %s", mUsername),
-								Data: gin.H{
-									"topic_id": req.TopicID,
-									"post_id":  postID,
-								},
+								Type:    "mention",
+								Message: fmt.Sprintf("%s mentioned you in a post", authorName),
+								Data:    mentionData,
 							})
 						}
 					}

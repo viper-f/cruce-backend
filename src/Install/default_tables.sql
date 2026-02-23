@@ -230,6 +230,7 @@ CREATE TABLE notifications (
     type VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
+    data JSON NULL,
     date_created DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_read BOOLEAN DEFAULT FALSE,
     CONSTRAINT fk_notifications_user
