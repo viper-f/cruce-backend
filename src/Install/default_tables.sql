@@ -18,6 +18,8 @@ create table users
 
 INSERT INTO cuento.users (id, username, email, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone) VALUES (0, 'guest', null, null, null, null, null, null, null)
 
+INSERT INTO cuento.users (id, username, email, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone) VALUES (1, 'System', null, null, null, null, null, null, null)
+
 create table user_role
 (
     user_id int not null,
