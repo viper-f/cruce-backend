@@ -160,6 +160,9 @@ func main() {
 	protectedRouter.POST("/topic/create", "Create topic", func(c *gin.Context) {
 		Controllers.CreateTopic(c, Services.DB)
 	})
+	protectedRouter.GET("/notifications/unread", "Get unread notifications for the current user", func(c *gin.Context) {
+		Controllers.GetUnreadNotifications(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")

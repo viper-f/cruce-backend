@@ -1,0 +1,71 @@
+package Controllers
+
+import (
+	"cuento-backend/src/Entities"
+	"cuento-backend/src/Middlewares"
+	"cuento-backend/src/Services"
+	"database/sql"
+	"encoding/json"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
+func GetUnreadNotifications(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	rows, err := db.Query("SELECT id, type, title, message, data, date_created, is_read FROM notifications WHERE user_id = ? AND is_read = FALSE ORDER BY date_created DESC", userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch notifications: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	result := map[string][]Entities.Notification{
+		"system":  {},
+		"game":    {},
+		"mention": {},
+	}
+
+	for rows.Next() {
+		var n Entities.Notification
+		var dataJSON []byte
+		if err := rows.Scan(&n.Id, &n.Type, &n.Title, &n.Message, &dataJSON, &n.DateCreated, &n.IsRead); err != nil {
+			continue
+		}
+
+		n.UserId = userID
+
+		// Unmarshal data based on type
+		if len(dataJSON) > 0 {
+			switch n.Type {
+			case "mention":
+				var mention Entities.NotificationMention
+				if err := json.Unmarshal(dataJSON, &mention); err == nil {
+					n.Mention = &mention
+				}
+			case "game":
+				var game Entities.NotificationGame
+				if err := json.Unmarshal(dataJSON, &game); err == nil {
+					n.Game = &game
+				}
+			}
+		}
+
+		// Categorize notification
+		if _, ok := result[n.Type]; ok {
+			result[n.Type] = append(result[n.Type], n)
+		} else {
+			// Fallback to system if type is unknown
+			result["system"] = append(result["system"], n)
+		}
+	}
+
+	c.JSON(http.StatusOK, result)
+}
