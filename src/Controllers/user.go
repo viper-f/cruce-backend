@@ -53,8 +53,8 @@ func Register(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	query := "INSERT INTO users (username, email, password, date_registered) VALUES (?, ?, ?, ?)"
-	res, err := db.Exec(query, user.Username, user.Email, user.Password, time.Now())
+	query := "INSERT INTO users (username, password, date_registered) VALUES (?, ?, ?)"
+	res, err := db.Exec(query, user.Username, user.Password, time.Now())
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create user"})
 		c.Abort()
@@ -101,8 +101,8 @@ func Login(c *gin.Context, db *sql.DB) {
 	}
 
 	var user Entities.User
-	query := "SELECT id, username, avatar, email, password FROM users WHERE username = ?"
-	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Email, &user.Password)
+	query := "SELECT id, username, avatar, password FROM users WHERE username = ?"
+	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
@@ -218,8 +218,8 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 
 	// Fetch user details
 	var user Entities.User
-	query := "SELECT id, username, avatar, email FROM users WHERE id = ?"
-	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.Email)
+	query := "SELECT id, username, avatar FROM users WHERE id = ?"
+	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch user details"})
 		c.Abort()

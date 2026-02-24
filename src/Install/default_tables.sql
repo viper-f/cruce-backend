@@ -3,7 +3,6 @@ create table users
     id                 int auto_increment
         primary key,
     username           varchar(255) null,
-    email              varchar(255) null,
     password           varchar(255) null,
     date_registered    datetime     null,
     avatar             varchar(255) null,
@@ -11,14 +10,12 @@ create table users
     interface_language varchar(50)  null,
     interface_timezone varchar(50)  null,
     constraint users_pk_2
-        unique (username),
-    constraint users_pk_3
-        unique (email)
+        unique (username)
 );
 
-INSERT INTO cuento.users (id, username, email, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone) VALUES (0, 'guest', null, null, null, null, null, null, null)
+INSERT INTO cuento.users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone) VALUES (0, 'guest', null, null, null, null, null, null)
 
-INSERT INTO cuento.users (id, username, email, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone) VALUES (1, 'System', null, null, null, null, null, null, null)
+INSERT INTO cuento.users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone) VALUES (1, 'System', null, null, null, null, null, null)
 
 create table user_role
 (
@@ -200,6 +197,26 @@ create table character_faction
         foreign key (character_id) references character_base (id),
     constraint character_faction_factions_id_fk
         foreign key (faction_id) references factions (id)
+);
+
+create table factions_flattened
+(
+    entity_id int primary key
+);
+
+create table character_flattened
+(
+    entity_id int primary key
+);
+
+create table character_profile_flattened
+(
+    entity_id int primary key
+);
+
+create table episode_flattened
+(
+    entity_id int primary key
 );
 
 create table roles

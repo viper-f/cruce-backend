@@ -8,7 +8,6 @@ type User struct {
 	Id       int     `json:"id"`
 	Username string  `json:"username"`
 	Avatar   *string `json:"avatar"`
-	Email    string  `json:"email"`
 	Password string  `json:"password,omitempty"` // Don't return password in JSON
 	Roles    []Role  `json:"roles"`
 }
