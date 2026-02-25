@@ -13,6 +13,7 @@ type Character struct {
 	TotalEpisodes   int               `json:"total_episodes"`
 	Factions        []Faction         `json:"factions" db:"-"`
 	Episodes        []EpisodeListItem `json:"episodes" db:"-"`
+	CanEdit         *bool             `json:"can_edit,omitempty" db:"-"`
 }
 
 type EpisodeListItem struct {

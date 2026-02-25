@@ -259,3 +259,18 @@ func UpdatePermissionMatrix(permissions []string, db *sql.DB) error {
 
 	return nil
 }
+
+func HasPermission(userID int, permission string, db *sql.DB) (bool, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM role_permission rp
+		JOIN user_role ur ON rp.role_id = ur.role_id
+		WHERE ur.user_id = ? AND rp.permission = ?
+	`
+	var count int
+	err := db.QueryRow(query, userID, permission).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

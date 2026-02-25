@@ -6,6 +6,7 @@ type Episode struct {
 	Name         string            `json:"name" db:"name"`
 	Characters   []*ShortCharacter `json:"characters" db:"-"`
 	CustomFields CustomFieldEntity `json:"custom_fields" db:"-"`
+	CanEdit      *bool             `json:"can_edit,omitempty" db:"-"`
 }
 
 func (e *Episode) GetBaseFields() []string {

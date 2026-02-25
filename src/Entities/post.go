@@ -13,4 +13,5 @@ type Post struct {
 	CharacterProfile    *CharacterProfile `json:"character_profile"`
 	UserProfile         *UserProfile      `json:"user_profile"`
 	UseCharacterProfile bool              `json:"use_character_profile"`
+	CanEdit             *bool             `json:"can_edit,omitempty" db:"-"`
 }

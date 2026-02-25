@@ -216,8 +216,10 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 			p.id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
 			u.username, u.avatar,
 			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar,
+			t.subforum_id,
 			%s
 		FROM posts p
+		JOIN topics t ON p.topic_id = t.id
 		LEFT JOIN users u ON p.author_user_id = u.id
 		LEFT JOIN character_profile_base cp ON p.character_profile_id = cp.id
 		LEFT JOIN character_base cb ON cp.character_id = cb.id
@@ -238,6 +240,9 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 	// 3. Scan and process results
 	cols, _ := rows.Columns()
 	posts := make([]Entities.Post, 0) // Initialize slice
+
+	currentUserID := Services.GetUserIdFromContext(c)
+	var subforumID int
 
 	for rows.Next() {
 		// Scan into a map
@@ -267,6 +272,22 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		post.Content = rowMap["content"].(string)
 		post.ContentHtml = Entities.ParseBBCode(post.Content)
 		post.UseCharacterProfile, _ = strconv.ParseBool(rowMap["use_character_profile"].(string))
+		subforumID, _ = strconv.Atoi(rowMap["subforum_id"].(string))
+
+		// Check CanEdit
+		canEdit := false
+		if currentUserID != 0 {
+			if currentUserID == post.AuthorUserId {
+				canEdit = true
+			} else {
+				// Check for "Edit others' post" permission in this subforum
+				permission := fmt.Sprintf("subforum_edit_others_post:%d", subforumID)
+				if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+					canEdit = true
+				}
+			}
+		}
+		post.CanEdit = &canEdit
 
 		if post.UseCharacterProfile {
 			var charProfile Entities.CharacterProfile

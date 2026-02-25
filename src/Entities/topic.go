@@ -32,4 +32,5 @@ type Topic struct {
 	SubforumId           int         `json:"subforum_id"`
 	Episode              *Episode    `json:"episode"`
 	Character            *Character  `json:"character"`
+	CanEdit              *bool       `json:"can_edit,omitempty" db:"-"`
 }

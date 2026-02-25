@@ -6,6 +6,7 @@ type CharacterProfile struct {
 	CharacterName string            `json:"character_name"`
 	Avatar        *string           `json:"avatar"`
 	CustomFields  CustomFieldEntity `json:"custom_fields"`
+	CanEdit       *bool             `json:"can_edit,omitempty" db:"-"`
 }
 
 func (cp *CharacterProfile) GetBaseFields() []string {
