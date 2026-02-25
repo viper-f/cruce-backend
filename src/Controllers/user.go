@@ -5,8 +5,10 @@ import (
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +41,13 @@ type CharacterProfileListItem struct {
 	Factions      []Entities.Faction `json:"factions"`
 }
 
+type UpdateSettingsRequest struct {
+	Avatar   *string `json:"avatar"`
+	Timezone *string `json:"interface_timezone"`
+	Language *string `json:"interface_language"`
+	Password *string `json:"password"`
+}
+
 func Register(c *gin.Context, db *sql.DB) {
 	var user Entities.User
 	if err := c.ShouldBindJSON(&user); err != nil {
@@ -47,12 +56,7 @@ func Register(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	if err := user.HashPassword(user.Password); err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to hash password"})
-		c.Abort()
-		return
-	}
-
+	// Password is already hashed by the frontend
 	query := "INSERT INTO users (username, password, date_registered) VALUES (?, ?, ?)"
 	res, err := db.Exec(query, user.Username, user.Password, time.Now())
 	if err != nil {
@@ -145,8 +149,9 @@ func Login(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	if err := user.CheckPassword(creds.Password); err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials: " + err.Error()})
+	// Password is already hashed by the frontend, so we compare directly
+	if user.Password != creds.Password {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
 		c.Abort()
 		return
 	}
@@ -368,4 +373,57 @@ func GetUserProfile(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, profile)
+}
+
+func UpdateSettings(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	var req UpdateSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var updates []string
+	var args []interface{}
+
+	if req.Avatar != nil {
+		updates = append(updates, "avatar = ?")
+		args = append(args, *req.Avatar)
+	}
+	if req.Timezone != nil {
+		updates = append(updates, "interface_timezone = ?")
+		args = append(args, *req.Timezone)
+	}
+	if req.Language != nil {
+		updates = append(updates, "interface_language = ?")
+		args = append(args, *req.Language)
+	}
+	if req.Password != nil {
+		updates = append(updates, "password = ?")
+		args = append(args, *req.Password)
+	}
+
+	if len(updates) == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "No changes to update"})
+		return
+	}
+
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", strings.Join(updates, ", "))
+	args = append(args, userID)
+
+	_, err := db.Exec(query, args...)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update settings: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Settings updated successfully"})
 }
