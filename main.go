@@ -122,7 +122,7 @@ func main() {
 	protectedRouter.POST("/character/create", "Create a new character", func(c *gin.Context) {
 		Controllers.CreateCharacter(c, Services.DB)
 	})
-	protectedRouter.PATCH("/character/update/:id", "Update character by ID", func(c *gin.Context) {
+	protectedRouter.POST("/character/update/:id", "Update character by ID", func(c *gin.Context) {
 		Controllers.PatchCharacter(c, Services.DB)
 	})
 	protectedRouter.GET("/user/characters", "Get current user's characters", func(c *gin.Context) {
@@ -157,6 +157,9 @@ func main() {
 	protectedRouter.POST("/post/create", "Create a new post in a topic", func(c *gin.Context) {
 		Controllers.CreatePost(c, Services.DB)
 	})
+	protectedRouter.POST("/post/update/:id", "Update post by ID", func(c *gin.Context) {
+		Controllers.UpdatePost(c, Services.DB)
+	})
 	protectedRouter.POST("/character-profile/:id/update", "Update character profile by ID", func(c *gin.Context) {
 		Controllers.CharacterProfileUpdate(c, Services.DB)
 	})
@@ -172,7 +175,7 @@ func main() {
 	protectedRouter.POST("/character/accept/:id", "Accept a character", func(c *gin.Context) {
 		Controllers.AcceptCharacter(c, Services.DB)
 	})
-	protectedRouter.PATCH("/user/settings/update", "Update user settings", func(c *gin.Context) {
+	protectedRouter.POST("/user/settings/update", "Update user settings", func(c *gin.Context) {
 		Controllers.UpdateSettings(c, Services.DB)
 	})
 

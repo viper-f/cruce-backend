@@ -43,6 +43,10 @@ type CreatePostRequest struct {
 	CharacterProfileID  *int   `json:"character_profile_id"`
 }
 
+type UpdatePostRequest struct {
+	Content string `json:"content" binding:"required"`
+}
+
 type PostRow struct {
 	Id             int       `json:"id"`
 	AuthorUserId   int       `json:"author_user_id"`
@@ -278,7 +282,11 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		canEdit := false
 		if currentUserID != 0 {
 			if currentUserID == post.AuthorUserId {
-				canEdit = true
+				// Check for "Edit own post" permission in this subforum
+				permission := fmt.Sprintf("subforum_edit_own_post:%d", subforumID)
+				if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+					canEdit = true
+				}
 			} else {
 				// Check for "Edit others' post" permission in this subforum
 				permission := fmt.Sprintf("subforum_edit_others_post:%d", subforumID)
@@ -565,4 +573,95 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Post created successfully", "post_id": postID})
+}
+
+func UpdatePost(c *gin.Context, db *sql.DB) {
+	postID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid post ID"})
+		c.Abort()
+		return
+	}
+
+	var req UpdatePostRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	// 1. Fetch post details to check ownership and subforum
+	var authorUserID int
+	var subforumID int
+	query := `
+		SELECT p.author_user_id, t.subforum_id 
+		FROM posts p 
+		JOIN topics t ON p.topic_id = t.id 
+		WHERE p.id = ?
+	`
+	err = db.QueryRow(query, postID).Scan(&authorUserID, &subforumID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Post not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch post details: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	// 2. Check permissions
+	canEdit := false
+	if userID == authorUserID {
+		// Check for "Edit own post" permission
+		permission := fmt.Sprintf("subforum_edit_own_post:%d", subforumID)
+		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
+			canEdit = true
+		}
+	} else {
+		// Check for "Edit others' post" permission
+		permission := fmt.Sprintf("subforum_edit_others_post:%d", subforumID)
+		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
+			canEdit = true
+		}
+	}
+
+	if !canEdit {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "You do not have permission to edit this post"})
+		c.Abort()
+		return
+	}
+
+	// 3. Update post content
+	_, err = db.Exec("UPDATE posts SET content = ? WHERE id = ?", req.Content, postID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update post: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// 4. Fetch updated post and emit event
+	updatedPost, err := Services.GetPostById(postID, db)
+	if err == nil {
+		// We need topicID and subforumID for the event
+		var topicID int64
+		err = db.QueryRow("SELECT topic_id FROM posts WHERE id = ?", postID).Scan(&topicID)
+		if err == nil {
+			Events.Publish(db, Events.PostCreated, Events.PostCreatedEvent{ // Reusing PostCreatedEvent for broadcast
+				Type:       "post_updated",
+				TopicID:    topicID,
+				SubforumID: subforumID,
+				Post:       *updatedPost,
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, updatedPost)
 }

@@ -18,12 +18,18 @@ func RegisterPostEventHandlers() {
 			return
 		}
 
+		// Handle both post_created and post_updated
+		msgType := event.Type
+		if msgType == "" {
+			msgType = "post_created"
+		}
+
 		// Get all users currently reading this topic
 		topicIDStr := strconv.FormatInt(event.TopicID, 10)
 		users := Services.ActivityStorage.GetUsersOnPage("topic", topicIDStr)
 
 		notification := map[string]interface{}{
-			"type": "post_created",
+			"type": msgType,
 			"data": event.Post,
 		}
 
@@ -36,7 +42,7 @@ func RegisterPostEventHandlers() {
 	// Subscriber 6: Update Stats on Post Created
 	Events.Subscribe(Events.PostCreated, func(db *sql.DB, data Events.EventData) {
 		event, ok := data.(Events.PostCreatedEvent)
-		if !ok {
+		if !ok || event.Type == "post_updated" {
 			return
 		}
 
@@ -78,7 +84,7 @@ func RegisterPostEventHandlers() {
 	// Subscriber 11: Send Game Notifications for Episode Posts
 	Events.Subscribe(Events.PostCreated, func(db *sql.DB, data Events.EventData) {
 		event, ok := data.(Events.PostCreatedEvent)
-		if !ok {
+		if !ok || event.Type == "post_updated" {
 			return
 		}
 
