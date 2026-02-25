@@ -169,7 +169,7 @@ func main() {
 	protectedRouter.POST("/character/accept/:id", "Accept a character", func(c *gin.Context) {
 		Controllers.AcceptCharacter(c, Services.DB)
 	})
-	protectedRouter.PATCH("/user/settings/update", "Update user settings", func(c *gin.Context) {
+	protectedRouter.POST("/user/settings/update", "Update user settings", func(c *gin.Context) {
 		Controllers.UpdateSettings(c, Services.DB)
 	})
 

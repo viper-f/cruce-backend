@@ -105,8 +105,8 @@ func Login(c *gin.Context, db *sql.DB) {
 	}
 
 	var user Entities.User
-	query := "SELECT id, username, avatar, password FROM users WHERE username = ?"
-	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password)
+	query := "SELECT id, username, avatar, password, interface_language, interface_timezone FROM users WHERE username = ?"
+	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password, &user.InterfaceLanguage, &user.InterfaceTimezone)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
@@ -223,8 +223,8 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 
 	// Fetch user details
 	var user Entities.User
-	query := "SELECT id, username, avatar FROM users WHERE id = ?"
-	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar)
+	query := "SELECT id, username, avatar, interface_language, interface_timezone FROM users WHERE id = ?"
+	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch user details"})
 		c.Abort()
@@ -425,5 +425,35 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Settings updated successfully"})
+	// Fetch updated user details
+	var user Entities.User
+	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated user details"})
+		c.Abort()
+		return
+	}
+
+	// Fetch user roles
+	rolesQuery := `
+		SELECT r.id, r.name
+		FROM roles r
+		INNER JOIN user_role ur ON r.id = ur.role_id
+		WHERE ur.user_id = ?`
+	rows, err := db.Query(rolesQuery, user.Id)
+	if err == nil {
+		defer rows.Close()
+		user.Roles = []Entities.Role{}
+		for rows.Next() {
+			var role Entities.Role
+			if err := rows.Scan(&role.Id, &role.Name); err == nil {
+				user.Roles = append(user.Roles, role)
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Settings updated successfully",
+		"user":    user,
+	})
 }
