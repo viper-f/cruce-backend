@@ -129,10 +129,11 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 	}
 
 	character := Entities.Character{
-		UserId:  userID,
-		TopicId: int(topicID),
-		Name:    req.Name,
-		Avatar:  req.Avatar,
+		UserId:          userID,
+		TopicId:         int(topicID),
+		Name:            req.Name,
+		Avatar:          req.Avatar,
+		CharacterStatus: Entities.PendingCharacter,
 		CustomFields: Entities.CustomFieldEntity{
 			CustomFields: req.CustomFields,
 		},
