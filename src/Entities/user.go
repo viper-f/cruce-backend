@@ -5,13 +5,14 @@ import (
 )
 
 type User struct {
-	Id                int     `json:"id"`
-	Username          string  `json:"username"`
-	Avatar            *string `json:"avatar"`
-	Password          string  `json:"password,omitempty"` // Don't return password in JSON
-	InterfaceLanguage *string `json:"interface_language"`
-	InterfaceTimezone *string `json:"interface_timezone"`
-	Roles             []Role  `json:"roles"`
+	Id                int        `json:"id"`
+	Username          string     `json:"username"`
+	Avatar            *string    `json:"avatar"`
+	Password          string     `json:"password,omitempty"` // Don't return password in JSON
+	InterfaceLanguage *string    `json:"interface_language"`
+	InterfaceTimezone *string    `json:"interface_timezone"`
+	UserStatus        UserStatus `json:"user_status"`
+	Roles             []Role     `json:"roles"`
 }
 
 type ShortUser struct {
@@ -24,6 +25,13 @@ type UserProfile struct {
 	UserName string `json:"user_name"`
 	Avatar   string `json:"avatar"`
 }
+
+type UserStatus int
+
+const (
+	ActiveUser  UserStatus = 0
+	BlockedUser UserStatus = 1
+)
 
 func (u *User) HashPassword(password string) error {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)

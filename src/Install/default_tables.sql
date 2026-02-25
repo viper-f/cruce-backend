@@ -9,13 +9,14 @@ create table users
     date_last_visit    datetime     null,
     interface_language varchar(50)  null,
     interface_timezone varchar(50)  null,
+    user_status        int default 0 not null,
     constraint users_pk_2
         unique (username)
 );
 
-INSERT INTO cuento.users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone) VALUES (0, 'guest', null, null, null, null, null, null)
+INSERT INTO cuento.users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES (0, 'guest', null, null, null, null, null, null, 0)
 
-INSERT INTO cuento.users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone) VALUES (1, 'System', null, null, null, null, null, null)
+INSERT INTO cuento.users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES (1, 'System', null, null, null, null, null, null, 0)
 
 create table user_role
 (

@@ -105,14 +105,20 @@ func Login(c *gin.Context, db *sql.DB) {
 	}
 
 	var user Entities.User
-	query := "SELECT id, username, avatar, password, interface_language, interface_timezone FROM users WHERE username = ?"
-	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password, &user.InterfaceLanguage, &user.InterfaceTimezone)
+	query := "SELECT id, username, avatar, password, interface_language, interface_timezone, user_status FROM users WHERE username = ?"
+	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.UserStatus)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
 		} else {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Database error"})
 		}
+		c.Abort()
+		return
+	}
+
+	if user.UserStatus == Entities.BlockedUser {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "User is blocked"})
 		c.Abort()
 		return
 	}
@@ -223,10 +229,16 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 
 	// Fetch user details
 	var user Entities.User
-	query := "SELECT id, username, avatar, interface_language, interface_timezone FROM users WHERE id = ?"
-	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone)
+	query := "SELECT id, username, avatar, interface_language, interface_timezone, user_status FROM users WHERE id = ?"
+	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.UserStatus)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch user details"})
+		c.Abort()
+		return
+	}
+
+	if user.UserStatus == Entities.BlockedUser {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "User is blocked"})
 		c.Abort()
 		return
 	}
@@ -427,7 +439,7 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 
 	// Fetch updated user details
 	var user Entities.User
-	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone)
+	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, user_status FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.UserStatus)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated user details"})
 		c.Abort()
@@ -446,7 +458,7 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		user.Roles = []Entities.Role{}
 		for rows.Next() {
 			var role Entities.Role
-			if err := rows.Scan(&role.Id, &role.Name); err == nil {
+			if err := rows.Scan(&role.Id, &role.Name); err != nil {
 				user.Roles = append(user.Roles, role)
 			}
 		}
@@ -456,4 +468,8 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		"message": "Settings updated successfully",
 		"user":    user,
 	})
+}
+
+func GetUserList(c *gin.Context, db *sql.DB) {
+
 }
