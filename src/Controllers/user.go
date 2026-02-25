@@ -48,6 +48,12 @@ type UpdateSettingsRequest struct {
 	Password *string `json:"password"`
 }
 
+type UserListItem struct {
+	Id         int                       `json:"id"`
+	Username   string                    `json:"username"`
+	Characters []Entities.ShortCharacter `json:"characters"`
+}
+
 func Register(c *gin.Context, db *sql.DB) {
 	var user Entities.User
 	if err := c.ShouldBindJSON(&user); err != nil {
@@ -471,5 +477,43 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 }
 
 func GetUserList(c *gin.Context, db *sql.DB) {
+	// 1. Fetch active users ordered alphabetically
+	query := "SELECT id, username FROM users WHERE user_status = 0 AND id > 1 ORDER BY username ASC"
+	rows, err := db.Query(query)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch users: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
 
+	var users []UserListItem
+	for rows.Next() {
+		var user UserListItem
+		if err := rows.Scan(&user.Id, &user.Username); err != nil {
+			continue
+		}
+
+		// 2. Fetch active characters for each user
+		charQuery := "SELECT id, name FROM character_base WHERE user_id = ? AND character_status = 0 ORDER BY name ASC"
+		charRows, err := db.Query(charQuery, user.Id)
+		if err == nil {
+			user.Characters = []Entities.ShortCharacter{}
+			for charRows.Next() {
+				var char Entities.ShortCharacter
+				if err := charRows.Scan(&char.Id, &char.Name); err == nil {
+					user.Characters = append(user.Characters, char)
+				}
+			}
+			charRows.Close()
+		}
+
+		users = append(users, user)
+	}
+
+	if users == nil {
+		users = []UserListItem{}
+	}
+
+	c.JSON(http.StatusOK, users)
 }
