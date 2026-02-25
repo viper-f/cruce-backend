@@ -62,7 +62,12 @@ func Register(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// Password is already hashed by the frontend
+	if err := user.HashPassword(user.Password); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to hash password"})
+		c.Abort()
+		return
+	}
+
 	query := "INSERT INTO users (username, password, date_registered) VALUES (?, ?, ?)"
 	res, err := db.Exec(query, user.Username, user.Password, time.Now())
 	if err != nil {
@@ -129,6 +134,12 @@ func Login(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	if err := user.CheckPassword(creds.Password); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
+		c.Abort()
+		return
+	}
+
 	// Fetch user roles from many-to-many relationship
 	rolesQuery := `
 		SELECT r.id, r.name
@@ -157,13 +168,6 @@ func Login(c *gin.Context, db *sql.DB) {
 	// Check for errors during iteration
 	if err := rows.Err(); err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Error iterating roles: " + err.Error()})
-		c.Abort()
-		return
-	}
-
-	// Password is already hashed by the frontend, so we compare directly
-	if user.Password != creds.Password {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
 		c.Abort()
 		return
 	}
@@ -424,8 +428,15 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		args = append(args, *req.Language)
 	}
 	if req.Password != nil {
+		// Hash the password before updating
+		dummyUser := Entities.User{}
+		if err := dummyUser.HashPassword(*req.Password); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to hash password"})
+			c.Abort()
+			return
+		}
 		updates = append(updates, "password = ?")
-		args = append(args, *req.Password)
+		args = append(args, dummyUser.Password)
 	}
 
 	if len(updates) == 0 {
