@@ -173,8 +173,16 @@ create table global_stats
 (
     stat_name   varchar(255) null
         primary key,
-    stat_number decimal      null
+    stat_value decimal      null
 );
+
+INSERT INTO global_stats (stat_name, stat_value) VALUES ('total_user_number', 0);
+INSERT INTO global_stats (stat_name, stat_value) VALUES ('total_character_number', 0);
+INSERT INTO global_stats (stat_name, stat_value) VALUES ('total_active_character_number', 0);
+INSERT INTO global_stats (stat_name, stat_value) VALUES ('total_episode_number', 0);
+INSERT INTO global_stats (stat_name, stat_value) VALUES ('total_topic_number', 0);
+INSERT INTO global_stats (stat_name, stat_value) VALUES ('total_post_number', 0);
+INSERT INTO global_stats (stat_name, stat_value) VALUES ('total_episode_post_number', 0);
 
 create table factions
 (
