@@ -26,6 +26,8 @@ var SubforumPermissions = map[string]string{
 	"subforum_delete_others_topic":    "Delete others' topic",
 	"subforum_edit_others_post":       "Edit others' post",
 	"subforum_edit_own_post":          "Edit own post",
+	"subforum_edit_others_topic":      "Edit others' topic",
+	"subforum_edit_own_topic":         "Edit own topic",
 }
 
 type PermissionMatrixObject struct {

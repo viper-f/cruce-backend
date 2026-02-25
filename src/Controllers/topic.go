@@ -380,6 +380,26 @@ func GetTopic(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	// Check CanEdit
+	currentUserID := Services.GetUserIdFromContext(c)
+	canEdit := false
+	if currentUserID != 0 {
+		if currentUserID == topic.AuthorUserId {
+			// Check for "Edit own topic" permission
+			permission := fmt.Sprintf("subforum_edit_own_topic:%d", topic.SubforumId)
+			if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+				canEdit = true
+			}
+		} else {
+			// Check for "Edit others' topic" permission
+			permission := fmt.Sprintf("subforum_edit_others_topic:%d", topic.SubforumId)
+			if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+				canEdit = true
+			}
+		}
+	}
+	topic.CanEdit = &canEdit
+
 	if topic.Type == Entities.EpisodeTopic {
 		var episodeID int
 		err := db.QueryRow("SELECT id FROM episode_base WHERE topic_id = ?", topic.Id).Scan(&episodeID)
