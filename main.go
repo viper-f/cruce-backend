@@ -123,7 +123,7 @@ func main() {
 		Controllers.CreateCharacter(c, Services.DB)
 	})
 	protectedRouter.POST("/character/update/:id", "Update character by ID", func(c *gin.Context) {
-		Controllers.PatchCharacter(c, Services.DB)
+		Controllers.UpdateCharacter(c, Services.DB)
 	})
 	protectedRouter.GET("/user/characters", "Get current user's characters", func(c *gin.Context) {
 		Controllers.GetUserCharacters(c, Services.DB)
@@ -168,6 +168,9 @@ func main() {
 	})
 	protectedRouter.POST("/topic/create", "Create topic", func(c *gin.Context) {
 		Controllers.CreateTopic(c, Services.DB)
+	})
+	protectedRouter.POST("/topic/update/:id", "Update topic by ID", func(c *gin.Context) {
+		Controllers.UpdateTopic(c, Services.DB)
 	})
 	protectedRouter.GET("/notifications/unread", "Get unread notifications for the current user", func(c *gin.Context) {
 		Controllers.GetUnreadNotifications(c, Services.DB)

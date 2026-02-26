@@ -47,6 +47,10 @@ type UpdatePostRequest struct {
 	Content string `json:"content" binding:"required"`
 }
 
+type UpdateTopicRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
 type PostRow struct {
 	Id             int       `json:"id"`
 	AuthorUserId   int       `json:"author_user_id"`
@@ -684,4 +688,74 @@ func UpdatePost(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, updatedPost)
+}
+
+func UpdateTopic(c *gin.Context, db *sql.DB) {
+	topicID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid topic ID"})
+		c.Abort()
+		return
+	}
+
+	var req UpdateTopicRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	// 1. Fetch topic details to check ownership and subforum
+	var authorUserID int
+	var subforumID int
+	query := "SELECT author_user_id, subforum_id FROM topics WHERE id = ?"
+	err = db.QueryRow(query, topicID).Scan(&authorUserID, &subforumID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Topic not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch topic details: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	// 2. Check permissions
+	canEdit := false
+	if userID == authorUserID {
+		// Check for "Edit own topic" permission
+		permission := fmt.Sprintf("subforum_edit_own_topic:%d", subforumID)
+		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
+			canEdit = true
+		}
+	} else {
+		// Check for "Edit others' topic" permission
+		permission := fmt.Sprintf("subforum_edit_others_topic:%d", subforumID)
+		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
+			canEdit = true
+		}
+	}
+
+	if !canEdit {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "You do not have permission to edit this topic"})
+		c.Abort()
+		return
+	}
+
+	// 3. Update topic name
+	_, err = db.Exec("UPDATE topics SET name = ? WHERE id = ?", req.Name, topicID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update topic: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Topic updated successfully"})
 }

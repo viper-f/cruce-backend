@@ -6,6 +6,7 @@ import (
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -14,6 +15,13 @@ import (
 
 type CreateCharacterRequest struct {
 	SubforumID   int                                  `json:"subforum_id" binding:"required"`
+	Name         string                               `json:"name" binding:"required"`
+	Avatar       *string                              `json:"avatar"`
+	CustomFields map[string]Entities.CustomFieldValue `json:"custom_fields"`
+	FactionIDs   []Entities.Faction                   `json:"factions"`
+}
+
+type UpdateCharacterRequest struct {
 	Name         string                               `json:"name" binding:"required"`
 	Avatar       *string                              `json:"avatar"`
 	CustomFields map[string]Entities.CustomFieldValue `json:"custom_fields"`
@@ -82,6 +90,34 @@ func GetCharacter(c *gin.Context, db *sql.DB) {
 
 		// Fetch factions
 		character.Factions, _ = Services.GetFactionTreeByCharacter(character.Id, db)
+
+		// Check CanEdit
+		currentUserID := Services.GetUserIdFromContext(c)
+		canEdit := false
+		if currentUserID != 0 {
+			// Fetch subforum ID for permission check
+			var subforumID int
+			err = db.QueryRow("SELECT subforum_id FROM topics WHERE id = ?", character.TopicId).Scan(&subforumID)
+			if err == nil {
+				// Check for "Edit others' topic" permission
+				permission := fmt.Sprintf("subforum_edit_others_topic:%d", subforumID)
+				if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+					canEdit = true
+				} else {
+					// Check if user is the author of the topic
+					var authorUserID int
+					err = db.QueryRow("SELECT author_user_id FROM topics WHERE id = ?", character.TopicId).Scan(&authorUserID)
+					if err == nil && currentUserID == authorUserID {
+						// Check for "Edit own topic" permission
+						permission = fmt.Sprintf("subforum_edit_own_topic:%d", subforumID)
+						if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+							canEdit = true
+						}
+					}
+				}
+			}
+		}
+		character.CanEdit = &canEdit
 
 		c.JSON(http.StatusOK, character)
 		return
@@ -184,6 +220,148 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 	})
 
 	c.JSON(http.StatusCreated, createdEntity)
+}
+
+func UpdateCharacter(c *gin.Context, db *sql.DB) {
+	characterID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid character ID"})
+		c.Abort()
+		return
+	}
+
+	var req UpdateCharacterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	// 1. Fetch character and topic details to check ownership and subforum
+	var topicID int
+	var authorUserID int
+	var subforumID int
+	query := `
+		SELECT c.topic_id, t.author_user_id, t.subforum_id 
+		FROM character_base c 
+		JOIN topics t ON c.topic_id = t.id 
+		WHERE c.id = ?
+	`
+	err = db.QueryRow(query, characterID).Scan(&topicID, &authorUserID, &subforumID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch character details: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	// 2. Check permissions
+	canEdit := false
+	if userID == authorUserID {
+		// Check for "Edit own topic" permission
+		permission := fmt.Sprintf("subforum_edit_own_topic:%d", subforumID)
+		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
+			canEdit = true
+		}
+	} else {
+		// Check for "Edit others' topic" permission
+		permission := fmt.Sprintf("subforum_edit_others_topic:%d", subforumID)
+		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
+			canEdit = true
+		}
+	}
+
+	if !canEdit {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "You do not have permission to edit this character"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	// 3. Update Topic Name
+	_, err = tx.Exec("UPDATE topics SET name = ? WHERE id = ?", req.Name, topicID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update topic name: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// 4. Update Character Entity
+	updates := map[string]interface{}{
+		"name":          req.Name,
+		"avatar":        req.Avatar,
+		"custom_fields": req.CustomFields,
+	}
+	_, err = Services.PatchEntity(int64(characterID), "character", updates, tx)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update character entity: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// 5. Update Character-Faction Relations
+	// Wipe old relations
+	_, err = tx.Exec("DELETE FROM character_faction WHERE character_id = ?", characterID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to clear old faction relations: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Insert new relations
+	for _, faction := range req.FactionIDs {
+		var factionID int
+		if faction.Id < 0 {
+			newFactionID, err := Services.CreateFaction(faction, tx)
+			if err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create faction: " + err.Error()})
+				c.Abort()
+				return
+			}
+			factionID = int(newFactionID)
+		} else {
+			factionID = faction.Id
+		}
+
+		if err := Services.AddFactionCharacter(factionID, characterID, tx); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to add faction to character: " + err.Error()})
+			c.Abort()
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	// 6. Fetch updated character and return
+	updatedCharacter, err := Services.GetEntity(int64(characterID), "character", db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated character: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedCharacter)
 }
 
 func PatchCharacter(c *gin.Context, db *sql.DB) {
@@ -405,6 +583,35 @@ func GetCharacterProfile(c *gin.Context, db *sql.DB) {
 			c.Abort()
 			return
 		}
+
+		// Check CanEdit
+		currentUserID := Services.GetUserIdFromContext(c)
+		canEdit := false
+		if currentUserID != 0 {
+			// Fetch subforum ID for permission check
+			var subforumID int
+			err = db.QueryRow("SELECT subforum_id FROM topics WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", profile.CharacterId).Scan(&subforumID)
+			if err == nil {
+				// Check for "Edit others' topic" permission
+				permission := fmt.Sprintf("subforum_edit_others_topic:%d", subforumID)
+				if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+					canEdit = true
+				} else {
+					// Check if user is the author of the topic
+					var authorUserID int
+					err = db.QueryRow("SELECT author_user_id FROM topics WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", profile.CharacterId).Scan(&authorUserID)
+					if err == nil && currentUserID == authorUserID {
+						// Check for "Edit own topic" permission
+						permission = fmt.Sprintf("subforum_edit_own_topic:%d", subforumID)
+						if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+							canEdit = true
+						}
+					}
+				}
+			}
+		}
+		profile.CanEdit = &canEdit
+
 		c.JSON(http.StatusOK, profile)
 		return
 	}
