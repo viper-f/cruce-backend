@@ -715,14 +715,22 @@ func UpdateTopic(c *gin.Context, db *sql.DB) {
 	// 1. Fetch topic details to check ownership and subforum
 	var authorUserID int
 	var subforumID int
-	query := "SELECT author_user_id, subforum_id FROM topics WHERE id = ?"
-	err = db.QueryRow(query, topicID).Scan(&authorUserID, &subforumID)
+	var topicType Entities.TopicType
+	query := "SELECT author_user_id, subforum_id, type FROM topics WHERE id = ?"
+	err = db.QueryRow(query, topicID).Scan(&authorUserID, &subforumID, &topicType)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Topic not found"})
 		} else {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch topic details: " + err.Error()})
 		}
+		c.Abort()
+		return
+	}
+
+	// Verify topic type is general
+	if topicType != Entities.GeneralTopic {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Only general topics can be updated via this endpoint"})
 		c.Abort()
 		return
 	}
@@ -738,7 +746,7 @@ func UpdateTopic(c *gin.Context, db *sql.DB) {
 	} else {
 		// Check for "Edit others' topic" permission
 		permission := fmt.Sprintf("subforum_edit_others_topic:%d", subforumID)
-		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
+		if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
 			canEdit = true
 		}
 	}
