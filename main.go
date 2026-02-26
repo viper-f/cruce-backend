@@ -148,6 +148,9 @@ func main() {
 	protectedRouter.POST("/episode/create", "Create a new episode", func(c *gin.Context) {
 		Controllers.CreateEpisode(c, Services.DB)
 	})
+	protectedRouter.POST("/episode/update/:id", "Update episode by ID", func(c *gin.Context) {
+		Controllers.UpdateEpisode(c, Services.DB)
+	})
 	protectedRouter.GET("/permission-matrix/get", "Get permission matrix", func(c *gin.Context) {
 		Controllers.GetPermissionMatrix(c, Services.DB)
 	})

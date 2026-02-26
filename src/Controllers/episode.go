@@ -6,7 +6,9 @@ import (
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +16,12 @@ import (
 
 type CreateEpisodeRequest struct {
 	SubforumID   int                                  `json:"subforum_id" binding:"required"`
+	Name         string                               `json:"name" binding:"required"`
+	CharacterIDs []int                                `json:"character_ids"`
+	CustomFields map[string]Entities.CustomFieldValue `json:"custom_fields"`
+}
+
+type UpdateEpisodeRequest struct {
 	Name         string                               `json:"name" binding:"required"`
 	CharacterIDs []int                                `json:"character_ids"`
 	CustomFields map[string]Entities.CustomFieldValue `json:"custom_fields"`
@@ -205,4 +213,212 @@ func GetEpisodes(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, episodes)
+}
+
+func GetEpisode(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid ID"})
+		c.Abort()
+		return
+	}
+
+	entity, err := Services.GetEntity(int64(id), "episode", db)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Episode not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get episode: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	if episode, ok := entity.(*Entities.Episode); ok {
+		// Fetch characters for the episode
+		charRows, err := db.Query("SELECT cb.id, cb.name FROM character_base cb JOIN episode_character ec ON cb.id = ec.character_id WHERE ec.episode_id = ?", episode.Id)
+		if err == nil {
+			var characters []*Entities.ShortCharacter
+			for charRows.Next() {
+				var char Entities.ShortCharacter
+				if err := charRows.Scan(&char.Id, &char.Name); err == nil {
+					characters = append(characters, &char)
+				}
+			}
+			episode.Characters = characters
+			charRows.Close()
+		}
+
+		// Check CanEdit
+		currentUserID := Services.GetUserIdFromContext(c)
+		canEdit := false
+		if currentUserID != 0 {
+			// Fetch subforum ID for permission check
+			var subforumID int
+			err = db.QueryRow("SELECT subforum_id FROM topics WHERE id = ?", episode.Topic_Id).Scan(&subforumID)
+			if err == nil {
+				// Check for "Edit others' topic" permission
+				permission := fmt.Sprintf("subforum_edit_others_topic:%d", subforumID)
+				if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+					canEdit = true
+				} else {
+					// Check if user is the author of the topic
+					var authorUserID int
+					err = db.QueryRow("SELECT author_user_id FROM topics WHERE id = ?", episode.Topic_Id).Scan(&authorUserID)
+					if err == nil && currentUserID == authorUserID {
+						// Check for "Edit own topic" permission
+						permission = fmt.Sprintf("subforum_edit_own_topic:%d", subforumID)
+						if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+							canEdit = true
+						}
+					}
+				}
+			}
+		}
+		episode.CanEdit = &canEdit
+
+		c.JSON(http.StatusOK, episode)
+		return
+	}
+
+	c.JSON(http.StatusOK, entity)
+}
+
+func UpdateEpisode(c *gin.Context, db *sql.DB) {
+	episodeID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid episode ID"})
+		c.Abort()
+		return
+	}
+
+	var req UpdateEpisodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	// 1. Fetch episode and topic details to check ownership and subforum
+	var topicID int
+	var authorUserID int
+	var subforumID int
+	query := `
+		SELECT e.topic_id, t.author_user_id, t.subforum_id 
+		FROM episode_base e 
+		JOIN topics t ON e.topic_id = t.id 
+		WHERE e.id = ?
+	`
+	err = db.QueryRow(query, episodeID).Scan(&topicID, &authorUserID, &subforumID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Episode not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch episode details: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	// 2. Check permissions
+	canEdit := false
+	if userID == authorUserID {
+		// Check for "Edit own topic" permission
+		permission := fmt.Sprintf("subforum_edit_own_topic:%d", subforumID)
+		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
+			canEdit = true
+		}
+	} else {
+		// Check for "Edit others' topic" permission
+		permission := fmt.Sprintf("subforum_edit_others_topic:%d", subforumID)
+		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
+			canEdit = true
+		}
+	}
+
+	if !canEdit {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "You do not have permission to edit this episode"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	// 3. Update Topic Name
+	_, err = tx.Exec("UPDATE topics SET name = ? WHERE id = ?", req.Name, topicID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update topic name: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// 4. Update Episode Entity
+	updates := map[string]interface{}{
+		"name":          req.Name,
+		"custom_fields": req.CustomFields,
+	}
+	_, err = Services.PatchEntity(int64(episodeID), "episode", updates, tx)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update episode entity: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// 5. Update Episode-Character Relations
+	// Wipe old relations
+	_, err = tx.Exec("DELETE FROM episode_character WHERE episode_id = ?", episodeID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to clear old character relations: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Insert new relations
+	if len(req.CharacterIDs) > 0 {
+		stmt, err := tx.Prepare("INSERT INTO episode_character (episode_id, character_id) VALUES (?, ?)")
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to prepare character relation statement"})
+			c.Abort()
+			return
+		}
+		defer stmt.Close()
+
+		for _, charID := range req.CharacterIDs {
+			_, err := stmt.Exec(episodeID, charID)
+			if err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to insert character relation: " + err.Error()})
+				c.Abort()
+				return
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	// 6. Fetch updated episode and return
+	updatedEpisode, err := Services.GetEntity(int64(episodeID), "episode", db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated episode: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedEpisode)
 }
