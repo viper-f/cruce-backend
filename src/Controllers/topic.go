@@ -746,7 +746,7 @@ func UpdateTopic(c *gin.Context, db *sql.DB) {
 	} else {
 		// Check for "Edit others' topic" permission
 		permission := fmt.Sprintf("subforum_edit_others_topic:%d", subforumID)
-		if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
+		if hasPerm, err := Services.HasPermission(userID, permission, db); err == nil && hasPerm {
 			canEdit = true
 		}
 	}

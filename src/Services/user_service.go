@@ -9,9 +9,10 @@ import (
 // It returns 0 if the user ID does not exist or is not a valid type,
 // indicating a guest user or an unauthenticated session.
 func GetUserIdFromContext(c *gin.Context) int {
-	userID := 0
 	if id, exists := c.Get("user_id"); exists {
-		userID = id.(int)
+		if userID, ok := id.(int); ok {
+			return userID
+		}
 	}
-	return userID
+	return 0
 }
