@@ -63,32 +63,37 @@ func Register(c *gin.Context, db *sql.DB) {
 	}
 
 	if err := user.HashPassword(user.Password); err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to hash password"})
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to hash password: " + err.Error()})
 		c.Abort()
 		return
 	}
 
-	query := "INSERT INTO users (username, password, date_registered) VALUES (?, ?, ?)"
-	res, err := db.Exec(query, user.Username, user.Password, time.Now())
+	defaultLang := "en-US"
+	defaultTZ := "UTC+0"
+
+	query := "INSERT INTO users (username, password, date_registered, interface_language, interface_timezone) VALUES (?, ?, ?, ?, ?)"
+	res, err := db.Exec(query, user.Username, user.Password, time.Now(), defaultLang, defaultTZ)
 	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create user"})
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create user: " + err.Error()})
 		c.Abort()
 		return
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user Id"})
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user Id: " + err.Error()})
 		c.Abort()
 		return
 	}
 	user.Id = int(id)
+	user.InterfaceLanguage = &defaultLang
+	user.InterfaceTimezone = &defaultTZ
 
 	// Get default role ID (assuming role with name "user" exists)
 	var defaultRoleID int
 	err = db.QueryRow("SELECT id FROM roles WHERE name = ?", "user").Scan(&defaultRoleID)
 	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get default role"})
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get default role: " + err.Error()})
 		c.Abort()
 		return
 	}
@@ -96,7 +101,7 @@ func Register(c *gin.Context, db *sql.DB) {
 	// Assign default role to user
 	_, err = db.Exec("INSERT INTO user_role (user_id, role_id) VALUES (?, ?)", user.Id, defaultRoleID)
 	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to assign role to user"})
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to assign role to user: " + err.Error()})
 		c.Abort()
 		return
 	}
@@ -122,7 +127,7 @@ func Login(c *gin.Context, db *sql.DB) {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
 		} else {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Database error"})
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Database error: " + err.Error()})
 		}
 		c.Abort()
 		return
