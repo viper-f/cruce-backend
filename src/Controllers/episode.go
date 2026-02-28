@@ -15,16 +15,16 @@ import (
 )
 
 type CreateEpisodeRequest struct {
-	SubforumID   int                                  `json:"subforum_id" binding:"required"`
-	Name         string                               `json:"name" binding:"required"`
-	CharacterIDs []int                                `json:"character_ids"`
-	CustomFields map[string]Entities.CustomFieldValue `json:"custom_fields"`
+	SubforumID   int                    `json:"subforum_id" binding:"required"`
+	Name         string                 `json:"name" binding:"required"`
+	CharacterIDs []int                  `json:"character_ids"`
+	CustomFields map[string]interface{} `json:"custom_fields"`
 }
 
 type UpdateEpisodeRequest struct {
-	Name         string                               `json:"name" binding:"required"`
-	CharacterIDs []int                                `json:"character_ids"`
-	CustomFields map[string]Entities.CustomFieldValue `json:"custom_fields"`
+	Name         string                 `json:"name" binding:"required"`
+	CharacterIDs []int                  `json:"character_ids"`
+	CustomFields map[string]interface{} `json:"custom_fields"`
 }
 
 type GetEpisodesRequest struct {
@@ -84,11 +84,17 @@ func CreateEpisode(c *gin.Context, db *sql.DB) {
 	}
 
 	// 2. Create Episode Entity using Service
+	// Convert map[string]interface{} to map[string]Entities.CustomFieldValue
+	cfMap := make(map[string]Entities.CustomFieldValue)
+	for k, v := range req.CustomFields {
+		cfMap[k] = Entities.CustomFieldValue{Content: v}
+	}
+
 	episode := Entities.Episode{
 		Topic_Id: int(topicID),
 		Name:     req.Name,
 		CustomFields: Entities.CustomFieldEntity{
-			CustomFields: req.CustomFields,
+			CustomFields: cfMap,
 		},
 	}
 
