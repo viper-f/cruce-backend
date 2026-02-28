@@ -78,7 +78,7 @@ func RegisterCharacterEventHandlers() {
 		fullPost, err := Services.GetPostById(int(postID), db)
 		if err == nil {
 			notification := map[string]interface{}{
-				"type": "new_post",
+				"type": "post_created",
 				"data": fullPost,
 			}
 			for _, u := range users {
