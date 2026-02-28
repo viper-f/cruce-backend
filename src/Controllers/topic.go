@@ -218,13 +218,18 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		flattenedCols = append(flattenedCols, "cpf."+field.MachineFieldName)
 	}
 
+	colsSelect := ""
+	if len(flattenedCols) > 0 {
+		colsSelect = ", " + strings.Join(flattenedCols, ", ")
+	}
+
 	// 2. Construct the main query
 	query := fmt.Sprintf(`
 		SELECT
 			p.id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
 			u.username, u.avatar,
 			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar,
-			t.subforum_id,
+			t.subforum_id
 			%s
 		FROM posts p
 		JOIN topics t ON p.topic_id = t.id
@@ -235,7 +240,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		WHERE p.topic_id = ?
 		ORDER BY p.date_created ASC
 		LIMIT ? OFFSET ?
-	`, strings.Join(flattenedCols, ", "))
+	`, colsSelect)
 
 	rows, err := db.Query(query, topicID, limit, offset)
 	if err != nil {
