@@ -39,4 +39,4 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             chmod +x /var/www/backend/cuento-backend
-            systemctl restart cuento
+            systemctl restart cuento-backend
