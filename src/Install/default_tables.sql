@@ -14,9 +14,9 @@ create table users
         unique (username)
 );
 
-INSERT INTO cuento.users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES (0, 'guest', null, null, null, null, null, null, 0)
+INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES (0, 'guest', null, null, null, null, null, null, 0);
 
-INSERT INTO cuento.users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES (1, 'System', null, null, null, null, null, null, 0)
+INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES (1, 'System', null, null, null, null, null, null, 0);
 
 create table user_role
 (
@@ -61,11 +61,11 @@ CREATE TABLE subforums (
     position INT NULL,
     topic_number INT NULL,
     post_number INT NULL,
-    last_post_topic_id bigint unsigned null;
-    last_post_topic_name varchar(255) null;
-    last_post_id bigint unsigned null;
+    last_post_topic_id bigint unsigned null,
+    last_post_topic_name varchar(255) null,
+    last_post_id bigint unsigned null,
     constraint subforums_categories_id_fk
-        foreign key (category_id) references categories (id);
+        foreign key (category_id) references categories (id)
 );
 
 CREATE TABLE topics (
@@ -85,9 +85,7 @@ CREATE TABLE topics (
     CONSTRAINT fk_topics_user
         FOREIGN KEY (author_user_id) REFERENCES users (id) ON DELETE NO ACTION,
     CONSTRAINT fk_topics_last_post_user
-        FOREIGN KEY (last_post_author_user_id) REFERENCES users (id) ON DELETE NO ACTION,
-    constraint topics_posts_id_fk
-        foreign key (last_post_id) references posts (id);
+        FOREIGN KEY (last_post_author_user_id) REFERENCES users (id) ON DELETE NO ACTION
 );
 
 create table character_base
@@ -141,6 +139,8 @@ CREATE TABLE posts (
                        CONSTRAINT fk_posts_character_profile
                            FOREIGN KEY (character_profile_id) REFERENCES character_profile_base (id) ON DELETE SET NULL
 );
+
+ALTER TABLE topics ADD CONSTRAINT topics_posts_id_fk FOREIGN KEY (last_post_id) REFERENCES posts (id);
 
 create table episode_base
 		(id      bigint unsigned auto_increment primary key,
@@ -235,11 +235,11 @@ create table roles
     name varchar(255) null
 );
 
-INSERT INTO cuento.roles (name) VALUES ('guest')
+INSERT INTO roles (name) VALUES ('guest');
 
-INSERT INTO cuento.roles (name) VALUES ('user')
+INSERT INTO roles (name) VALUES ('user');
 
-INSERT INTO cuento.roles (name) VALUES ('admin')
+INSERT INTO roles (name) VALUES ('admin');
 
 create table role_permission
 (
