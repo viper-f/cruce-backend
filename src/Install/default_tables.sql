@@ -39,6 +39,18 @@ CREATE TABLE custom_field_config
 CREATE INDEX custom_field_config_entity_type_index
     ON custom_field_config (entity_type);
 
+INSERT INTO custom_field_config (entity_type, config)
+VALUES ('character', '[]')
+    ON DUPLICATE KEY UPDATE config = '[]';
+
+INSERT INTO custom_field_config (entity_type, config)
+VALUES ('episode', '[]')
+    ON DUPLICATE KEY UPDATE config = '[]';
+
+INSERT INTO custom_field_config (entity_type, config)
+VALUES ('character_profile', '[]')
+    ON DUPLICATE KEY UPDATE config = '[]';
+
 CREATE TABLE global_settings
 (
     setting_name  VARCHAR(255) NOT NULL,
