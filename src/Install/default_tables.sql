@@ -63,9 +63,11 @@ CREATE TABLE subforums (
     position INT NULL,
     topic_number INT NULL,
     post_number INT NULL,
+    date_last_post DATETIME,
     last_post_topic_id bigint unsigned null,
     last_post_topic_name varchar(255) null,
     last_post_id bigint unsigned null,
+    last_post_author_user_name varchar(255) null,
     constraint subforums_categories_id_fk
         foreign key (category_id) references categories (id)
 );
@@ -237,11 +239,11 @@ create table roles
     name varchar(255) null
 );
 
-INSERT INTO roles (name) VALUES ('guest');
+INSERT INTO roles (id, name) VALUES (1, 'guest');
 
-INSERT INTO roles (name) VALUES ('user');
+INSERT INTO roles (id, name) VALUES (2, 'user');
 
-INSERT INTO roles (name) VALUES ('admin');
+INSERT INTO roles (id, name) VALUES (3, 'admin');
 
 create table role_permission
 (
@@ -253,6 +255,16 @@ create table role_permission
     constraint role_permission_roles_id_fk
         foreign key (role_id) references roles (id)
 );
+
+-- Default permissions for 'user' role (ID 2)
+INSERT INTO role_permission (type, role_id, permission) VALUES (0, 2, '/notifications/unread');
+INSERT INTO role_permission (type, role_id, permission) VALUES (0, 2, '/notifications/dismiss/:id');
+
+-- Default permissions for 'admin' role (ID 3)
+INSERT INTO role_permission (type, role_id, permission) VALUES (0, 3, '/permission-matrix/get');
+INSERT INTO role_permission (type, role_id, permission) VALUES (0, 3, '/permission-matrix/update');
+INSERT INTO role_permission (type, role_id, permission) VALUES (0, 3, '/template/:type/update');
+INSERT INTO role_permission (type, role_id, permission) VALUES (0, 3, '/character/accept/:id');
 
 CREATE TABLE notifications (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
