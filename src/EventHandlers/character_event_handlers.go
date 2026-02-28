@@ -12,7 +12,7 @@ import (
 func RegisterCharacterEventHandlers() {
 	// Subscriber 7: Update Global Stats on Character Created
 	Events.Subscribe(Events.CharacterCreated, func(db *sql.DB, data Events.EventData) {
-		_, ok := data.(Events.CharacterCreatedEvent)
+		event, ok := data.(Events.CharacterCreatedEvent)
 		if !ok {
 			return
 		}
@@ -20,6 +20,16 @@ func RegisterCharacterEventHandlers() {
 		_, err := db.Exec("UPDATE global_stats SET stat_value = stat_value + 1 WHERE stat_name = 'total_character_number'")
 		if err != nil {
 			fmt.Printf("Error updating global character stats: %v\n", err)
+		}
+
+		_, err = db.Exec("UPDATE global_stats SET stat_value = stat_value + 1 WHERE stat_name = 'total_topic_number'")
+		if err != nil {
+			fmt.Printf("Error updating global topic stats on character created: %v\n", err)
+		}
+
+		_, err = db.Exec("UPDATE subforums SET topic_number = topic_number + 1 WHERE id = ?", event.SubforumID)
+		if err != nil {
+			fmt.Printf("Error updating subforum topic count for character: %v\n", err)
 		}
 	})
 
@@ -68,7 +78,7 @@ func RegisterCharacterEventHandlers() {
 		fullPost, err := Services.GetPostById(int(postID), db)
 		if err == nil {
 			notification := map[string]interface{}{
-				"type": "post_created",
+				"type": "new_post",
 				"data": fullPost,
 			}
 			for _, u := range users {
