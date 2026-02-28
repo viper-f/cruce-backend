@@ -452,7 +452,7 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 
 func GetCharacterAutocomplete(c *gin.Context, db *sql.DB) {
 	query := `
-		SELECT id, name FROM character_base WHERE name LIKE ? ORDER BY name ASC LIMIT 10
+		SELECT id, name FROM character_base WHERE name LIKE ? AND character_status = 0 ORDER BY name ASC LIMIT 10
 	`
 	rows, err := db.Query(query, "%"+c.Param("term")+"%")
 	if err != nil {
