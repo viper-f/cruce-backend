@@ -120,6 +120,18 @@ create table character_base
 		foreign key (topic_id) references topics (id)
 		);
 
+create table character_main
+(
+    entity_id          int            null,
+    field_machine_name varchar(255)   null,
+    field_type         varchar(10)    null,
+    value_int          int            null,
+    value_decimal      decimal(10, 2) null,
+    value_string       varchar(255)   null,
+    value_text         text           null,
+    value_date         varchar(255)   null
+);
+
 create table character_profile_base
 		(id      bigint unsigned auto_increment primary key,
 		character_id bigint unsigned          null,
@@ -137,7 +149,7 @@ create table character_profile_main
     value_decimal      decimal(10, 2) null,
     value_string       varchar(255)   null,
     value_text         text           null,
-    value_date         datetime       null
+    value_date         varchar(255)   null
 );
 
 CREATE TABLE posts (
@@ -175,7 +187,7 @@ create table episode_main
     value_decimal      decimal(10, 2) null,
     value_string       varchar(255)   null,
     value_text         text           null,
-    value_date         datetime       null
+    value_date         varchar(255)   null
 );
 
 create table episode_character
