@@ -14,6 +14,7 @@ create table users
         unique (username)
 );
 
+SET INSERT_ID = 0;
 INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES (0, 'guest', null, null, null, null, null, null, 0);
 
 INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES (1, 'System', null, null, null, null, null, null, 0);
