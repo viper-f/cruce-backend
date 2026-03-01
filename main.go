@@ -115,6 +115,9 @@ func main() {
 	optionalAuthRouter.GET("/user/character-profiles-topic/:topicID", "Get current user's character profiles for a topic", func(c *gin.Context) {
 		Controllers.GetCharacterProfilesByUserAndTopic(c, Services.DB)
 	})
+	optionalAuthRouter.POST("/post/create", "Create a new post in a topic", func(c *gin.Context) {
+		Controllers.CreatePost(c, Services.DB)
+	})
 
 	// Protected routes
 	protectedGroup := r.Group("/")
@@ -156,9 +159,6 @@ func main() {
 	})
 	protectedRouter.POST("/permission-matrix/update", "Update permission matrix", func(c *gin.Context) {
 		Controllers.UpdatePermissionMatrix(c, Services.DB)
-	})
-	protectedRouter.POST("/post/create", "Create a new post in a topic", func(c *gin.Context) {
-		Controllers.CreatePost(c, Services.DB)
 	})
 	protectedRouter.POST("/post/update/:id", "Update post by ID", func(c *gin.Context) {
 		Controllers.UpdatePost(c, Services.DB)
