@@ -660,8 +660,7 @@ func CharacterProfileUpdate(c *gin.Context, db *sql.DB) {
 func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 	userID := Services.GetUserIdFromContext(c)
 	if userID == 0 {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
-		c.Abort()
+		c.JSON(http.StatusOK, []Entities.CharacterProfile{})
 		return
 	}
 
