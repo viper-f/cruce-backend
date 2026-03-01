@@ -480,10 +480,6 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 	}
 
 	userID := Services.GetUserIdFromContext(c)
-	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
 
 	tx, err := db.Begin()
 	if err != nil {
