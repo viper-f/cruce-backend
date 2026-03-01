@@ -112,6 +112,9 @@ func main() {
 	optionalAuthRouter.GET("/users/page/:page_type/:page_id", "Get users currently viewing a page", func(c *gin.Context) {
 		Controllers.GetUsersByPage(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/user/character-profiles-topic/:topicID", "Get current user's character profiles for a topic", func(c *gin.Context) {
+		Controllers.GetCharacterProfilesByUserAndTopic(c, Services.DB)
+	})
 
 	// Protected routes
 	protectedGroup := r.Group("/")
@@ -130,9 +133,6 @@ func main() {
 	})
 	protectedRouter.GET("/user/character-profiles", "Get current user's character profiles", func(c *gin.Context) {
 		Controllers.GetCharacterProfilesByUser(c, Services.DB)
-	})
-	protectedRouter.GET("/user/character-profiles-topic/:topicID", "Get current user's character profiles for a topic", func(c *gin.Context) {
-		Controllers.GetCharacterProfilesByUserAndTopic(c, Services.DB)
 	})
 	protectedRouter.GET("/faction-children/:parent_id/get", "Get child factions by parent ID", func(c *gin.Context) {
 		Controllers.GetFactionChildren(c, Services.DB)
