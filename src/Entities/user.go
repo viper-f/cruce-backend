@@ -11,6 +11,7 @@ type User struct {
 	Password          string     `json:"password,omitempty"` // Don't return password in JSON
 	InterfaceLanguage *string    `json:"interface_language"`
 	InterfaceTimezone *string    `json:"interface_timezone"`
+	InterfaceFontSize float64    `json:"interface_font_size"`
 	UserStatus        UserStatus `json:"user_status"`
 	Roles             []Role     `json:"roles"`
 }

@@ -9,16 +9,17 @@ create table users
     date_last_visit    datetime     null,
     interface_language varchar(50)  null,
     interface_timezone varchar(50)  null,
+    interface_font_size decimal(3,2) default 1.00 not null,
     user_status        int default 0 not null,
     constraint users_pk_2
         unique (username)
 );
 
-INSERT INTO users (username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES ('guest', null, null, null, null, null, null, 0);
+INSERT INTO users (username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status, interface_font_size) VALUES ('guest', null, null, null, null, null, null, 0, 1.00);
 UPDATE users SET id = 0 WHERE username = 'guest';
 ALTER TABLE users AUTO_INCREMENT = 1;
 
-INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status) VALUES (1, 'System', null, null, null, null, null, null, 0);
+INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status, interface_font_size) VALUES (1, 'System', null, null, null, null, null, null, 0, 1.00);
 
 create table user_role
 (

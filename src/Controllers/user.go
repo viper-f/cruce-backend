@@ -42,10 +42,11 @@ type CharacterProfileListItem struct {
 }
 
 type UpdateSettingsRequest struct {
-	Avatar   *string `json:"avatar"`
-	Timezone *string `json:"interface_timezone"`
-	Language *string `json:"interface_language"`
-	Password *string `json:"password"`
+	Avatar   *string  `json:"avatar"`
+	Timezone *string  `json:"interface_timezone"`
+	Language *string  `json:"interface_language"`
+	FontSize *float64 `json:"interface_font_size"`
+	Password *string  `json:"password"`
 }
 
 type UserListItem struct {
@@ -121,8 +122,8 @@ func Login(c *gin.Context, db *sql.DB) {
 	}
 
 	var user Entities.User
-	query := "SELECT id, username, avatar, password, interface_language, interface_timezone, user_status FROM users WHERE username = ?"
-	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.UserStatus)
+	query := "SELECT id, username, avatar, password, interface_language, interface_timezone, interface_font_size, user_status FROM users WHERE username = ?"
+	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
@@ -244,8 +245,8 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 
 	// Fetch user details
 	var user Entities.User
-	query := "SELECT id, username, avatar, interface_language, interface_timezone, user_status FROM users WHERE id = ?"
-	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.UserStatus)
+	query := "SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status FROM users WHERE id = ?"
+	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch user details"})
 		c.Abort()
@@ -432,6 +433,10 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		updates = append(updates, "interface_language = ?")
 		args = append(args, *req.Language)
 	}
+	if req.FontSize != nil {
+		updates = append(updates, "interface_font_size = ?")
+		args = append(args, *req.FontSize)
+	}
 	if req.Password != nil {
 		// Hash the password before updating
 		dummyUser := Entities.User{}
@@ -461,7 +466,7 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 
 	// Fetch updated user details
 	var user Entities.User
-	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, user_status FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.UserStatus)
+	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated user details"})
 		c.Abort()
@@ -480,7 +485,7 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		user.Roles = []Entities.Role{}
 		for rows.Next() {
 			var role Entities.Role
-			if err := rows.Scan(&role.Id, &role.Name); err != nil {
+			if err := rows.Scan(&role.Id, &role.Name); err == nil {
 				user.Roles = append(user.Roles, role)
 			}
 		}
