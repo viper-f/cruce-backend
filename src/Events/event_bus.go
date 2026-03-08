@@ -66,7 +66,8 @@ type CharacterAcceptedEvent struct {
 }
 
 type UserRegisteredEvent struct {
-	UserID int
+	UserID   int
+	Username string
 }
 
 type EventHandler func(db *sql.DB, data EventData)

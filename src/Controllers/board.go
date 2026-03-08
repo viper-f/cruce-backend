@@ -55,7 +55,7 @@ func GetBoard(c *gin.Context, db *sql.DB) {
 		}
 	}
 
-	rows, err = db.Query("SELECT stat_name, stat_value FROM global_stats WHERE stat_name IN ('total_user_number', 'total_character_number', 'total_episode_number', 'total_topic_number', 'total_post_number', 'total_episode_post_number')")
+	rows, err = db.Query("SELECT stat_name, stat_value, stat_secondary FROM global_stats WHERE stat_name IN ('total_user_number', 'total_character_number', 'total_episode_number', 'total_topic_number', 'total_post_number', 'total_episode_post_number', 'last_user')")
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get global stats: " + err.Error()})
 		c.Abort()
@@ -65,25 +65,33 @@ func GetBoard(c *gin.Context, db *sql.DB) {
 
 	for rows.Next() {
 		var name string
-		var value int
-		if err := rows.Scan(&name, &value); err != nil {
+		var value sql.NullInt64
+		var secondary sql.NullString
+		if err := rows.Scan(&name, &value, &secondary); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan stats: " + err.Error()})
 			c.Abort()
 			return
 		}
 		switch name {
 		case "total_user_number":
-			boardInfo.TotalUserNumber = value
+			boardInfo.TotalUserNumber = int(value.Int64)
 		case "total_character_number":
-			boardInfo.TotalCharacterNumber = value
+			boardInfo.TotalCharacterNumber = int(value.Int64)
 		case "total_episode_number":
-			boardInfo.TotalEpisodeNumber = value
+			boardInfo.TotalEpisodeNumber = int(value.Int64)
 		case "total_topic_number":
-			boardInfo.TotalTopicNumber = value
+			boardInfo.TotalTopicNumber = int(value.Int64)
 		case "total_post_number":
-			boardInfo.TotalPostNumber = value
+			boardInfo.TotalPostNumber = int(value.Int64)
 		case "total_episode_post_number":
-			boardInfo.TotalEpisodePostNumber = value
+			boardInfo.TotalEpisodePostNumber = int(value.Int64)
+		case "last_user":
+			if value.Valid && secondary.Valid && value.Int64 > 0 {
+				boardInfo.LastRegisteredUser = &Entities.ShortUser{
+					Id:       int(value.Int64),
+					Username: secondary.String,
+				}
+			}
 		}
 	}
 

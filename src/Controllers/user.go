@@ -113,7 +113,8 @@ func Register(c *gin.Context, db *sql.DB) {
 
 	// Emit UserRegistered event
 	Events.Publish(db, Events.UserRegistered, Events.UserRegisteredEvent{
-		UserID: user.Id,
+		UserID:   user.Id,
+		Username: user.Username,
 	})
 
 	c.JSON(http.StatusCreated, user)
@@ -277,7 +278,7 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 		user.Roles = []Entities.Role{}
 		for rows.Next() {
 			var role Entities.Role
-			if err := rows.Scan(&role.Id, &role.Name); err != nil {
+			if err := rows.Scan(&role.Id, &role.Name); err == nil {
 				user.Roles = append(user.Roles, role)
 			}
 		}
