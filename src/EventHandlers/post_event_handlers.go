@@ -52,6 +52,16 @@ func RegisterPostEventHandlers() {
 			fmt.Printf("Error updating global post stats: %v\n", err)
 		}
 
+		// Check if topic is an episode
+		var topicType Entities.TopicType
+		err = db.QueryRow("SELECT type FROM topics WHERE id = ?", event.TopicID).Scan(&topicType)
+		if err == nil && topicType == Entities.EpisodeTopic {
+			_, err = db.Exec("UPDATE global_stats SET stat_value = stat_value + 1 WHERE stat_name = 'total_episode_post_number'")
+			if err != nil {
+				fmt.Printf("Error updating global episode post stats: %v\n", err)
+			}
+		}
+
 		// 2. Update Topic Stats
 		_, err = db.Exec("UPDATE topics SET post_number = post_number + 1, date_last_post = NOW(), last_post_author_user_id = ? WHERE id = ?",
 			event.Post.AuthorUserId, event.TopicID)
