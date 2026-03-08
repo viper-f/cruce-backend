@@ -16,6 +16,7 @@ const (
 	CharacterCreated    EventType = "CharacterCreated"
 	EpisodeCreated      EventType = "EpisodeCreated"
 	CharacterAccepted   EventType = "CharacterAccepted"
+	UserRegistered      EventType = "UserRegistered"
 )
 
 type EventData interface{}
@@ -62,6 +63,10 @@ type CharacterAcceptedEvent struct {
 	CharacterID   int
 	CharacterName string
 	UserID        int
+}
+
+type UserRegisteredEvent struct {
+	UserID int
 }
 
 type EventHandler func(db *sql.DB, data EventData)

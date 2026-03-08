@@ -2,6 +2,7 @@ package Controllers
 
 import (
 	"cuento-backend/src/Entities"
+	"cuento-backend/src/Events"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
@@ -109,6 +110,11 @@ func Register(c *gin.Context, db *sql.DB) {
 
 	user.Password = "" // Don't return password
 	user.Roles = []Entities.Role{{Id: defaultRoleID, Name: "user"}}
+
+	// Emit UserRegistered event
+	Events.Publish(db, Events.UserRegistered, Events.UserRegisteredEvent{
+		UserID: user.Id,
+	})
 
 	c.JSON(http.StatusCreated, user)
 }
@@ -271,7 +277,7 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 		user.Roles = []Entities.Role{}
 		for rows.Next() {
 			var role Entities.Role
-			if err := rows.Scan(&role.Id, &role.Name); err == nil {
+			if err := rows.Scan(&role.Id, &role.Name); err != nil {
 				user.Roles = append(user.Roles, role)
 			}
 		}
@@ -485,7 +491,7 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		user.Roles = []Entities.Role{}
 		for rows.Next() {
 			var role Entities.Role
-			if err := rows.Scan(&role.Id, &role.Name); err == nil {
+			if err := rows.Scan(&role.Id, &role.Name); err != nil {
 				user.Roles = append(user.Roles, role)
 			}
 		}
