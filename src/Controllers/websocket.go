@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -80,6 +81,8 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 				Type     string      `json:"type"`
 				PageType string      `json:"page_type"`
 				PageId   interface{} `json:"page_id"`
+				TopicId  interface{} `json:"topic_id"`
+				PostId   *int64      `json:"post_id"`
 			}
 			if err := json.Unmarshal(p, &msg); err == nil {
 				if msg.Type == "page_change" {
@@ -93,6 +96,21 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 						pageIdStr = fmt.Sprintf("%d", v)
 					}
 					Services.ActivityStorage.UpdateUserLocation(db, userID, msg.PageType, pageIdStr)
+				} else if msg.Type == "topic_view" && msg.TopicId != nil && msg.PostId != nil {
+					var topicID int64
+					switch v := msg.TopicId.(type) {
+					case string:
+						topicID, _ = strconv.ParseInt(v, 10, 64)
+					case float64:
+						topicID = int64(v)
+					case int64:
+						topicID = v
+					case int:
+						topicID = int64(v)
+					}
+					if topicID > 0 {
+						_ = Services.ActivityStorage.UpdateTopicView(db, userID, topicID, msg.PostId)
+					}
 				}
 			}
 		}
