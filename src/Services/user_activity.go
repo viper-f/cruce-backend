@@ -99,7 +99,9 @@ func (s *UserActivityStorage) UpdateTopicView(db *sql.DB, userID int, topicID in
 	query := `
 		INSERT INTO user_topic_view (user_id, topic_id, post_id, view_date)
 		VALUES (?, ?, ?, NOW())
-		ON DUPLICATE KEY UPDATE post_id = VALUES(post_id), view_date = NOW()
+		ON DUPLICATE KEY UPDATE 
+			view_date = CASE WHEN VALUES(post_id) > post_id OR post_id IS NULL THEN NOW() ELSE view_date END,
+			post_id = CASE WHEN VALUES(post_id) > post_id OR post_id IS NULL THEN VALUES(post_id) ELSE post_id END
 	`
 	_, err := db.Exec(query, userID, topicID, postID)
 	return err

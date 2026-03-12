@@ -28,7 +28,8 @@ type ViewforumRow struct {
 	AuthorUserId           int                  `json:"author_user_id"`
 	AuthorUsername         string               `json:"author_username"`
 	LastPostAuthorUserId   int                  `json:"last_post_author_user_id"`
-	LastPostAuthorUsername string               `json:"las_post_author_username"`
+	LastPostAuthorUsername string               `json:"last_post_author_username"`
+	LastPostId             int                  `json:"last_post_id"`
 	NotViewed              bool                 `json:"not_viewed"`
 }
 
@@ -85,7 +86,7 @@ func GetTopicsBySubforum(c *gin.Context, db *sql.DB) {
 	limit := 30
 	query := `
 		SELECT topics.id, status, name, type, date_last_post, post_number, author_user_id, u.username as author_username, 
-		       last_post_author_user_id, u2.username as las_post_author_username,
+		       last_post_author_user_id, u2.username as las_post_author_username, topics.last_post_id,
 		       (CASE WHEN ? != 0 AND (utv.post_id IS NULL OR utv.post_id < topics.last_post_id) THEN 1 ELSE 0 END) as not_viewed
 		FROM topics 
 		JOIN users u ON topics.author_user_id = u.id 
@@ -105,7 +106,7 @@ func GetTopicsBySubforum(c *gin.Context, db *sql.DB) {
 
 	for rows.Next() {
 		var topic ViewforumRow
-		err := rows.Scan(&topic.Id, &topic.Status, &topic.Name, &topic.Type, &topic.DateLastPost, &topic.PostNumber, &topic.AuthorUserId, &topic.AuthorUsername, &topic.LastPostAuthorUserId, &topic.LastPostAuthorUsername, &topic.NotViewed)
+		err := rows.Scan(&topic.Id, &topic.Status, &topic.Name, &topic.Type, &topic.DateLastPost, &topic.PostNumber, &topic.AuthorUserId, &topic.AuthorUsername, &topic.LastPostAuthorUserId, &topic.LastPostAuthorUsername, &topic.LastPostId, &topic.NotViewed)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan topics: " + err.Error()})
 			return
@@ -868,7 +869,7 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 	query := fmt.Sprintf(`
 		SELECT t.id, t.status, t.name, t.type, t.date_last_post, t.post_number, 
 		       t.author_user_id, u.username as author_username, 
-		       t.last_post_author_user_id, u2.username as last_post_author_username,
+		       t.last_post_author_user_id, u2.username as last_post_author_username, t.last_post_id,
 		       (CASE WHEN ? != 0 AND (utv.post_id IS NULL OR utv.post_id < t.last_post_id) THEN 1 ELSE 0 END) as not_viewed
 		FROM topics t
 		JOIN users u ON t.author_user_id = u.id
@@ -901,7 +902,7 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 	var topics []ViewforumRow
 	for rows.Next() {
 		var topic ViewforumRow
-		if err := rows.Scan(&topic.Id, &topic.Status, &topic.Name, &topic.Type, &topic.DateLastPost, &topic.PostNumber, &topic.AuthorUserId, &topic.AuthorUsername, &topic.LastPostAuthorUserId, &topic.LastPostAuthorUsername, &topic.NotViewed); err != nil {
+		if err := rows.Scan(&topic.Id, &topic.Status, &topic.Name, &topic.Type, &topic.DateLastPost, &topic.PostNumber, &topic.AuthorUserId, &topic.AuthorUsername, &topic.LastPostAuthorUserId, &topic.LastPostAuthorUsername, &topic.LastPostId, &topic.NotViewed); err != nil {
 			continue
 		}
 		topics = append(topics, topic)
