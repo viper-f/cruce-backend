@@ -9,7 +9,7 @@ create table users
     date_last_visit    datetime     null,
     interface_language varchar(50)  null,
     interface_timezone varchar(50)  null,
-    interface_font_size decimal(3,2) default 1.00 not null,
+    interface_font_size decimal(5,2) default 1.00 not null,
     user_status        int default 0 not null,
     constraint users_pk_2
         unique (username)
@@ -61,6 +61,9 @@ CREATE TABLE global_settings
 
 INSERT INTO global_settings (setting_name, setting_value)
 VALUES ('site_name', 'Site Name');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('posts_per_page', '20');
 
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,

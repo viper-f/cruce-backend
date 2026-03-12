@@ -181,6 +181,7 @@ func CreateTopic(c *gin.Context, db *sql.DB) {
 func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 	topicIDStr := c.Param("id")
 	pageStr := c.Param("page")
+	postIDStr := c.Query("postId")
 
 	topicID, err := strconv.Atoi(topicIDStr)
 	if err != nil {
@@ -189,13 +190,29 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	page, _ := strconv.Atoi(pageStr)
+	postsPerPage := Services.GetPostsPerPage(db)
+	page := 1
+
+	if pageStr != "" {
+		page, _ = strconv.Atoi(pageStr)
+	} else if postIDStr != "" {
+		postID, err := strconv.Atoi(postIDStr)
+		if err == nil {
+			// Determine the page based on the post's position in the topic
+			var position int
+			query := "SELECT COUNT(*) FROM posts WHERE topic_id = ? AND id <= ?"
+			err = db.QueryRow(query, topicID, postID).Scan(&position)
+			if err == nil {
+				page = (position-1)/postsPerPage + 1
+			}
+		}
+	}
+
 	if page < 1 {
 		page = 1
 	}
 
-	limit := 15
-	offset := (page - 1) * limit
+	offset := (page - 1) * postsPerPage
 
 	// 1. Get custom field columns from the config table
 	var configJSON string
@@ -242,7 +259,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		LIMIT ? OFFSET ?
 	`, colsSelect)
 
-	rows, err := db.Query(query, topicID, limit, offset)
+	rows, err := db.Query(query, topicID, postsPerPage, offset)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get posts: " + err.Error()})
 		c.Abort()

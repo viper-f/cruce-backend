@@ -5,6 +5,7 @@ import (
 	"cuento-backend/src/Middlewares"
 	"database/sql"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,6 +13,7 @@ import (
 type BoardInfo struct {
 	SiteName               string              `json:"site_name"`
 	Domain                 string              `json:"domain"`
+	PostsPerPage           int                 `json:"posts_per_page"`
 	TotalUserNumber        int                 `json:"total_user_number"`
 	TotalCharacterNumber   int                 `json:"total_character_number"`
 	TotalEpisodeNumber     int                 `json:"total_episode_number"`
@@ -32,7 +34,7 @@ func GetBoard(c *gin.Context, db *sql.DB) {
 		LastRegisteredUser:     nil,
 	}
 
-	rows, err := db.Query("SELECT setting_name, setting_value FROM global_settings WHERE setting_name IN ('site_name', 'domain')")
+	rows, err := db.Query("SELECT setting_name, setting_value FROM global_settings WHERE setting_name IN ('site_name', 'domain', 'posts_per_page')")
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get global settings: " + err.Error()})
 		c.Abort()
@@ -52,6 +54,8 @@ func GetBoard(c *gin.Context, db *sql.DB) {
 			boardInfo.SiteName = value
 		case "domain":
 			boardInfo.Domain = value
+		case "posts_per_page":
+			boardInfo.PostsPerPage, _ = strconv.Atoi(value)
 		}
 	}
 
