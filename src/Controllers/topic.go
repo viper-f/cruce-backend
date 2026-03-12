@@ -370,7 +370,10 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		posts = append(posts, post)
 	}
 
-	c.JSON(http.StatusOK, posts)
+	c.JSON(http.StatusOK, gin.H{
+		"page":  page,
+		"posts": posts,
+	})
 }
 
 func GetTopic(c *gin.Context, db *sql.DB) {
