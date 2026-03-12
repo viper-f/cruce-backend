@@ -106,6 +106,9 @@ func main() {
 	optionalAuthRouter.GET("/topic-posts/:id", "Get posts in a topic by page", func(c *gin.Context) {
 		Controllers.GetPostsByTopic(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/active-topics", "Get list of active topics", func(c *gin.Context) {
+		Controllers.GetActiveTopics(c, Services.DB)
+	})
 	optionalAuthRouter.GET("/users/page/:page_type/:page_id", "Get users currently viewing a page", func(c *gin.Context) {
 		Controllers.GetUsersByPage(c, Services.DB)
 	})
