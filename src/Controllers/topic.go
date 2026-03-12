@@ -27,9 +27,9 @@ type ViewforumRow struct {
 	PostNumber             int                  `json:"post_number"`
 	AuthorUserId           int                  `json:"author_user_id"`
 	AuthorUsername         string               `json:"author_username"`
-	LastPostAuthorUserId   int                  `json:"last_post_author_user_id"`
-	LastPostAuthorUsername string               `json:"last_post_author_username"`
-	LastPostId             int                  `json:"last_post_id"`
+	LastPostAuthorUserId   *int                 `json:"last_post_author_user_id"`
+	LastPostAuthorUsername *string              `json:"last_post_author_username"`
+	LastPostId             *int                 `json:"last_post_id"`
 	NotViewed              bool                 `json:"not_viewed"`
 }
 
@@ -86,13 +86,14 @@ func GetTopicsBySubforum(c *gin.Context, db *sql.DB) {
 	limit := 30
 	query := `
 		SELECT topics.id, status, name, type, date_last_post, post_number, author_user_id, u.username as author_username, 
-		       last_post_author_user_id, u2.username as las_post_author_username, topics.last_post_id,
+		       last_post_author_user_id, u2.username as last_post_author_username, topics.last_post_id,
 		       (CASE WHEN ? != 0 AND (utv.post_id IS NULL OR utv.post_id < topics.last_post_id) THEN 1 ELSE 0 END) as not_viewed
 		FROM topics 
 		JOIN users u ON topics.author_user_id = u.id 
-		JOIN users u2 ON topics.last_post_author_user_id = u2.id 
+		LEFT JOIN users u2 ON topics.last_post_author_user_id = u2.id 
 		LEFT JOIN user_topic_view utv ON topics.id = utv.topic_id AND utv.user_id = ?
 		WHERE subforum_id = ? 
+		ORDER BY date_last_post DESC
 		LIMIT ? OFFSET ?
 	`
 	rows, err := db.Query(query, userID, userID, subforum, limit, page*limit)
@@ -876,7 +877,7 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 		LEFT JOIN users u2 ON t.last_post_author_user_id = u2.id
 		LEFT JOIN user_topic_view utv ON t.id = utv.topic_id AND utv.user_id = ?
 		WHERE t.subforum_id IN (%s)
-	`, userID, userID, placeholders)
+	`, placeholders)
 
 	var args []interface{}
 	args = append(args, userID, userID)
@@ -890,6 +891,8 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 
 	query += " ORDER BY t.date_last_post DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
+
+	fmt.Printf("GetActiveTopics Raw Query: %s\nArgs: %v\n", query, args)
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -907,6 +910,7 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 		}
 		topics = append(topics, topic)
 	}
+	fmt.Println("Active Topics Fetched:", len(topics))
 
 	if topics == nil {
 		topics = []ViewforumRow{}

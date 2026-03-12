@@ -115,6 +115,9 @@ func main() {
 	optionalAuthRouter.POST("/post/create", "Create a new post in a topic", func(c *gin.Context) {
 		Controllers.CreatePost(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/active-topics", "Get list of active topics", func(c *gin.Context) {
+		Controllers.GetActiveTopics(c, Services.DB)
+	})
 
 	// Protected routes
 	protectedGroup := r.Group("/")
