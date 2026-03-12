@@ -93,3 +93,14 @@ func (s *UserActivityStorage) GetUsersOnPage(pageType string, pageId string) []*
 	}
 	return usersOnPage
 }
+
+// UpdateTopicView updates the database table tracking the user's last read position in a topic.
+func (s *UserActivityStorage) UpdateTopicView(db *sql.DB, userID int, topicID int64, postID *int64) error {
+	query := `
+		INSERT INTO user_topic_view (user_id, topic_id, post_id, view_date)
+		VALUES (?, ?, ?, NOW())
+		ON DUPLICATE KEY UPDATE post_id = VALUES(post_id), view_date = NOW()
+	`
+	_, err := db.Exec(query, userID, topicID, postID)
+	return err
+}

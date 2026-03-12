@@ -308,3 +308,14 @@ CREATE TABLE notifications (
     CONSTRAINT fk_notifications_user
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
+
+create table user_topic_view
+(
+    user_id   int             not null,
+    topic_id  bigint unsigned not null,
+    post_id   bigint unsigned null,
+    view_date datetime        default current_timestamp,
+    primary key (user_id, topic_id),
+    constraint fk_user_topic_view_user foreign key (user_id) references users (id) on delete cascade,
+    constraint fk_user_topic_view_topic foreign key (topic_id) references topics (id) on delete cascade
+);
