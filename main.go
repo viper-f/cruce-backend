@@ -82,9 +82,6 @@ func main() {
 	optionalAuthRouter.GET("/viewforum/:subforum/:page", "Get topics in a subforum by page", func(c *gin.Context) {
 		Controllers.GetTopicsBySubforum(c, Services.DB)
 	})
-	optionalAuthRouter.GET("/viewtopic/:id/:page", "Get posts in a topic by page", func(c *gin.Context) {
-		Controllers.GetPostsByTopic(c, Services.DB)
-	})
 	optionalAuthRouter.GET("/topic/get/:id", "Get topic details by ID", func(c *gin.Context) {
 		Controllers.GetTopic(c, Services.DB)
 	})
@@ -106,7 +103,7 @@ func main() {
 	optionalAuthRouter.GET("/subforum/get/:id", "Get subforum details by ID", func(c *gin.Context) {
 		Controllers.GetSubforum(c, Services.DB)
 	})
-	optionalAuthRouter.GET("/topic-posts/:id/:page", "Get posts in a topic by page", func(c *gin.Context) {
+	optionalAuthRouter.GET("/topic-posts/:id", "Get posts in a topic by page", func(c *gin.Context) {
 		Controllers.GetPostsByTopic(c, Services.DB)
 	})
 	optionalAuthRouter.GET("/users/page/:page_type/:page_id", "Get users currently viewing a page", func(c *gin.Context) {

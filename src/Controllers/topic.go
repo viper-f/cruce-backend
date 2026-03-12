@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -181,7 +182,7 @@ func CreateTopic(c *gin.Context, db *sql.DB) {
 func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 	topicIDStr := c.Param("id")
 	pageStr := c.Param("page")
-	postIDStr := c.Query("postId")
+	postIDStr := c.Query("post_id")
 
 	topicID, err := strconv.Atoi(topicIDStr)
 	if err != nil {
@@ -203,7 +204,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 			query := "SELECT COUNT(*) FROM posts WHERE topic_id = ? AND id <= ?"
 			err = db.QueryRow(query, topicID, postID).Scan(&position)
 			if err == nil {
-				page = (position-1)/postsPerPage + 1
+				page = int(math.Ceil(float64(position) / float64(postsPerPage)))
 			}
 		}
 	}
