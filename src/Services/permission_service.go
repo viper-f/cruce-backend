@@ -276,3 +276,66 @@ func HasPermission(userID int, permission string, db *sql.DB) (bool, error) {
 	}
 	return count > 0, nil
 }
+
+func GetVisibleSubforums(userID int, permission string, db *sql.DB) ([]int, error) {
+	var roleIDs []int
+	if userID > 0 {
+		rows, err := db.Query("SELECT role_id FROM user_role WHERE user_id = ?", userID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var rID int
+			if err := rows.Scan(&rID); err == nil {
+				roleIDs = append(roleIDs, rID)
+			}
+		}
+	}
+
+	if len(roleIDs) == 0 {
+		var guestID int
+		err := db.QueryRow("SELECT id FROM roles WHERE name = 'guest'").Scan(&guestID)
+		if err == nil {
+			roleIDs = append(roleIDs, guestID)
+		}
+	}
+
+	if len(roleIDs) == 0 {
+		return []int{}, nil
+	}
+
+	placeholders := strings.Repeat("?,", len(roleIDs)-1) + "?"
+	query := fmt.Sprintf("SELECT permission FROM role_permission WHERE type = 1 AND role_id IN (%s) AND permission LIKE ?", placeholders)
+
+	args := []interface{}{}
+	for _, id := range roleIDs {
+		args = append(args, id)
+	}
+	args = append(args, permission+":%")
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	seenSubforums := make(map[int]bool)
+	var subforumIDs []int
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err == nil {
+			parts := strings.Split(p, ":")
+			if len(parts) == 2 {
+				if id, err := strconv.Atoi(parts[1]); err == nil {
+					if !seenSubforums[id] {
+						subforumIDs = append(subforumIDs, id)
+						seenSubforums[id] = true
+					}
+				}
+			}
+		}
+	}
+
+	return subforumIDs, nil
+}

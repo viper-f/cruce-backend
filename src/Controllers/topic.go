@@ -831,10 +831,41 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 	}
 
 	userID := Services.GetUserIdFromContext(c)
+
+	// Get visible subforum IDs based on user permissions
+	visibleSubforumIDs, err := Services.GetVisibleSubforums(userID, "subforum_read", db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to determine visible subforums: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Filter subforumIDs based on visibility
+	var filteredSubforumIDs []int
+	if len(subforumIDs) > 0 {
+		visibleMap := make(map[int]bool)
+		for _, id := range visibleSubforumIDs {
+			visibleMap[id] = true
+		}
+		for _, id := range subforumIDs {
+			if visibleMap[id] {
+				filteredSubforumIDs = append(filteredSubforumIDs, id)
+			}
+		}
+	} else {
+		filteredSubforumIDs = visibleSubforumIDs
+	}
+
+	if len(filteredSubforumIDs) == 0 {
+		c.JSON(http.StatusOK, []ViewforumRow{})
+		return
+	}
+
 	limit := Services.GetPostsPerPage(db)
 	offset := (page - 1) * limit
 
-	query := `
+	placeholders := strings.Repeat("?,", len(filteredSubforumIDs)-1) + "?"
+	query := fmt.Sprintf(`
 		SELECT t.id, t.status, t.name, t.type, t.date_last_post, t.post_number, 
 		       t.author_user_id, u.username as author_username, 
 		       t.last_post_author_user_id, u2.username as last_post_author_username,
@@ -843,16 +874,13 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 		JOIN users u ON t.author_user_id = u.id
 		LEFT JOIN users u2 ON t.last_post_author_user_id = u2.id
 		LEFT JOIN user_topic_view utv ON t.id = utv.topic_id AND utv.user_id = ?
-		WHERE 1=1
-	`
+		WHERE t.subforum_id IN (%s)
+	`, userID, userID, placeholders)
+
 	var args []interface{}
 	args = append(args, userID, userID)
-
-	if len(subforumIDs) > 0 {
-		query += " AND t.subforum_id IN (" + strings.Repeat("?,", len(subforumIDs)-1) + "?)"
-		for _, id := range subforumIDs {
-			args = append(args, id)
-		}
+	for _, id := range filteredSubforumIDs {
+		args = append(args, id)
 	}
 
 	if notViewed && userID != 0 {
