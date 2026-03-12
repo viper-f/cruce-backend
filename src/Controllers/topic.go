@@ -181,7 +181,7 @@ func CreateTopic(c *gin.Context, db *sql.DB) {
 
 func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 	topicIDStr := c.Param("id")
-	pageStr := c.Param("page")
+	pageStr := c.Query("page")
 	postIDStr := c.Query("post_id")
 
 	topicID, err := strconv.Atoi(topicIDStr)
