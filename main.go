@@ -118,6 +118,9 @@ func main() {
 	optionalAuthRouter.GET("/active-topics", "Get list of active topics", func(c *gin.Context) {
 		Controllers.GetActiveTopics(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/active-topic-count", "Get count of active topics", func(c *gin.Context) {
+		Controllers.GetActiveTopicCount(c, Services.DB)
+	})
 
 	// Protected routes
 	protectedGroup := r.Group("/")

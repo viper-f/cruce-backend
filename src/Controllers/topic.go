@@ -31,6 +31,7 @@ type ViewforumRow struct {
 	LastPostAuthorUsername *string              `json:"last_post_author_username"`
 	LastPostId             *int                 `json:"last_post_id"`
 	NotViewed              bool                 `json:"not_viewed"`
+	LastViewedId           *int                 `json:"last_viewed_id"`
 }
 
 type CreateTopicRequest struct {
@@ -87,7 +88,8 @@ func GetTopicsBySubforum(c *gin.Context, db *sql.DB) {
 	query := `
 		SELECT topics.id, status, name, type, date_last_post, post_number, author_user_id, u.username as author_username, 
 		       last_post_author_user_id, u2.username as last_post_author_username, topics.last_post_id,
-		       (CASE WHEN ? != 0 AND (utv.post_id IS NULL OR utv.post_id < topics.last_post_id) THEN 1 ELSE 0 END) as not_viewed
+		       (CASE WHEN ? != 0 AND (utv.post_id IS NULL OR utv.post_id < topics.last_post_id) THEN 1 ELSE 0 END) as not_viewed,
+		       utv.post_id as last_viewed_id
 		FROM topics 
 		JOIN users u ON topics.author_user_id = u.id 
 		LEFT JOIN users u2 ON topics.last_post_author_user_id = u2.id 
@@ -107,7 +109,21 @@ func GetTopicsBySubforum(c *gin.Context, db *sql.DB) {
 
 	for rows.Next() {
 		var topic ViewforumRow
-		err := rows.Scan(&topic.Id, &topic.Status, &topic.Name, &topic.Type, &topic.DateLastPost, &topic.PostNumber, &topic.AuthorUserId, &topic.AuthorUsername, &topic.LastPostAuthorUserId, &topic.LastPostAuthorUsername, &topic.LastPostId, &topic.NotViewed)
+		err := rows.Scan(
+			&topic.Id,
+			&topic.Status,
+			&topic.Name,
+			&topic.Type,
+			&topic.DateLastPost,
+			&topic.PostNumber,
+			&topic.AuthorUserId,
+			&topic.AuthorUsername,
+			&topic.LastPostAuthorUserId,
+			&topic.LastPostAuthorUsername,
+			&topic.LastPostId,
+			&topic.NotViewed,
+			&topic.LastViewedId,
+		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan topics: " + err.Error()})
 			return
@@ -871,7 +887,8 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 		SELECT t.id, t.status, t.name, t.type, t.date_last_post, t.post_number, 
 		       t.author_user_id, u.username as author_username, 
 		       t.last_post_author_user_id, u2.username as last_post_author_username, t.last_post_id,
-		       (CASE WHEN ? != 0 AND (utv.post_id IS NULL OR utv.post_id < t.last_post_id) THEN 1 ELSE 0 END) as not_viewed
+		       (CASE WHEN ? != 0 AND (utv.post_id IS NULL OR utv.post_id < t.last_post_id) THEN 1 ELSE 0 END) as not_viewed,
+		       utv.post_id as last_viewed_id
 		FROM topics t
 		JOIN users u ON t.author_user_id = u.id
 		LEFT JOIN users u2 ON t.last_post_author_user_id = u2.id
@@ -889,10 +906,10 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 		query += " AND (utv.post_id IS NULL OR utv.post_id < t.last_post_id)"
 	}
 
+	query += " AND t.date_last_post >= DATE_SUB(NOW(), INTERVAL 10 DAY)"
+
 	query += " ORDER BY t.date_last_post DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
-
-	fmt.Printf("GetActiveTopics Raw Query: %s\nArgs: %v\n", query, args)
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -905,16 +922,110 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 	var topics []ViewforumRow
 	for rows.Next() {
 		var topic ViewforumRow
-		if err := rows.Scan(&topic.Id, &topic.Status, &topic.Name, &topic.Type, &topic.DateLastPost, &topic.PostNumber, &topic.AuthorUserId, &topic.AuthorUsername, &topic.LastPostAuthorUserId, &topic.LastPostAuthorUsername, &topic.LastPostId, &topic.NotViewed); err != nil {
+		if err := rows.Scan(
+			&topic.Id,
+			&topic.Status,
+			&topic.Name,
+			&topic.Type,
+			&topic.DateLastPost,
+			&topic.PostNumber,
+			&topic.AuthorUserId,
+			&topic.AuthorUsername,
+			&topic.LastPostAuthorUserId,
+			&topic.LastPostAuthorUsername,
+			&topic.LastPostId,
+			&topic.NotViewed,
+			&topic.LastViewedId,
+		); err != nil {
 			continue
 		}
 		topics = append(topics, topic)
 	}
-	fmt.Println("Active Topics Fetched:", len(topics))
 
 	if topics == nil {
 		topics = []ViewforumRow{}
 	}
 
 	c.JSON(http.StatusOK, topics)
+}
+
+func GetActiveTopicCount(c *gin.Context, db *sql.DB) {
+	notViewedStr := c.Query("not_viewed")
+	subforumIDsStr := c.Query("subforum_ids")
+
+	notViewed := false
+	if notViewedStr == "true" {
+		notViewed = true
+	}
+
+	var subforumIDs []int
+	if subforumIDsStr != "" {
+		for _, idStr := range strings.Split(subforumIDsStr, ",") {
+			if id, err := strconv.Atoi(idStr); err == nil {
+				subforumIDs = append(subforumIDs, id)
+			}
+		}
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+
+	// Get visible subforum IDs based on user permissions
+	visibleSubforumIDs, err := Services.GetVisibleSubforums(userID, "subforum_read", db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to determine visible subforums: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Filter subforumIDs based on visibility
+	var filteredSubforumIDs []int
+	if len(subforumIDs) > 0 {
+		visibleMap := make(map[int]bool)
+		for _, id := range visibleSubforumIDs {
+			visibleMap[id] = true
+		}
+		for _, id := range subforumIDs {
+			if visibleMap[id] {
+				filteredSubforumIDs = append(filteredSubforumIDs, id)
+			}
+		}
+	} else {
+		filteredSubforumIDs = visibleSubforumIDs
+	}
+
+	if len(filteredSubforumIDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{"total": 0})
+		return
+	}
+
+	placeholders := strings.Repeat("?,", len(filteredSubforumIDs)-1) + "?"
+	query := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM topics t
+		JOIN users u ON t.author_user_id = u.id
+		LEFT JOIN user_topic_view utv ON t.id = utv.topic_id AND utv.user_id = ?
+		WHERE t.subforum_id IN (%s)
+	`, placeholders)
+
+	var args []interface{}
+	args = append(args, userID)
+	for _, id := range filteredSubforumIDs {
+		args = append(args, id)
+	}
+
+	if notViewed && userID != 0 {
+		query += " AND (utv.post_id IS NULL OR utv.post_id < t.last_post_id)"
+	}
+
+	query += " AND t.date_last_post >= DATE_SUB(NOW(), INTERVAL 10 DAY)"
+
+	var count int
+	err = db.QueryRow(query, args...).Scan(&count)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get active topic count: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"total": count})
 }
