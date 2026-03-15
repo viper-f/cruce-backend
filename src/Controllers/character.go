@@ -537,7 +537,7 @@ func GetCharacterProfilesByUser(c *gin.Context, db *sql.DB) {
 		}
 
 		if profile, ok := entity.(*Entities.CharacterProfile); ok {
-			profile.CharacterId = characterId
+			profile.CharacterId = &characterId
 			profile.CharacterName = name
 			profile.Avatar = avatar
 			profiles = append(profiles, *profile)
@@ -701,7 +701,7 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 			JOIN character_base cb ON cp.character_id = cb.id 
 			JOIN episode_character ec ON cb.id = ec.character_id
 			JOIN episode_base e ON ec.episode_id = e.id
-			WHERE cb.user_id = ? AND e.topic_id = ?
+			WHERE cb.user_id = ? AND e.topic_id = ? AND cp.is_mask != true
 		`
 		rows, err := db.Query(query, userID, topicID)
 		if err != nil {
@@ -726,7 +726,7 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 			}
 
 			if profile, ok := entity.(*Entities.CharacterProfile); ok {
-				profile.CharacterId = characterId
+				profile.CharacterId = &characterId
 				profile.CharacterName = name
 				profile.Avatar = avatar
 				profiles = append(profiles, *profile)
@@ -739,7 +739,7 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 			SELECT cp.id, cp.character_id, cb.name, cp.avatar 
 			FROM character_profile_base cp 
 			JOIN character_base cb ON cp.character_id = cb.id 
-			WHERE cb.user_id = ? AND cb.character_status = 0
+			WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask <> true
 		`
 		rows, err := db.Query(query, userID)
 		if err != nil {
@@ -764,7 +764,7 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 			}
 
 			if profile, ok := entity.(*Entities.CharacterProfile); ok {
-				profile.CharacterId = characterId
+				profile.CharacterId = &characterId
 				profile.CharacterName = name
 				profile.Avatar = avatar
 				profiles = append(profiles, *profile)
@@ -811,7 +811,7 @@ func AcceptCharacter(c *gin.Context, db *sql.DB) {
 
 	// 2. Create a character profile
 	profile := Entities.CharacterProfile{
-		CharacterId:   id,
+		CharacterId:   &id,
 		CharacterName: name,
 		Avatar:        avatar,
 	}
@@ -837,4 +837,170 @@ func AcceptCharacter(c *gin.Context, db *sql.DB) {
 	})
 
 	c.JSON(http.StatusOK, gin.H{"message": "Character accepted", "profile_id": profileID})
+}
+
+func GetMask(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid mask ID"})
+		c.Abort()
+		return
+	}
+
+	entity, err := Services.GetEntity(int64(id), "character_profile", db)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Mask not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get mask: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	if profile, ok := entity.(*Entities.CharacterProfile); ok {
+		// Masks must have is_mask = true and character_id = null
+		var isMask bool
+		var avatar *string
+		var userID int
+		err := db.QueryRow("SELECT is_mask, mask_name, avatar, user_id FROM character_profile_base WHERE id = ?", profile.Id).Scan(&isMask, &profile.MaskName, &avatar, &userID)
+		if err != nil || !isMask {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Mask not found"})
+			c.Abort()
+			return
+		}
+
+		if profile.MaskName != nil {
+			profile.CharacterName = *profile.MaskName
+		}
+		profile.Avatar = avatar
+
+		// Check CanEdit (Masks are owned by the creator)
+		currentUserID := Services.GetUserIdFromContext(c)
+		canEdit := currentUserID != 0 && currentUserID == userID
+		profile.CanEdit = &canEdit
+
+		c.JSON(http.StatusOK, profile)
+		return
+	}
+
+	c.JSON(http.StatusBadRequest, gin.H{"error": "Entity is not a valid character profile"})
+}
+
+func CreateMask(c *gin.Context, db *sql.DB) {
+	var req struct {
+		MaskName     string                               `json:"mask_name" binding:"required"`
+		Avatar       *string                              `json:"avatar"`
+		CustomFields map[string]Entities.CustomFieldValue `json:"custom_fields"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	isMaskTrue := true
+	mask := Entities.CharacterProfile{
+		UserId:   &userID,
+		MaskName: &req.MaskName,
+		Avatar:   req.Avatar,
+		IsMask:   &isMaskTrue, // Constraint: Masks always have is_mask = true
+	}
+	mask.CustomFields.CustomFields = req.CustomFields
+
+	createdEntity, maskID, err := Services.CreateEntity("character_profile", &mask, db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create mask: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"id": maskID, "entity": createdEntity})
+}
+
+func UpdateMask(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid mask ID"})
+		c.Abort()
+		return
+	}
+
+	var jsonMap map[string]interface{}
+	if err := c.ShouldBindJSON(&jsonMap); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Update logic for masks is identical to profiles, assuming the route handles ownership verification
+	updatedEntity, err := Services.PatchEntity(int64(id), "character_profile", jsonMap, db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update mask: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedEntity)
+}
+
+func GetUserMasks(c *gin.Context, db *sql.DB) {
+	userIDStr := c.Param("userID")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid user ID"})
+		c.Abort()
+		return
+	}
+
+	query := "SELECT id, mask_name, avatar FROM character_profile_base WHERE user_id = ? AND is_mask = true"
+	rows, err := db.Query(query, userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user masks: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	currentUserID := Services.GetUserIdFromContext(c)
+
+	var masks []Entities.CharacterProfile = []Entities.CharacterProfile{}
+	for rows.Next() {
+		var id int
+		var maskName *string
+		var avatar *string
+		if err := rows.Scan(&id, &maskName, &avatar); err != nil {
+			continue
+		}
+
+		// Fetch the full entity to get custom fields
+		entity, err := Services.GetEntity(int64(id), "character_profile", db)
+		if err != nil {
+			continue
+		}
+
+		if profile, ok := entity.(*Entities.CharacterProfile); ok {
+			profile.MaskName = maskName
+			if maskName != nil {
+				profile.CharacterName = *maskName
+			}
+			profile.Avatar = avatar
+
+			// Check if current user can edit (only if they are the owner)
+			canEdit := currentUserID != 0 && currentUserID == userID
+			profile.CanEdit = &canEdit
+
+			masks = append(masks, *profile)
+		}
+	}
+
+	c.JSON(http.StatusOK, masks)
 }

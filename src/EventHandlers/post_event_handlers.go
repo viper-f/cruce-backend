@@ -107,8 +107,8 @@ func RegisterPostEventHandlers() {
 
 		// 2. Get author character ID
 		var authorCharacterID int
-		if event.Post.CharacterProfile != nil {
-			authorCharacterID = event.Post.CharacterProfile.CharacterId
+		if event.Post.CharacterProfile != nil && event.Post.CharacterProfile.CharacterId != nil {
+			authorCharacterID = *event.Post.CharacterProfile.CharacterId
 		} else {
 			return
 		}

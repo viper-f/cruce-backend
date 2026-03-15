@@ -121,6 +121,12 @@ func main() {
 	optionalAuthRouter.GET("/active-topic-count", "Get count of active topics", func(c *gin.Context) {
 		Controllers.GetActiveTopicCount(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/mask/:id", "Get mask by ID", func(c *gin.Context) {
+		Controllers.GetMask(c, Services.DB)
+	})
+	optionalAuthRouter.GET("/user-masks/:userID", "Get user's masks", func(c *gin.Context) {
+		Controllers.GetUserMasks(c, Services.DB)
+	})
 
 	// Protected routes
 	protectedGroup := r.Group("/")
@@ -186,6 +192,12 @@ func main() {
 	})
 	protectedRouter.POST("/user/settings/update", "Update user settings", func(c *gin.Context) {
 		Controllers.UpdateSettings(c, Services.DB)
+	})
+	protectedRouter.POST("/mask/create", "Create a new mask", func(c *gin.Context) {
+		Controllers.CreateMask(c, Services.DB)
+	})
+	protectedRouter.POST("/mask/update/:id", "Update mask by ID", func(c *gin.Context) {
+		Controllers.UpdateMask(c, Services.DB)
 	})
 
 	// WebSocket route with special authentication

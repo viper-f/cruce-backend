@@ -106,7 +106,8 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 			charProfile.Id, _ = strconv.Atoi(id.(string))
 		}
 		if id, ok := rowMap["character_id"]; ok {
-			charProfile.CharacterId, _ = strconv.Atoi(id.(string))
+			charID, _ := strconv.Atoi(id.(string))
+			charProfile.CharacterId = &charID
 		}
 		if name, ok := rowMap["character_name"]; ok {
 			charProfile.CharacterName = name.(string)

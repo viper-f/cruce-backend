@@ -364,7 +364,8 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 				charProfile.Id, _ = strconv.Atoi(id.(string))
 			}
 			if id, ok := rowMap["character_id"]; ok {
-				charProfile.CharacterId, _ = strconv.Atoi(id.(string))
+				val, _ := strconv.Atoi(id.(string))
+				charProfile.CharacterId = &val
 			}
 			if name, ok := rowMap["character_name"]; ok {
 				charProfile.CharacterName = name.(string)

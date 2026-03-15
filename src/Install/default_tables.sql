@@ -141,8 +141,10 @@ create table character_profile_base
 		(id      bigint unsigned auto_increment primary key,
 		character_id bigint unsigned          null,
         avatar varchar(255) null,
-        is_archived boolean default false null,
-        is_mask boolean default false null,
+        is_archived boolean null,
+        is_mask boolean null,
+        mask_name varchar(255) null,
+        user_id int null,
 		constraint character_profile_base_character_id_fk
 		foreign key (character_id) references character_base (id)  ON DELETE CASCADE
 		);
