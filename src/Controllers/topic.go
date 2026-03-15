@@ -445,22 +445,27 @@ func GetTopic(c *gin.Context, db *sql.DB) {
 
 	// Check CanEdit
 	currentUserID := Services.GetUserIdFromContext(c)
+	// Get all permissions for this user in this subforum context
+	userPerms, err := Services.GetSubforumPermissions(currentUserID, topic.SubforumId, db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get subforum permissions: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Populate the topic permissions for the frontend
+	topic.Permissions = userPerms
+
 	canEdit := false
-	if currentUserID != 0 {
-		if currentUserID == topic.AuthorUserId {
-			// Check for "Edit own topic" permission
-			permission := fmt.Sprintf("subforum_edit_own_topic:%d", topic.SubforumId)
-			if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
-				canEdit = true
-			}
-		} else {
-			// Check for "Edit others' topic" permission
-			permission := fmt.Sprintf("subforum_edit_others_topic:%d", topic.SubforumId)
-			if hasPerm, err := Services.HasPermission(currentUserID, permission, db); err == nil && hasPerm {
-				canEdit = true
-			}
+	isAuthor := currentUserID != 0 && currentUserID == topic.AuthorUserId
+
+	// Directly check the boolean fields of the SubforumPermissions struct
+	if userPerms != nil {
+		if (isAuthor && userPerms.SubforumEditOwnTopic) || userPerms.SubforumEditOthersTopic {
+			canEdit = true
 		}
 	}
+
 	topic.CanEdit = &canEdit
 
 	if topic.Type == Entities.EpisodeTopic {

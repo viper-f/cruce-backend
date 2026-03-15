@@ -339,3 +339,84 @@ func GetVisibleSubforums(userID int, permission string, db *sql.DB) ([]int, erro
 
 	return subforumIDs, nil
 }
+
+func GetSubforumPermissions(userID int, subforumID int, db *sql.DB) (*Entities.SubforumPermissions, error) {
+	var roleIDs []int
+	if userID > 0 {
+		rows, err := db.Query("SELECT role_id FROM user_role WHERE user_id = ?", userID)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var rID int
+				if err := rows.Scan(&rID); err == nil {
+					roleIDs = append(roleIDs, rID)
+				}
+			}
+		}
+	}
+
+	if len(roleIDs) == 0 {
+		var guestID int
+		err := db.QueryRow("SELECT id FROM roles WHERE name = 'guest'").Scan(&guestID)
+		if err == nil {
+			roleIDs = append(roleIDs, guestID)
+		}
+	}
+
+	permissions := &Entities.SubforumPermissions{}
+	if len(roleIDs) == 0 {
+		return permissions, nil
+	}
+
+	permMap := map[string]*bool{
+		fmt.Sprintf("subforum_create_general_topic:%d", subforumID):   &permissions.SubforumCreateGeneralTopic,
+		fmt.Sprintf("subforum_create_episode_topic:%d", subforumID):   &permissions.SubforumCreateEpisodeTopic,
+		fmt.Sprintf("subforum_create_character_topic:%d", subforumID): &permissions.SubforumCreateCharacterTopic,
+		fmt.Sprintf("subforum_post:%d", subforumID):                   &permissions.SubforumPost,
+		fmt.Sprintf("subforum_delete_topic:%d", subforumID):           &permissions.SubforumDeleteOwnTopic,
+		fmt.Sprintf("subforum_delete_others_topic:%d", subforumID):    &permissions.SubforumDeleteOthersTopic,
+		fmt.Sprintf("subforum_edit_others_post:%d", subforumID):       &permissions.SubforumEditOthersPost,
+		fmt.Sprintf("subforum_edit_own_post:%d", subforumID):          &permissions.SubforumEditOwnPost,
+	}
+
+	var permStrings []string
+	var args []interface{}
+	for p := range permMap {
+		permStrings = append(permStrings, p)
+	}
+
+	placeholders := func(n int) string {
+		if n <= 0 {
+			return ""
+		}
+		return strings.Repeat("?,", n-1) + "?"
+	}
+
+	query := fmt.Sprintf("SELECT permission FROM role_permission WHERE type = 1 AND role_id IN (%s) AND permission IN (%s)",
+		placeholders(len(roleIDs)),
+		placeholders(len(permStrings)))
+
+	for _, rID := range roleIDs {
+		args = append(args, rID)
+	}
+	for _, p := range permStrings {
+		args = append(args, p)
+	}
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return permissions, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err == nil {
+			if val, ok := permMap[p]; ok {
+				*val = true
+			}
+		}
+	}
+
+	return permissions, nil
+}
