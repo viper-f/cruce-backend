@@ -41,10 +41,11 @@ type CreateTopicRequest struct {
 }
 
 type CreatePostRequest struct {
-	TopicID             int    `json:"topic_id" binding:"required"`
-	Content             string `json:"content" binding:"required"`
-	UseCharacterProfile bool   `json:"use_character_profile"`
-	CharacterProfileID  *int   `json:"character_profile_id"`
+	TopicID             int     `json:"topic_id" binding:"required"`
+	Content             string  `json:"content" binding:"required"`
+	UseCharacterProfile bool    `json:"use_character_profile"`
+	CharacterProfileID  *int    `json:"character_profile_id"`
+	GuestName           *string `json:"guest_name"`
 }
 
 type UpdatePostRequest struct {
@@ -278,7 +279,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 	query := fmt.Sprintf(`
 		SELECT
 			p.id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
-			u.username, u.avatar,
+			u.username, u.avatar, p.guest_name,
 			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar,
 			t.subforum_id
 			%s
@@ -392,7 +393,9 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		} else {
 			var userProfile Entities.UserProfile
 			userProfile.UserId = post.AuthorUserId
-			if username, ok := rowMap["username"]; ok {
+			if guestName, ok := rowMap["guest_name"]; ok && guestName.(string) != "" {
+				userProfile.UserName = guestName.(string)
+			} else if username, ok := rowMap["username"]; ok {
 				userProfile.UserName = username.(string)
 			}
 			if avatar, ok := rowMap["avatar"]; ok {
@@ -547,9 +550,14 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 	}
 	defer tx.Rollback()
 
+	var guestName *string
+	if userID == 0 {
+		guestName = req.GuestName
+	}
+
 	// Insert Post
-	res, err := tx.Exec("INSERT INTO posts (topic_id, author_user_id, content, date_created, use_character_profile, character_profile_id) VALUES (?, ?, ?, NOW(), ?, ?)",
-		req.TopicID, userID, req.Content, req.UseCharacterProfile, req.CharacterProfileID)
+	res, err := tx.Exec("INSERT INTO posts (topic_id, author_user_id, content, date_created, use_character_profile, character_profile_id, guest_name) VALUES (?, ?, ?, NOW(), ?, ?, ?)",
+		req.TopicID, userID, req.Content, req.UseCharacterProfile, req.CharacterProfileID, guestName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert post: " + err.Error()})
 		return

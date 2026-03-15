@@ -118,6 +118,7 @@ create table character_base
         total_posts int default 0 null,
         total_episodes int default 0 null,
         date_last_post datetime null,
+        is_archived boolean default false null,
 		constraint character_base_users_id_fk
 		foreign key (user_id) references users (id),
         constraint character_base_topics_id_fk
@@ -140,6 +141,8 @@ create table character_profile_base
 		(id      bigint unsigned auto_increment primary key,
 		character_id bigint unsigned          null,
         avatar varchar(255) null,
+        is_archived boolean default false null,
+        is_mask boolean default false null,
 		constraint character_profile_base_character_id_fk
 		foreign key (character_id) references character_base (id)  ON DELETE CASCADE
 		);
@@ -160,6 +163,7 @@ CREATE TABLE posts (
                        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                        topic_id BIGINT UNSIGNED NOT NULL,
                        author_user_id INT NOT NULL,
+                       guest_name VARCHAR(255) NULL,
                        date_created DATETIME DEFAULT CURRENT_TIMESTAMP,
                        content TEXT NOT NULL,
                        character_profile_id BIGINT UNSIGNED,
