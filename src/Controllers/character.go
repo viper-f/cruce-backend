@@ -14,18 +14,18 @@ import (
 )
 
 type CreateCharacterRequest struct {
-	SubforumID   int                                  `json:"subforum_id" binding:"required"`
-	Name         string                               `json:"name" binding:"required"`
-	Avatar       *string                              `json:"avatar"`
-	CustomFields map[string]Entities.CustomFieldValue `json:"custom_fields"`
-	FactionIDs   []Entities.Faction                   `json:"factions"`
+	SubforumID   int                    `json:"subforum_id" binding:"required"`
+	Name         string                 `json:"name" binding:"required"`
+	Avatar       *string                `json:"avatar"`
+	CustomFields map[string]interface{} `json:"custom_fields"`
+	FactionIDs   []Entities.Faction     `json:"factions"`
 }
 
 type UpdateCharacterRequest struct {
-	Name         string                               `json:"name" binding:"required"`
-	Avatar       *string                              `json:"avatar"`
-	CustomFields map[string]Entities.CustomFieldValue `json:"custom_fields"`
-	FactionIDs   []Entities.Faction                   `json:"factions"`
+	Name         string                 `json:"name" binding:"required"`
+	Avatar       *string                `json:"avatar"`
+	CustomFields map[string]interface{} `json:"custom_fields"`
+	FactionIDs   []Entities.Faction     `json:"factions"`
 }
 
 func GetCharacter(c *gin.Context, db *sql.DB) {
@@ -164,6 +164,12 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	// Convert CustomFields to the expected type
+	cfMap := make(map[string]Entities.CustomFieldValue)
+	for k, v := range req.CustomFields {
+		cfMap[k] = Entities.CustomFieldValue{Content: v}
+	}
+
 	character := Entities.Character{
 		UserId:          userID,
 		TopicId:         int(topicID),
@@ -171,7 +177,7 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 		Avatar:          req.Avatar,
 		CharacterStatus: Entities.PendingCharacter,
 		CustomFields: Entities.CustomFieldEntity{
-			CustomFields: req.CustomFields,
+			CustomFields: cfMap,
 		},
 	}
 
