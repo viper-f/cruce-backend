@@ -56,7 +56,7 @@ func main() {
 	publicRouter.GET("/character/get/:id", "Get character details by ID", func(c *gin.Context) {
 		Controllers.GetCharacter(c, Services.DB)
 	})
-	publicRouter.GET("/character-profile/:id/get", "Get character profile details by ID", func(c *gin.Context) {
+	publicRouter.GET("/character-profile/get/:id", "Get character profile details by ID", func(c *gin.Context) {
 		Controllers.GetCharacterProfile(c, Services.DB)
 	})
 
@@ -172,7 +172,7 @@ func main() {
 	protectedRouter.POST("/post/update/:id", "Update post by ID", func(c *gin.Context) {
 		Controllers.UpdatePost(c, Services.DB)
 	})
-	protectedRouter.POST("/character-profile/:id/update", "Update character profile by ID", func(c *gin.Context) {
+	protectedRouter.POST("/character-profile/update/:id", "Update character profile by ID", func(c *gin.Context) {
 		Controllers.CharacterProfileUpdate(c, Services.DB)
 	})
 	protectedRouter.POST("/topic/create", "Create topic", func(c *gin.Context) {

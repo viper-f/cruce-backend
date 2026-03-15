@@ -228,6 +228,33 @@ func setField(field reflect.Value, val interface{}) error {
 			return err
 		}
 		field.Set(elem)
+	case reflect.Float32, reflect.Float64:
+		var f float64
+		switch v := val.(type) {
+		case string:
+			n, err := strconv.ParseFloat(v, 64)
+			if err == nil {
+				f = n
+			}
+		case float64:
+			f = v
+		case int:
+			f = float64(v)
+		}
+		field.SetFloat(f)
+	case reflect.Bool:
+		var b bool
+		switch v := val.(type) {
+		case string:
+			b, _ = strconv.ParseBool(v)
+		case bool:
+			b = v
+		case int:
+			b = v != 0
+		case float64:
+			b = v != 0
+		}
+		field.SetBool(b)
 	default:
 		if reflect.TypeOf(val).AssignableTo(field.Type()) {
 			field.Set(reflect.ValueOf(val))
@@ -456,12 +483,14 @@ func PatchEntity(id int64, className string, updates map[string]interface{}, db 
 	if cfVal, ok := updates["custom_fields"]; ok {
 		var fieldsMap map[string]interface{}
 
-		if cfEntityMap, ok := cfVal.(map[string]interface{}); ok {
-			if fVal, ok := cfEntityMap["custom_fields"]; ok {
-				if fMap, ok := fVal.(map[string]interface{}); ok {
-					fieldsMap = fMap
-				}
-			}
+		// The incoming custom_fields payload is expected to be a map[string]interface{}
+		// where each value is either a primitive type or a map[string]interface{} with a "content" key.
+		if fMap, isMap := cfVal.(map[string]interface{}); isMap {
+			fieldsMap = fMap
+		} else {
+			// If cfVal is not a map, it's an unexpected format for custom_fields.
+			// This might indicate an error in the request payload or a misunderstanding of the format.
+			return nil, fmt.Errorf("custom_fields payload is not a map: %T", cfVal)
 		}
 
 		if len(fieldsMap) > 0 {
@@ -475,15 +504,23 @@ func PatchEntity(id int64, className string, updates map[string]interface{}, db 
 					continue
 				}
 
-				var fieldValue interface{} = fieldValueRaw
-				if m, ok := fieldValueRaw.(map[string]interface{}); ok {
-					if c, ok := m["content"]; ok {
-						fieldValue = c
+				var actualFieldValue interface{}
+				// Check if fieldValueRaw is a map with a "content" key (like {"content": "value"})
+				if contentMap, isContentMap := fieldValueRaw.(map[string]interface{}); isContentMap {
+					if content, hasContent := contentMap["content"]; hasContent {
+						actualFieldValue = content
+					} else {
+						// If it's a map but no "content" key, use the map itself or skip
+						actualFieldValue = fieldValueRaw
 					}
+				} else {
+					// If it's not a map, use the raw value directly
+					actualFieldValue = fieldValueRaw
 				}
 
 				dbType, ok := colTypeMap[fieldName]
 				if !ok {
+					// If the custom field is not in the flattened table schema, skip it or handle as error
 					continue
 				}
 
@@ -497,33 +534,35 @@ func PatchEntity(id int64, className string, updates map[string]interface{}, db 
 				switch dbType {
 				case "INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT":
 					fieldType = "int"
-					if v, ok := fieldValue.(float64); ok {
+					if v, ok := actualFieldValue.(float64); ok { // JSON numbers are float64 by default
 						i := int(v)
 						valInt = &i
+					} else if v, ok := actualFieldValue.(int); ok {
+						valInt = &v
 					}
 				case "DECIMAL", "FLOAT", "DOUBLE":
 					fieldType = "decimal"
-					if v, ok := fieldValue.(float64); ok {
+					if v, ok := actualFieldValue.(float64); ok {
 						valDecimal = &v
 					}
 				case "VARCHAR", "CHAR":
 					fieldType = "string"
-					if v, ok := fieldValue.(string); ok {
+					if v, ok := actualFieldValue.(string); ok {
 						valString = &v
 					}
 				case "TEXT", "BLOB":
 					fieldType = "text"
-					if v, ok := fieldValue.(string); ok {
+					if v, ok := actualFieldValue.(string); ok {
 						valText = &v
 					}
 				case "DATETIME", "DATE", "TIMESTAMP":
 					fieldType = "date"
-					if v, ok := fieldValue.(string); ok {
+					if v, ok := actualFieldValue.(string); ok {
 						valDate = &v
 					}
 				default:
 					fieldType = "string"
-					if v, ok := fieldValue.(string); ok {
+					if v, ok := actualFieldValue.(string); ok {
 						valString = &v
 					}
 				}

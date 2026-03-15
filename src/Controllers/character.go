@@ -934,6 +934,27 @@ func UpdateMask(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	// 1. Verify Ownership: Only the creator can update the mask
+	var ownerID int
+	err = db.QueryRow("SELECT user_id FROM character_profile_base WHERE id = ? AND is_mask = true", id).Scan(&ownerID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Mask not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to verify ownership: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	currentUserID := Services.GetUserIdFromContext(c)
+	if currentUserID != ownerID {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "You do not have permission to update this mask"})
+		c.Abort()
+		return
+	}
+
+	// 2. Use a generic map for binding, matching the working CharacterProfileUpdate logic
 	var jsonMap map[string]interface{}
 	if err := c.ShouldBindJSON(&jsonMap); err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
@@ -941,7 +962,6 @@ func UpdateMask(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// Update logic for masks is identical to profiles, assuming the route handles ownership verification
 	updatedEntity, err := Services.PatchEntity(int64(id), "character_profile", jsonMap, db)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update mask: " + err.Error()})
