@@ -478,6 +478,32 @@ func GetCharacterAutocomplete(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, characters)
 }
 
+func GetMaskAutocomplete(c *gin.Context, db *sql.DB) {
+	query := `
+		SELECT cpb.id, cpb.mask_name, cpb.user_id, u.username 
+		FROM character_profile_base cpb JOIN users u ON cpb.user_id = u.id 
+		WHERE cpb.mask_name LIKE ? AND cpb.is_mask = true ORDER BY cpb.mask_name ASC LIMIT 10
+	`
+	rows, err := db.Query(query, "%"+c.Param("term")+"%")
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get masks: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+	var masks []Entities.ShortMask
+	for rows.Next() {
+		var tempMask Entities.ShortMask
+		if err := rows.Scan(&tempMask.Id, &tempMask.MaskName, &tempMask.UserId, &tempMask.UserName); err != nil {
+			// Log the error and skip this row
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan mask: " + err.Error()})
+			continue
+		}
+		masks = append(masks, tempMask)
+	}
+	c.JSON(http.StatusOK, masks)
+}
+
 func GetUserCharacters(c *gin.Context, db *sql.DB) {
 	userID := Services.GetUserIdFromContext(c)
 	if userID == 0 {
