@@ -372,6 +372,8 @@ create table direct_chat_messages
     date_received datetime null,
     content_author   text not null,
     content_receiver text not null,
+    iv_author        varchar(24) not null,
+    iv_receiver      varchar(24) not null,
     constraint fk_direct_chat_messages_chat foreign key (chat_id) references direct_chats (id) on delete cascade,
     constraint fk_direct_chat_messages_user foreign key (user_id) references users (id) on delete cascade
 );

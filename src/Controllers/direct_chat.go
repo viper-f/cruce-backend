@@ -54,13 +54,15 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 		DateReceived    *time.Time `json:"date_received"`
 		ContentAuthor   string     `json:"content_author"`
 		ContentReceiver string     `json:"content_receiver"`
+		IVAuthor        string     `json:"iv_author"`
+		IVReceiver      string     `json:"iv_receiver"`
 	}
 
 	scanRows := func(rows *sql.Rows) ([]Message, error) {
 		var msgs []Message
 		for rows.Next() {
 			var msg Message
-			if err := rows.Scan(&msg.Id, &msg.UserID, &msg.DateSend, &msg.DateReceived, &msg.ContentAuthor, &msg.ContentReceiver); err != nil {
+			if err := rows.Scan(&msg.Id, &msg.UserID, &msg.DateSend, &msg.DateReceived, &msg.ContentAuthor, &msg.ContentReceiver, &msg.IVAuthor, &msg.IVReceiver); err != nil {
 				return nil, err
 			}
 			msgs = append(msgs, msg)
@@ -73,7 +75,7 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 	if messageIDStr == "" {
 		// Return first N messages
 		rows, err := db.Query(`
-			SELECT id, user_id, date_send, date_received, content_author, content_receiver
+			SELECT id, user_id, date_send, date_received, content_author, content_receiver, iv_author, iv_receiver
 			FROM direct_chat_messages
 			WHERE chat_id = ?
 			ORDER BY date_send ASC
@@ -101,7 +103,7 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 
 		// N messages before
 		beforeRows, err := db.Query(`
-			SELECT id, user_id, date_send, date_received, content_author, content_receiver
+			SELECT id, user_id, date_send, date_received, content_author, content_receiver, iv_author, iv_receiver
 			FROM direct_chat_messages
 			WHERE chat_id = ? AND id < ?
 			ORDER BY date_send DESC
@@ -126,7 +128,7 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 
 		// N messages after
 		afterRows, err := db.Query(`
-			SELECT id, user_id, date_send, date_received, content_author, content_receiver
+			SELECT id, user_id, date_send, date_received, content_author, content_receiver, iv_author, iv_receiver
 			FROM direct_chat_messages
 			WHERE chat_id = ? AND id > ?
 			ORDER BY date_send ASC
@@ -238,6 +240,8 @@ type DirectChatLastReadMessage struct {
 	DateReceived    *time.Time `json:"date_received"`
 	ContentAuthor   string     `json:"content_author"`
 	ContentReceiver string     `json:"content_receiver"`
+	IVAuthor        string     `json:"iv_author"`
+	IVReceiver      string     `json:"iv_receiver"`
 }
 
 type DirectChatResponse struct {
@@ -297,9 +301,9 @@ func GetDirectChat(c *gin.Context, db *sql.DB) {
 	if lastReadMessageID != nil {
 		var msg DirectChatLastReadMessage
 		err = db.QueryRow(`
-			SELECT id, user_id, date_send, date_received, content_author, content_receiver
+			SELECT id, user_id, date_send, date_received, content_author, content_receiver, iv_author, iv_receiver
 			FROM direct_chat_messages WHERE id = ?
-		`, *lastReadMessageID).Scan(&msg.Id, &msg.UserID, &msg.DateSend, &msg.DateReceived, &msg.ContentAuthor, &msg.ContentReceiver)
+		`, *lastReadMessageID).Scan(&msg.Id, &msg.UserID, &msg.DateSend, &msg.DateReceived, &msg.ContentAuthor, &msg.ContentReceiver, &msg.IVAuthor, &msg.IVReceiver)
 		if err == nil {
 			lastReadMessage = &msg
 		}
@@ -316,6 +320,8 @@ type CreateDirectChatMessageRequest struct {
 	ChatID          int    `json:"chat_id" binding:"required"`
 	ContentAuthor   string `json:"content_author" binding:"required"`
 	ContentReceiver string `json:"content_receiver" binding:"required"`
+	IVAuthor        string `json:"iv_author" binding:"required"`
+	IVReceiver      string `json:"iv_receiver" binding:"required"`
 }
 
 func CreateDirectChatMessage(c *gin.Context, db *sql.DB) {
@@ -346,8 +352,8 @@ func CreateDirectChatMessage(c *gin.Context, db *sql.DB) {
 	}
 
 	res, err := db.Exec(
-		"INSERT INTO direct_chat_messages (chat_id, user_id, date_send, content_author, content_receiver) VALUES (?, ?, ?, ?, ?)",
-		req.ChatID, userID, time.Now(), req.ContentAuthor, req.ContentReceiver,
+		"INSERT INTO direct_chat_messages (chat_id, user_id, date_send, content_author, content_receiver, iv_author, iv_receiver) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		req.ChatID, userID, time.Now(), req.ContentAuthor, req.ContentReceiver, req.IVAuthor, req.IVReceiver,
 	)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create message: " + err.Error()})
