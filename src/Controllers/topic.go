@@ -280,7 +280,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		SELECT
 			p.id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
 			u.username, u.avatar, p.guest_name,
-			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar,
+			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar, cp.mask_name, cp.is_mask,
 			t.subforum_id
 			%s
 		FROM posts p
@@ -373,6 +373,14 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 			if avatar, ok := rowMap["character_avatar"]; ok {
 				avatarStr := avatar.(string)
 				charProfile.Avatar = &avatarStr
+			}
+			if maskName, ok := rowMap["mask_name"]; ok {
+				maskNameStr := maskName.(string)
+				charProfile.MaskName = &maskNameStr
+			}
+			if isMask, ok := rowMap["is_mask"]; ok {
+				isMaskBool, _ := strconv.ParseBool(isMask.(string))
+				charProfile.IsMask = &isMaskBool
 			}
 
 			// Populate custom fields
