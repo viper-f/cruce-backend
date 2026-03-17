@@ -804,6 +804,25 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 		}
 	}
 
+	// Append user's masks for all non-CharacterSheet topics
+	maskRows, err := db.Query("SELECT id FROM character_profile_base WHERE user_id = ? AND is_mask = true", userID)
+	if err == nil {
+		defer maskRows.Close()
+		for maskRows.Next() {
+			var id int
+			if err := maskRows.Scan(&id); err != nil {
+				continue
+			}
+			entity, err := Services.GetEntity(int64(id), "character_profile", db)
+			if err != nil {
+				continue
+			}
+			if profile, ok := entity.(*Entities.CharacterProfile); ok {
+				profiles = append(profiles, *profile)
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, profiles)
 }
 
