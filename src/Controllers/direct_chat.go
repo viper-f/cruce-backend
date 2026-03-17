@@ -360,3 +360,44 @@ func CreateDirectChatMessage(c *gin.Context, db *sql.DB) {
 
 	c.JSON(http.StatusCreated, gin.H{"message_id": messageID})
 }
+
+type DirectChatListItem struct {
+	ChatID      int    `json:"chat_id"`
+	UserId      int    `json:"user_id"`
+	Username    string `json:"username"`
+	UnreadCount int    `json:"unread_count"`
+}
+
+func GetDirectChatList(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	rows, err := db.Query(`
+		SELECT dcu.direct_chat_id, u.id, u.username, dcu.unread_count
+		FROM direct_chat_users dcu
+		JOIN direct_chat_users dcu_other ON dcu_other.direct_chat_id = dcu.direct_chat_id AND dcu_other.user_id != dcu.user_id
+		JOIN users u ON u.id = dcu_other.user_id
+		WHERE dcu.user_id = ?
+	`, userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get chat list: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	chats := []DirectChatListItem{}
+	for rows.Next() {
+		var item DirectChatListItem
+		if err := rows.Scan(&item.ChatID, &item.UserId, &item.Username, &item.UnreadCount); err != nil {
+			continue
+		}
+		chats = append(chats, item)
+	}
+
+	c.JSON(http.StatusOK, chats)
+}

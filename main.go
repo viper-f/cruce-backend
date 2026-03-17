@@ -53,6 +53,9 @@ func main() {
 	publicRouter.GET("/user/list", "Get list of active users and their characters", func(c *gin.Context) {
 		Controllers.GetUserList(c, Services.DB)
 	})
+	publicRouter.GET("/user/autocomplete/:term", "Get users matching search term", func(c *gin.Context) {
+		Controllers.UserAutocomplete(c, Services.DB)
+	})
 	publicRouter.GET("/character/get/:id", "Get character details by ID", func(c *gin.Context) {
 		Controllers.GetCharacter(c, Services.DB)
 	})
@@ -222,6 +225,9 @@ func main() {
 	})
 	protectedRouter.GET("/direct-chat/:chatID/messages", "Get messages in a direct chat", func(c *gin.Context) {
 		Controllers.GetLastMessages(c, Services.DB)
+	})
+	protectedRouter.GET("/direct-chats", "Get list of current user's direct chats", func(c *gin.Context) {
+		Controllers.GetDirectChatList(c, Services.DB)
 	})
 
 	// WebSocket route with special authentication

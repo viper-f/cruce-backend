@@ -610,11 +610,11 @@ func GetPrivateKey(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	var pk Entities.PrivateKey
+	var privateKey string
 	err := db.QueryRow(
-		"SELECT user_id, private_key, recovery_code_id FROM private_keys WHERE user_id = ? AND is_active = true",
+		"SELECT private_key FROM private_keys WHERE user_id = ? AND is_active = true",
 		userID,
-	).Scan(&pk.UserId, &pk.PrivateKey, &pk.RecoveryKeyId)
+	).Scan(&privateKey)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "No active private key found"})
@@ -625,7 +625,7 @@ func GetPrivateKey(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, pk)
+	c.JSON(http.StatusOK, privateKey)
 }
 
 func GetPublicKeyByUserId(c *gin.Context, db *sql.DB) {
@@ -652,4 +652,30 @@ func GetPublicKeyByUserId(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, pk)
+}
+
+func UserAutocomplete(c *gin.Context, db *sql.DB) {
+	term := c.Param("term")
+
+	rows, err := db.Query(
+		"SELECT id, username FROM users WHERE username LIKE ? AND user_status = 0 LIMIT 10",
+		"%"+term+"%",
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get users: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	users := []Entities.ShortUser{}
+	for rows.Next() {
+		var u Entities.ShortUser
+		if err := rows.Scan(&u.Id, &u.Username); err != nil {
+			continue
+		}
+		users = append(users, u)
+	}
+
+	c.JSON(http.StatusOK, users)
 }
