@@ -18,12 +18,14 @@ type CreateEpisodeRequest struct {
 	SubforumID   int                    `json:"subforum_id" binding:"required"`
 	Name         string                 `json:"name" binding:"required"`
 	CharacterIDs []int                  `json:"character_ids"`
+	MaskIds      []int                  `json:"mask_ids"`
 	CustomFields map[string]interface{} `json:"custom_fields"`
 }
 
 type UpdateEpisodeRequest struct {
 	Name         string                 `json:"name" binding:"required"`
 	CharacterIDs []int                  `json:"character_ids"`
+	MaskIds      []int                  `json:"mask_ids"`
 	CustomFields map[string]interface{} `json:"custom_fields"`
 }
 
@@ -126,6 +128,26 @@ func CreateEpisode(c *gin.Context, db *sql.DB) {
 			_, err := stmt.Exec(createdEpisode.Id, charID)
 			if err != nil {
 				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to insert character relation: " + err.Error()})
+				c.Abort()
+				return
+			}
+		}
+	}
+
+	// 4. Insert Episode-Mask Relations
+	if len(req.MaskIds) > 0 {
+		maskStmt, err := tx.Prepare("INSERT INTO episode_mask (episode_id, mask_id) VALUES (?, ?)")
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to prepare mask relation statement"})
+			c.Abort()
+			return
+		}
+		defer maskStmt.Close()
+
+		for _, maskID := range req.MaskIds {
+			_, err := maskStmt.Exec(createdEpisode.Id, maskID)
+			if err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to insert mask relation: " + err.Error()})
 				c.Abort()
 				return
 			}
@@ -253,6 +275,20 @@ func GetEpisode(c *gin.Context, db *sql.DB) {
 			}
 			episode.Characters = characters
 			charRows.Close()
+		}
+
+		// Fetch masks for the episode
+		maskRows, err := db.Query(`SELECT cpb.id, cpb.mask_name, cpb.user_id, u.username FROM character_profile_base cpb JOIN episode_mask em ON cpb.id = em.mask_id JOIN users u ON cpb.user_id = u.id WHERE em.episode_id = ?`, episode.Id)
+		if err == nil {
+			var masks []Entities.ShortMask
+			for maskRows.Next() {
+				var mask Entities.ShortMask
+				if err := maskRows.Scan(&mask.Id, &mask.MaskName, &mask.UserId, &mask.UserName); err == nil {
+					masks = append(masks, mask)
+				}
+			}
+			episode.Masks = masks
+			maskRows.Close()
 		}
 
 		// Check CanEdit
@@ -406,6 +442,33 @@ func UpdateEpisode(c *gin.Context, db *sql.DB) {
 			_, err := stmt.Exec(episodeID, charID)
 			if err != nil {
 				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to insert character relation: " + err.Error()})
+				c.Abort()
+				return
+			}
+		}
+	}
+
+	// 6. Update Episode-Mask Relations
+	_, err = tx.Exec("DELETE FROM episode_mask WHERE episode_id = ?", episodeID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to clear old mask relations: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if len(req.MaskIds) > 0 {
+		maskStmt, err := tx.Prepare("INSERT INTO episode_mask (episode_id, mask_id) VALUES (?, ?)")
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to prepare mask relation statement"})
+			c.Abort()
+			return
+		}
+		defer maskStmt.Close()
+
+		for _, maskID := range req.MaskIds {
+			_, err := maskStmt.Exec(episodeID, maskID)
+			if err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to insert mask relation: " + err.Error()})
 				c.Abort()
 				return
 			}

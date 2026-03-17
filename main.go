@@ -94,6 +94,9 @@ func main() {
 	optionalAuthRouter.GET("/character-autocomplete/:term", "Get list of characters matching search term", func(c *gin.Context) {
 		Controllers.GetCharacterAutocomplete(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/mask-autocomplete/:term", "Get list of masks matching search term", func(c *gin.Context) {
+		Controllers.GetMaskAutocomplete(c, Services.DB)
+	})
 	optionalAuthRouter.GET("/factions/get", "Get faction tree", func(c *gin.Context) {
 		Controllers.GetFactionTree(c, Services.DB)
 	})
