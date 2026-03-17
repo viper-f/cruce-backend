@@ -111,13 +111,24 @@ func Register(c *gin.Context, db *sql.DB) {
 	user.Password = "" // Don't return password
 	user.Roles = []Entities.Role{{Id: defaultRoleID, Name: "user"}}
 
+	// Generate recovery codes
+	recoveryCodes, err := Services.GenerateAndStoreRecoveryCodes(user.Id, db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to generate recovery codes: " + err.Error()})
+		c.Abort()
+		return
+	}
+
 	// Emit UserRegistered event
 	Events.Publish(db, Events.UserRegistered, Events.UserRegisteredEvent{
 		UserID:   user.Id,
 		Username: user.Username,
 	})
 
-	c.JSON(http.StatusCreated, user)
+	c.JSON(http.StatusCreated, gin.H{
+		"user":           user,
+		"recovery_codes": recoveryCodes,
+	})
 }
 
 func Login(c *gin.Context, db *sql.DB) {
@@ -544,4 +555,101 @@ func GetUserList(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, users)
+}
+
+type SaveKeysRequest struct {
+	PrivateKeys []Entities.PrivateKey `json:"private_keys" binding:"required"`
+	PublicKey   Entities.PublicKey    `json:"public_key" binding:"required"`
+}
+
+func SaveKeys(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	var req SaveKeysRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	for _, pk := range req.PrivateKeys {
+		_, err := db.Exec(
+			"INSERT INTO private_keys (user_id, private_key, recovery_code_id) VALUES (?, ?, ?)",
+			userID, pk.PrivateKey, pk.RecoveryKeyId,
+		)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save private key: " + err.Error()})
+			c.Abort()
+			return
+		}
+	}
+
+	_, err := db.Exec(
+		"INSERT INTO public_keys (user_id, public_key) VALUES (?, ?)",
+		userID, req.PublicKey.PublicKey,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save public key: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Keys saved successfully"})
+}
+
+func GetPrivateKey(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	var pk Entities.PrivateKey
+	err := db.QueryRow(
+		"SELECT user_id, private_key, recovery_code_id FROM private_keys WHERE user_id = ? AND is_active = true",
+		userID,
+	).Scan(&pk.UserId, &pk.PrivateKey, &pk.RecoveryKeyId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "No active private key found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get private key: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, pk)
+}
+
+func GetPublicKeyByUserId(c *gin.Context, db *sql.DB) {
+	userID, err := strconv.Atoi(c.Param("userID"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid user ID"})
+		c.Abort()
+		return
+	}
+
+	var pk Entities.PublicKey
+	err = db.QueryRow(
+		"SELECT user_id, public_key FROM public_keys WHERE user_id = ?",
+		userID,
+	).Scan(&pk.UserId, &pk.PublicKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "No public key found for user"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get public key: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, pk)
 }

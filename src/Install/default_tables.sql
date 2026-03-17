@@ -322,6 +322,65 @@ CREATE TABLE notifications (
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+create table recovery_codes
+(
+    id            int auto_increment primary key,
+    user_id       int          not null,
+    recovery_code varchar(255) not null,
+    date_used     datetime     null,
+    constraint fk_recovery_codes_user foreign key (user_id) references users (id) on delete cascade
+);
+
+create table private_keys
+(
+    id               int auto_increment primary key,
+    user_id          int          not null,
+    private_key      varchar(255) not null,
+    recovery_code_id int          null,
+    is_active        boolean      not null default false,
+    constraint fk_private_keys_user foreign key (user_id) references users (id) on delete cascade,
+    constraint fk_private_keys_recovery_code foreign key (recovery_code_id) references recovery_codes (id) on delete set null
+);
+
+create table direct_chats
+(
+    id         int auto_increment primary key,
+    start_date datetime not null,
+    status     int      not null default 0
+);
+
+create table direct_chat_users
+(
+    direct_chat_id      int not null,
+    user_id             int not null,
+    last_read_message_id int null,
+    constraint direct_chat_users_pk primary key (direct_chat_id, user_id),
+    constraint fk_direct_chat_users_chat foreign key (direct_chat_id) references direct_chats (id) on delete cascade,
+    constraint fk_direct_chat_users_user foreign key (user_id) references users (id) on delete cascade,
+    constraint fk_direct_chat_users_last_message foreign key (last_read_message_id) references direct_chat_messages (id) on delete set null
+);
+
+create table direct_chat_messages
+(
+    id            int auto_increment primary key,
+    chat_id       int      not null,
+    user_id       int      not null,
+    date_send     datetime not null,
+    date_received datetime null,
+    content_author   text not null,
+    content_receiver text not null,
+    constraint fk_direct_chat_messages_chat foreign key (chat_id) references direct_chats (id) on delete cascade,
+    constraint fk_direct_chat_messages_user foreign key (user_id) references users (id) on delete cascade
+);
+
+create table public_keys
+(
+    id         int auto_increment primary key,
+    user_id    int          not null,
+    public_key varchar(255) not null,
+    constraint fk_public_keys_user foreign key (user_id) references users (id) on delete cascade
+);
+
 create table user_topic_view
 (
     user_id   int             not null,

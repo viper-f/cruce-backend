@@ -202,6 +202,24 @@ func main() {
 	protectedRouter.POST("/mask/update/:id", "Update mask by ID", func(c *gin.Context) {
 		Controllers.UpdateMask(c, Services.DB)
 	})
+	protectedRouter.GET("/user/private-key", "Get current user's active private key", func(c *gin.Context) {
+		Controllers.GetPrivateKey(c, Services.DB)
+	})
+	protectedRouter.GET("/user/public-key/:userID", "Get public key by user ID", func(c *gin.Context) {
+		Controllers.GetPublicKeyByUserId(c, Services.DB)
+	})
+	protectedRouter.POST("/direct-chat/create", "Create or find a direct chat with a user", func(c *gin.Context) {
+		Controllers.CreateDirectChat(c, Services.DB)
+	})
+	protectedRouter.POST("/direct-chat/message/create", "Send a direct chat message", func(c *gin.Context) {
+		Controllers.CreateDirectChatMessage(c, Services.DB)
+	})
+	protectedRouter.GET("/direct-chat/:chatID", "Get direct chat details", func(c *gin.Context) {
+		Controllers.GetDirectChat(c, Services.DB)
+	})
+	protectedRouter.GET("/direct-chat/:chatID/messages", "Get messages in a direct chat", func(c *gin.Context) {
+		Controllers.GetLastMessages(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")

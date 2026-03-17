@@ -34,6 +34,17 @@ const (
 	BlockedUser UserStatus = 1
 )
 
+type PrivateKey struct {
+	UserId        int    `json:"user_id"`
+	PrivateKey    string `json:"private_key"`
+	RecoveryKeyId int    `json:"recover_key_id"`
+}
+
+type PublicKey struct {
+	UserId    int    `json:"user_id"`
+	PublicKey string `json:"public_key"`
+}
+
 func (u *User) HashPassword(password string) error {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
