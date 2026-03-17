@@ -202,6 +202,9 @@ func main() {
 	protectedRouter.POST("/mask/update/:id", "Update mask by ID", func(c *gin.Context) {
 		Controllers.UpdateMask(c, Services.DB)
 	})
+	protectedRouter.POST("/user/save-keys", "Save user's public and private keys", func(c *gin.Context) {
+		Controllers.SaveKeys(c, Services.DB)
+	})
 	protectedRouter.GET("/user/private-key", "Get current user's active private key", func(c *gin.Context) {
 		Controllers.GetPrivateKey(c, Services.DB)
 	})
