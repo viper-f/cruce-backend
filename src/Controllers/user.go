@@ -579,8 +579,8 @@ func SaveKeys(c *gin.Context, db *sql.DB) {
 
 	for _, pk := range req.PrivateKeys {
 		_, err := db.Exec(
-			"INSERT INTO private_keys (user_id, private_key, recovery_code_id) VALUES (?, ?, ?)",
-			userID, pk.PrivateKey, pk.RecoveryKeyId,
+			"INSERT INTO private_keys (user_id, private_key, salt, recovery_code_id) VALUES (?, ?, ?, ?)",
+			userID, pk.PrivateKey, pk.Salt, pk.RecoveryKeyId,
 		)
 		if err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save private key: " + err.Error()})
@@ -610,11 +610,11 @@ func GetPrivateKey(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	var privateKey string
+	var privateKey, salt string
 	err := db.QueryRow(
-		"SELECT private_key FROM private_keys WHERE user_id = ? AND is_active = true",
+		"SELECT private_key, salt FROM private_keys WHERE user_id = ? AND is_active = true",
 		userID,
-	).Scan(&privateKey)
+	).Scan(&privateKey, &salt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "No active private key found"})
@@ -625,7 +625,7 @@ func GetPrivateKey(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, privateKey)
+	c.JSON(http.StatusOK, gin.H{"private_key": privateKey, "salt": salt})
 }
 
 func GetPublicKeyByUserId(c *gin.Context, db *sql.DB) {

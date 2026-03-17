@@ -369,7 +369,7 @@ type DirectChatListItem struct {
 	ChatID      int    `json:"chat_id"`
 	UserId      int    `json:"user_id"`
 	Username    string `json:"username"`
-	UnreadCount int    `json:"unread_count"`
+	UnreadCount *int   `json:"unread_count"`
 }
 
 func GetDirectChatList(c *gin.Context, db *sql.DB) {

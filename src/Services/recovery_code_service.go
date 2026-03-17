@@ -4,10 +4,16 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
 const recoveryCodeChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+type RecoveryCodeResult struct {
+	Id   int64  `json:"id"`
+	Code string `json:"code"`
+}
 
 func generateRecoveryCode() (string, error) {
 	segmentLen := 4
@@ -34,8 +40,8 @@ func generateRecoveryCode() (string, error) {
 }
 
 // GenerateAndStoreRecoveryCodes generates 5 recovery codes, hashes them, stores them in the DB,
-// and returns the plain-text codes to be shown to the user once.
-func GenerateAndStoreRecoveryCodes(userID int, db *sql.DB) ([]string, error) {
+// and returns the plain-text codes with their IDs to be shown to the user once.
+func GenerateAndStoreRecoveryCodes(userID int, db *sql.DB) ([]RecoveryCodeResult, error) {
 	plain := make([]string, 5)
 	for i := range plain {
 		code, err := generateRecoveryCode()
@@ -45,19 +51,25 @@ func GenerateAndStoreRecoveryCodes(userID int, db *sql.DB) ([]string, error) {
 		plain[i] = code
 	}
 
+	var results []RecoveryCodeResult
 	for _, code := range plain {
 		hash, err := bcrypt.GenerateFromPassword([]byte(code), 14)
 		if err != nil {
 			return nil, fmt.Errorf("failed to hash recovery code: %w", err)
 		}
-		_, err = db.Exec(
+		res, err := db.Exec(
 			"INSERT INTO recovery_codes (user_id, recovery_code) VALUES (?, ?)",
 			userID, string(hash),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to store recovery code: %w", err)
 		}
+		id, err := res.LastInsertId()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get recovery code ID: %w", err)
+		}
+		results = append(results, RecoveryCodeResult{Id: id, Code: code})
 	}
 
-	return plain, nil
+	return results, nil
 }

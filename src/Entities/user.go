@@ -37,7 +37,8 @@ const (
 type PrivateKey struct {
 	UserId        int    `json:"user_id"`
 	PrivateKey    string `json:"private_key"`
-	RecoveryKeyId int    `json:"recover_key_id"`
+	Salt          string `json:"salt"`
+	RecoveryKeyId *int   `json:"recover_key_id"`
 }
 
 type PublicKey struct {

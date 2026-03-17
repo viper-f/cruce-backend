@@ -336,6 +336,7 @@ create table private_keys
     id               int auto_increment primary key,
     user_id          int          not null,
     private_key      varchar(255) not null,
+    salt             varchar(255) not null,
     recovery_code_id int          null,
     is_active        boolean      not null default false,
     constraint fk_private_keys_user foreign key (user_id) references users (id) on delete cascade,
