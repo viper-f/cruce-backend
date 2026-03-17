@@ -38,6 +38,7 @@ type PrivateKey struct {
 	UserId        int    `json:"user_id"`
 	PrivateKey    string `json:"private_key"`
 	Salt          string `json:"salt"`
+	IV            string `json:"iv"`
 	RecoveryKeyId *int   `json:"recover_key_id"`
 }
 
