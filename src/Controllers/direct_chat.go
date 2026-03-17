@@ -184,35 +184,39 @@ func CreateDirectChat(c *gin.Context, db *sql.DB) {
 		LIMIT 1
 	`, userID, req.RecipientID).Scan(&chatID)
 
-	if err == sql.ErrNoRows {
-		res, err := db.Exec(
-			"INSERT INTO direct_chats (start_date, status) VALUES (?, 0)",
-			time.Now(),
-		)
-		if err != nil {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create chat: " + err.Error()})
-			c.Abort()
-			return
-		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get chat ID: " + err.Error()})
-			c.Abort()
-			return
-		}
-		chatID = int(id)
-
-		_, err = db.Exec(
-			"INSERT INTO direct_chat_users (direct_chat_id, user_id) VALUES (?, ?), (?, ?)",
-			chatID, userID, chatID, req.RecipientID,
-		)
-		if err != nil {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to add chat participants: " + err.Error()})
-			c.Abort()
-			return
-		}
-	} else if err != nil {
+	if err == nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusConflict, Message: "A chat with this user already exists"})
+		c.Abort()
+		return
+	} else if err != sql.ErrNoRows {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to find chat: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	res, err := db.Exec(
+		"INSERT INTO direct_chats (start_date, status) VALUES (?, 0)",
+		time.Now(),
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create chat: " + err.Error()})
+		c.Abort()
+		return
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get chat ID: " + err.Error()})
+		c.Abort()
+		return
+	}
+	chatID = int(id)
+
+	_, err = db.Exec(
+		"INSERT INTO direct_chat_users (direct_chat_id, user_id) VALUES (?, ?), (?, ?)",
+		chatID, userID, chatID, req.RecipientID,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to add chat participants: " + err.Error()})
 		c.Abort()
 		return
 	}
