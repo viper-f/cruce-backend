@@ -505,6 +505,21 @@ func GetTopic(c *gin.Context, db *sql.DB) {
 				episode.Characters = characters
 				charRows.Close()
 			}
+
+			// Fetch masks for the episode
+			maskRows, err := db.Query(`SELECT cpb.id, cpb.mask_name, cpb.user_id, u.username FROM character_profile_base cpb JOIN episode_mask em ON cpb.id = em.mask_id JOIN users u ON cpb.user_id = u.id WHERE em.episode_id = ?`, episode.Id)
+			if err == nil {
+				var masks []Entities.ShortMask
+				for maskRows.Next() {
+					var mask Entities.ShortMask
+					if err := maskRows.Scan(&mask.Id, &mask.MaskName, &mask.UserId, &mask.UserName); err == nil {
+						masks = append(masks, mask)
+					}
+				}
+				episode.Masks = masks
+				maskRows.Close()
+			}
+
 			topic.Episode = episode
 		}
 	}
