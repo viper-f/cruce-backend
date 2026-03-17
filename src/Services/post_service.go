@@ -40,7 +40,7 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 		SELECT
 			p.id, p.topic_id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
 			u.username, u.avatar,
-			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar
+			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar, cp.mask_name, cp.is_mask
 			%s
 		FROM posts p
 		LEFT JOIN users u ON p.author_user_id = u.id
@@ -115,6 +115,14 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 		if avatar, ok := rowMap["character_avatar"]; ok {
 			avatarStr := avatar.(string)
 			charProfile.Avatar = &avatarStr
+		}
+		if maskName, ok := rowMap["mask_name"]; ok {
+			maskNameStr := maskName.(string)
+			charProfile.MaskName = &maskNameStr
+		}
+		if isMask, ok := rowMap["is_mask"]; ok {
+			isMaskBool, _ := strconv.ParseBool(isMask.(string))
+			charProfile.IsMask = &isMaskBool
 		}
 
 		customFields := make(map[string]Entities.CustomFieldValue)
