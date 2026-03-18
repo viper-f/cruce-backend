@@ -50,20 +50,27 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 	type Message struct {
 		Id           int        `json:"id"`
 		UserID       int        `json:"user_id"`
+		Username     string     `json:"username"`
+		Avatar       *string    `json:"avatar"`
 		DateSend     time.Time  `json:"date_send"`
 		DateReceived *time.Time `json:"date_received"`
 		Ciphertext   string     `json:"ciphertext"`
 		IV           string     `json:"iv"`
-		KeyAuthor    string     `json:"key_author"`
-		KeyReceiver  string     `json:"key_receiver"`
+		Key          string     `json:"key"`
 	}
 
 	scanRows := func(rows *sql.Rows) ([]Message, error) {
 		var msgs []Message
 		for rows.Next() {
 			var msg Message
-			if err := rows.Scan(&msg.Id, &msg.UserID, &msg.DateSend, &msg.DateReceived, &msg.Ciphertext, &msg.IV, &msg.KeyAuthor, &msg.KeyReceiver); err != nil {
+			var keyAuthor, keyReceiver string
+			if err := rows.Scan(&msg.Id, &msg.UserID, &msg.Username, &msg.Avatar, &msg.DateSend, &msg.DateReceived, &msg.Ciphertext, &msg.IV, &keyAuthor, &keyReceiver); err != nil {
 				return nil, err
+			}
+			if msg.UserID == userID {
+				msg.Key = keyAuthor
+			} else {
+				msg.Key = keyReceiver
 			}
 			msgs = append(msgs, msg)
 		}
@@ -75,10 +82,11 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 	if messageIDStr == "" {
 		// Return first N messages
 		rows, err := db.Query(`
-			SELECT id, user_id, date_send, date_received, ciphertext, iv, key_author, key_receiver
-			FROM direct_chat_messages
-			WHERE chat_id = ?
-			ORDER BY date_send ASC
+			SELECT m.id, m.user_id, u.username, u.avatar, m.date_send, m.date_received, m.ciphertext, m.iv, m.key_author, m.key_receiver
+			FROM direct_chat_messages m
+			JOIN users u ON u.id = m.user_id
+			WHERE m.chat_id = ?
+			ORDER BY m.date_send ASC
 			LIMIT ?
 		`, chatID, n)
 		if err != nil {
@@ -103,10 +111,11 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 
 		// N messages before
 		beforeRows, err := db.Query(`
-			SELECT id, user_id, date_send, date_received, ciphertext, iv, key_author, key_receiver
-			FROM direct_chat_messages
-			WHERE chat_id = ? AND id < ?
-			ORDER BY date_send DESC
+			SELECT m.id, m.user_id, u.username, u.avatar, m.date_send, m.date_received, m.ciphertext, m.iv, m.key_author, m.key_receiver
+			FROM direct_chat_messages m
+			JOIN users u ON u.id = m.user_id
+			WHERE m.chat_id = ? AND m.id < ?
+			ORDER BY m.date_send DESC
 			LIMIT ?
 		`, chatID, messageID, n)
 		if err != nil {
@@ -128,10 +137,11 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 
 		// N messages after
 		afterRows, err := db.Query(`
-			SELECT id, user_id, date_send, date_received, ciphertext, iv, key_author, key_receiver
-			FROM direct_chat_messages
-			WHERE chat_id = ? AND id > ?
-			ORDER BY date_send ASC
+			SELECT m.id, m.user_id, u.username, u.avatar, m.date_send, m.date_received, m.ciphertext, m.iv, m.key_author, m.key_receiver
+			FROM direct_chat_messages m
+			JOIN users u ON u.id = m.user_id
+			WHERE m.chat_id = ? AND m.id > ?
+			ORDER BY m.date_send ASC
 			LIMIT ?
 		`, chatID, messageID, n)
 		if err != nil {

@@ -579,8 +579,8 @@ func SaveKeys(c *gin.Context, db *sql.DB) {
 
 	for _, pk := range req.PrivateKeys {
 		_, err := db.Exec(
-			"INSERT INTO private_keys (user_id, private_key, salt, iv, recovery_code_id) VALUES (?, ?, ?, ?, ?)",
-			userID, pk.PrivateKey, pk.Salt, pk.IV, pk.RecoveryKeyId,
+			"INSERT INTO private_keys (user_id, private_key, salt, iv, recovery_code_id, is_active) VALUES (?, ?, ?, ?, ?, ?)",
+			userID, pk.PrivateKey, pk.Salt, pk.IV, pk.RecoveryKeyId, pk.RecoveryKeyId == nil,
 		)
 		if err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save private key: " + err.Error()})
