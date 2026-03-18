@@ -4,19 +4,21 @@ import (
 	"cuento-backend/src/Entities"
 	"database/sql"
 	"sync"
+	"time"
 )
 
 type EventType string
 
 const (
-	TopicCreated        EventType = "TopicCreated"
-	PostCreated         EventType = "PostCreated"
-	NotificationCreated EventType = "NotificationCreated"
-	UserReadingTopic    EventType = "UserReadingTopic"
-	CharacterCreated    EventType = "CharacterCreated"
-	EpisodeCreated      EventType = "EpisodeCreated"
-	CharacterAccepted   EventType = "CharacterAccepted"
-	UserRegistered      EventType = "UserRegistered"
+	TopicCreated         EventType = "TopicCreated"
+	PostCreated          EventType = "PostCreated"
+	NotificationCreated  EventType = "NotificationCreated"
+	UserReadingTopic     EventType = "UserReadingTopic"
+	CharacterCreated     EventType = "CharacterCreated"
+	EpisodeCreated       EventType = "EpisodeCreated"
+	CharacterAccepted    EventType = "CharacterAccepted"
+	UserRegistered       EventType = "UserRegistered"
+	DirectMessageCreated EventType = "DirectMessageCreated"
 )
 
 type EventData interface{}
@@ -68,6 +70,17 @@ type CharacterAcceptedEvent struct {
 type UserRegisteredEvent struct {
 	UserID   int
 	Username string
+}
+
+type DirectMessageCreatedEvent struct {
+	MessageID   int64
+	ChatID      int
+	SenderID    int
+	Ciphertext  string
+	IV          string
+	KeyAuthor   string
+	KeyReceiver string
+	DateSend    time.Time
 }
 
 type EventHandler func(db *sql.DB, data EventData)

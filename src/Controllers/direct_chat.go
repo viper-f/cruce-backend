@@ -1,6 +1,7 @@
 package Controllers
 
 import (
+	"cuento-backend/src/Events"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
@@ -361,9 +362,10 @@ func CreateDirectChatMessage(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	dateSend := time.Now()
 	res, err := db.Exec(
 		"INSERT INTO direct_chat_messages (chat_id, user_id, date_send, ciphertext, iv, key_author, key_receiver) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		req.ChatID, userID, time.Now(), req.Ciphertext, req.IV, req.KeyAuthor, req.KeyReceiver,
+		req.ChatID, userID, dateSend, req.Ciphertext, req.IV, req.KeyAuthor, req.KeyReceiver,
 	)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create message: " + err.Error()})
@@ -377,6 +379,17 @@ func CreateDirectChatMessage(c *gin.Context, db *sql.DB) {
 		c.Abort()
 		return
 	}
+
+	Events.Publish(db, Events.DirectMessageCreated, Events.DirectMessageCreatedEvent{
+		MessageID:   messageID,
+		ChatID:      req.ChatID,
+		SenderID:    userID,
+		Ciphertext:  req.Ciphertext,
+		IV:          req.IV,
+		KeyAuthor:   req.KeyAuthor,
+		KeyReceiver: req.KeyReceiver,
+		DateSend:    dateSend,
+	})
 
 	c.JSON(http.StatusCreated, gin.H{"message_id": messageID})
 }

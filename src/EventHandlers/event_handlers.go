@@ -11,4 +11,5 @@ func RegisterEventHandlers(db *sql.DB) {
 	RegisterCharacterEventHandlers()
 	RegisterEpisodeEventHandlers()
 	RegisterUserEventHandlers()
+	RegisterDirectChatEventHandlers()
 }
