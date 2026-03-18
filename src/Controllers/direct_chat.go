@@ -48,21 +48,21 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 	messageIDStr := c.Query("message_id")
 
 	type Message struct {
-		Id              int        `json:"id"`
-		UserID          int        `json:"user_id"`
-		DateSend        time.Time  `json:"date_send"`
-		DateReceived    *time.Time `json:"date_received"`
-		ContentAuthor   string     `json:"content_author"`
-		ContentReceiver string     `json:"content_receiver"`
-		IVAuthor        string     `json:"iv_author"`
-		IVReceiver      string     `json:"iv_receiver"`
+		Id           int        `json:"id"`
+		UserID       int        `json:"user_id"`
+		DateSend     time.Time  `json:"date_send"`
+		DateReceived *time.Time `json:"date_received"`
+		Ciphertext   string     `json:"ciphertext"`
+		IV           string     `json:"iv"`
+		KeyAuthor    string     `json:"key_author"`
+		KeyReceiver  string     `json:"key_receiver"`
 	}
 
 	scanRows := func(rows *sql.Rows) ([]Message, error) {
 		var msgs []Message
 		for rows.Next() {
 			var msg Message
-			if err := rows.Scan(&msg.Id, &msg.UserID, &msg.DateSend, &msg.DateReceived, &msg.ContentAuthor, &msg.ContentReceiver, &msg.IVAuthor, &msg.IVReceiver); err != nil {
+			if err := rows.Scan(&msg.Id, &msg.UserID, &msg.DateSend, &msg.DateReceived, &msg.Ciphertext, &msg.IV, &msg.KeyAuthor, &msg.KeyReceiver); err != nil {
 				return nil, err
 			}
 			msgs = append(msgs, msg)
@@ -75,7 +75,7 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 	if messageIDStr == "" {
 		// Return first N messages
 		rows, err := db.Query(`
-			SELECT id, user_id, date_send, date_received, content_author, content_receiver, iv_author, iv_receiver
+			SELECT id, user_id, date_send, date_received, ciphertext, iv, key_author, key_receiver
 			FROM direct_chat_messages
 			WHERE chat_id = ?
 			ORDER BY date_send ASC
@@ -103,7 +103,7 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 
 		// N messages before
 		beforeRows, err := db.Query(`
-			SELECT id, user_id, date_send, date_received, content_author, content_receiver, iv_author, iv_receiver
+			SELECT id, user_id, date_send, date_received, ciphertext, iv, key_author, key_receiver
 			FROM direct_chat_messages
 			WHERE chat_id = ? AND id < ?
 			ORDER BY date_send DESC
@@ -128,7 +128,7 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 
 		// N messages after
 		afterRows, err := db.Query(`
-			SELECT id, user_id, date_send, date_received, content_author, content_receiver, iv_author, iv_receiver
+			SELECT id, user_id, date_send, date_received, ciphertext, iv, key_author, key_receiver
 			FROM direct_chat_messages
 			WHERE chat_id = ? AND id > ?
 			ORDER BY date_send ASC
@@ -234,20 +234,20 @@ type DirectChatParticipant struct {
 }
 
 type DirectChatLastReadMessage struct {
-	Id              int        `json:"id"`
-	UserID          int        `json:"user_id"`
-	DateSend        time.Time  `json:"date_send"`
-	DateReceived    *time.Time `json:"date_received"`
-	ContentAuthor   string     `json:"content_author"`
-	ContentReceiver string     `json:"content_receiver"`
-	IVAuthor        string     `json:"iv_author"`
-	IVReceiver      string     `json:"iv_receiver"`
+	Id           int        `json:"id"`
+	UserID       int        `json:"user_id"`
+	DateSend     time.Time  `json:"date_send"`
+	DateReceived *time.Time `json:"date_received"`
+	Ciphertext   string     `json:"ciphertext"`
+	IV           string     `json:"iv"`
+	KeyAuthor    string     `json:"key_author"`
+	KeyReceiver  string     `json:"key_receiver"`
 }
 
 type DirectChatResponse struct {
-	ChatID          int                        `json:"chat_id"`
-	Participant     DirectChatParticipant      `json:"participant"`
-	LastReadMessage *DirectChatLastReadMessage `json:"last_read_message"`
+	ChatID            int                     `json:"chat_id"`
+	Participants      []DirectChatParticipant `json:"participants"`
+	LastReadMessageId *int                    `json:"last_read_message_id"`
 }
 
 func GetDirectChat(c *gin.Context, db *sql.DB) {
@@ -265,22 +265,34 @@ func GetDirectChat(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// Get the other participant's info and public key, while verifying current user is in the chat
-	var participant DirectChatParticipant
-	err = db.QueryRow(`
+	// Verify current user is in the chat and get both participants
+	rows, err := db.Query(`
 		SELECT u.id, u.username, u.avatar, pk.public_key
 		FROM direct_chat_users dcu
 		JOIN direct_chat_users dcu_self ON dcu_self.direct_chat_id = dcu.direct_chat_id AND dcu_self.user_id = ?
 		JOIN users u ON dcu.user_id = u.id
 		LEFT JOIN public_keys pk ON pk.user_id = u.id
-		WHERE dcu.direct_chat_id = ? AND dcu.user_id != ?
-	`, userID, chatID, userID).Scan(&participant.Id, &participant.Username, &participant.Avatar, &participant.PublicKey)
+		WHERE dcu.direct_chat_id = ?
+	`, userID, chatID)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Chat not found or you are not a participant"})
-		} else {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get chat participant: " + err.Error()})
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get chat participants: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	var participants []DirectChatParticipant
+	for rows.Next() {
+		var p DirectChatParticipant
+		if err := rows.Scan(&p.Id, &p.Username, &p.Avatar, &p.PublicKey); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan participant: " + err.Error()})
+			c.Abort()
+			return
 		}
+		participants = append(participants, p)
+	}
+	if len(participants) == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Chat not found or you are not a participant"})
 		c.Abort()
 		return
 	}
@@ -297,31 +309,19 @@ func GetDirectChat(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	var lastReadMessage *DirectChatLastReadMessage
-	if lastReadMessageID != nil {
-		var msg DirectChatLastReadMessage
-		err = db.QueryRow(`
-			SELECT id, user_id, date_send, date_received, content_author, content_receiver, iv_author, iv_receiver
-			FROM direct_chat_messages WHERE id = ?
-		`, *lastReadMessageID).Scan(&msg.Id, &msg.UserID, &msg.DateSend, &msg.DateReceived, &msg.ContentAuthor, &msg.ContentReceiver, &msg.IVAuthor, &msg.IVReceiver)
-		if err == nil {
-			lastReadMessage = &msg
-		}
-	}
-
 	c.JSON(http.StatusOK, DirectChatResponse{
-		ChatID:          chatID,
-		Participant:     participant,
-		LastReadMessage: lastReadMessage,
+		ChatID:            chatID,
+		Participants:      participants,
+		LastReadMessageId: lastReadMessageID,
 	})
 }
 
 type CreateDirectChatMessageRequest struct {
-	ChatID          int    `json:"chat_id" binding:"required"`
-	ContentAuthor   string `json:"content_author" binding:"required"`
-	ContentReceiver string `json:"content_receiver" binding:"required"`
-	IVAuthor        string `json:"iv_author" binding:"required"`
-	IVReceiver      string `json:"iv_receiver" binding:"required"`
+	ChatID      int    `json:"chat_id" binding:"required"`
+	Ciphertext  string `json:"ciphertext" binding:"required"`
+	IV          string `json:"iv" binding:"required"`
+	KeyAuthor   string `json:"key_author" binding:"required"`
+	KeyReceiver string `json:"key_receiver" binding:"required"`
 }
 
 func CreateDirectChatMessage(c *gin.Context, db *sql.DB) {
@@ -352,8 +352,8 @@ func CreateDirectChatMessage(c *gin.Context, db *sql.DB) {
 	}
 
 	res, err := db.Exec(
-		"INSERT INTO direct_chat_messages (chat_id, user_id, date_send, content_author, content_receiver, iv_author, iv_receiver) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		req.ChatID, userID, time.Now(), req.ContentAuthor, req.ContentReceiver, req.IVAuthor, req.IVReceiver,
+		"INSERT INTO direct_chat_messages (chat_id, user_id, date_send, ciphertext, iv, key_author, key_receiver) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		req.ChatID, userID, time.Now(), req.Ciphertext, req.IV, req.KeyAuthor, req.KeyReceiver,
 	)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create message: " + err.Error()})
