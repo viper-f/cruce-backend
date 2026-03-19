@@ -78,11 +78,13 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 			}
 
 			var msg struct {
-				Type     string      `json:"type"`
-				PageType string      `json:"page_type"`
-				PageId   interface{} `json:"page_id"`
-				TopicId  interface{} `json:"topic_id"`
-				PostId   *int64      `json:"post_id"`
+				Type                string      `json:"type"`
+				PageType            string      `json:"page_type"`
+				PageId              interface{} `json:"page_id"`
+				TopicId             interface{} `json:"topic_id"`
+				PostId              *int64      `json:"post_id"`
+				ChatId              *int        `json:"chat_id"`
+				LastViewedMessageId *int        `json:"last_viewed_message_id"`
 			}
 			if err := json.Unmarshal(p, &msg); err == nil {
 				if msg.Type == "page_change" {
@@ -111,6 +113,11 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 					if topicID > 0 {
 						_ = Services.ActivityStorage.UpdateTopicView(db, userID, topicID, msg.PostId)
 					}
+				} else if msg.Type == "direct_message_viewed" && msg.ChatId != nil && msg.LastViewedMessageId != nil {
+					_, _ = db.Exec(
+						"UPDATE direct_chat_users SET last_read_message_id = ? WHERE direct_chat_id = ? AND user_id = ?",
+						msg.LastViewedMessageId, msg.ChatId, userID,
+					)
 				}
 			}
 		}

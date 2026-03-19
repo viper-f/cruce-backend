@@ -168,6 +168,193 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, messages)
 }
 
+func GetMessagesBefore(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	chatID, err := strconv.Atoi(c.Param("chatID"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid chat ID"})
+		c.Abort()
+		return
+	}
+
+	messageID, err := strconv.Atoi(c.Param("messageID"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid message ID"})
+		c.Abort()
+		return
+	}
+
+	var count int
+	err = db.QueryRow(
+		"SELECT COUNT(*) FROM direct_chat_users WHERE direct_chat_id = ? AND user_id = ?",
+		chatID, userID,
+	).Scan(&count)
+	if err != nil || count == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "You are not a participant in this chat"})
+		c.Abort()
+		return
+	}
+
+	n := 10
+	if nStr := c.Query("n"); nStr != "" {
+		if parsed, err := strconv.Atoi(nStr); err == nil && parsed > 0 {
+			n = parsed
+		}
+	}
+
+	type Message struct {
+		Id           int        `json:"id"`
+		UserID       int        `json:"user_id"`
+		Username     string     `json:"username"`
+		Avatar       *string    `json:"avatar"`
+		DateSend     time.Time  `json:"date_send"`
+		DateReceived *time.Time `json:"date_received"`
+		Ciphertext   string     `json:"ciphertext"`
+		IV           string     `json:"iv"`
+		Key          string     `json:"key"`
+	}
+
+	rows, err := db.Query(`
+		SELECT m.id, m.user_id, u.username, u.avatar, m.date_send, m.date_received, m.ciphertext, m.iv, m.key_author, m.key_receiver
+		FROM direct_chat_messages m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.chat_id = ? AND m.id < ?
+		ORDER BY m.date_send DESC
+		LIMIT ?
+	`, chatID, messageID, n)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get messages: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	var messages []Message
+	for rows.Next() {
+		var msg Message
+		var keyAuthor, keyReceiver string
+		if err := rows.Scan(&msg.Id, &msg.UserID, &msg.Username, &msg.Avatar, &msg.DateSend, &msg.DateReceived, &msg.Ciphertext, &msg.IV, &keyAuthor, &keyReceiver); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan messages: " + err.Error()})
+			c.Abort()
+			return
+		}
+		if msg.UserID == userID {
+			msg.Key = keyAuthor
+		} else {
+			msg.Key = keyReceiver
+		}
+		messages = append(messages, msg)
+	}
+
+	// Reverse to chronological order
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
+
+	if messages == nil {
+		messages = []Message{}
+	}
+
+	c.JSON(http.StatusOK, messages)
+}
+
+func GetMessagesAfter(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	chatID, err := strconv.Atoi(c.Param("chatID"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid chat ID"})
+		c.Abort()
+		return
+	}
+
+	messageID, err := strconv.Atoi(c.Param("messageID"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid message ID"})
+		c.Abort()
+		return
+	}
+
+	var count int
+	err = db.QueryRow(
+		"SELECT COUNT(*) FROM direct_chat_users WHERE direct_chat_id = ? AND user_id = ?",
+		chatID, userID,
+	).Scan(&count)
+	if err != nil || count == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "You are not a participant in this chat"})
+		c.Abort()
+		return
+	}
+
+	n := 10
+	if nStr := c.Query("n"); nStr != "" {
+		if parsed, err := strconv.Atoi(nStr); err == nil && parsed > 0 {
+			n = parsed
+		}
+	}
+
+	type Message struct {
+		Id           int        `json:"id"`
+		UserID       int        `json:"user_id"`
+		Username     string     `json:"username"`
+		Avatar       *string    `json:"avatar"`
+		DateSend     time.Time  `json:"date_send"`
+		DateReceived *time.Time `json:"date_received"`
+		Ciphertext   string     `json:"ciphertext"`
+		IV           string     `json:"iv"`
+		Key          string     `json:"key"`
+	}
+
+	rows, err := db.Query(`
+		SELECT m.id, m.user_id, u.username, u.avatar, m.date_send, m.date_received, m.ciphertext, m.iv, m.key_author, m.key_receiver
+		FROM direct_chat_messages m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.chat_id = ? AND m.id > ?
+		ORDER BY m.date_send ASC
+		LIMIT ?
+	`, chatID, messageID, n)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get messages: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	var messages []Message
+	for rows.Next() {
+		var msg Message
+		var keyAuthor, keyReceiver string
+		if err := rows.Scan(&msg.Id, &msg.UserID, &msg.Username, &msg.Avatar, &msg.DateSend, &msg.DateReceived, &msg.Ciphertext, &msg.IV, &keyAuthor, &keyReceiver); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan messages: " + err.Error()})
+			c.Abort()
+			return
+		}
+		if msg.UserID == userID {
+			msg.Key = keyAuthor
+		} else {
+			msg.Key = keyReceiver
+		}
+		messages = append(messages, msg)
+	}
+
+	if messages == nil {
+		messages = []Message{}
+	}
+
+	c.JSON(http.StatusOK, messages)
+}
+
 type CreateDirectChatRequest struct {
 	RecipientID int `json:"recipient_id" binding:"required"`
 }
@@ -238,10 +425,11 @@ func CreateDirectChat(c *gin.Context, db *sql.DB) {
 }
 
 type DirectChatParticipant struct {
-	Id        int     `json:"id"`
-	Username  string  `json:"username"`
-	Avatar    *string `json:"avatar"`
-	PublicKey *string `json:"public_key"`
+	Id                int     `json:"id"`
+	Username          string  `json:"username"`
+	Avatar            *string `json:"avatar"`
+	PublicKey         *string `json:"public_key"`
+	LastReadMessageId *int    `json:"last_read_message_id"`
 }
 
 type DirectChatLastReadMessage struct {
@@ -278,7 +466,7 @@ func GetDirectChat(c *gin.Context, db *sql.DB) {
 
 	// Verify current user is in the chat and get both participants
 	rows, err := db.Query(`
-		SELECT u.id, u.username, u.avatar, pk.public_key
+		SELECT u.id, u.username, u.avatar, pk.public_key, dcu.last_read_message_id
 		FROM direct_chat_users dcu
 		JOIN direct_chat_users dcu_self ON dcu_self.direct_chat_id = dcu.direct_chat_id AND dcu_self.user_id = ?
 		JOIN users u ON dcu.user_id = u.id
@@ -295,7 +483,7 @@ func GetDirectChat(c *gin.Context, db *sql.DB) {
 	var participants []DirectChatParticipant
 	for rows.Next() {
 		var p DirectChatParticipant
-		if err := rows.Scan(&p.Id, &p.Username, &p.Avatar, &p.PublicKey); err != nil {
+		if err := rows.Scan(&p.Id, &p.Username, &p.Avatar, &p.PublicKey, &p.LastReadMessageId); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan participant: " + err.Error()})
 			c.Abort()
 			return

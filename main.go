@@ -226,6 +226,12 @@ func main() {
 	protectedRouter.GET("/direct-chat/:chatID/messages", "Get messages in a direct chat", func(c *gin.Context) {
 		Controllers.GetLastMessages(c, Services.DB)
 	})
+	protectedRouter.GET("/direct-chat/:chatID/messages/:messageID/before", "Get messages before a given message", func(c *gin.Context) {
+		Controllers.GetMessagesBefore(c, Services.DB)
+	})
+	protectedRouter.GET("/direct-chat/:chatID/messages/:messageID/after", "Get messages after a given message", func(c *gin.Context) {
+		Controllers.GetMessagesAfter(c, Services.DB)
+	})
 	protectedRouter.GET("/direct-chats", "Get list of current user's direct chats", func(c *gin.Context) {
 		Controllers.GetDirectChatList(c, Services.DB)
 	})
