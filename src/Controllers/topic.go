@@ -697,6 +697,77 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Post created successfully", "post_id": postID})
 }
 
+func PreviewPost(c *gin.Context, db *sql.DB) {
+	var req CreatePostRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+
+	var post Entities.Post
+	post.TopicId = req.TopicID
+	post.AuthorUserId = userID
+	post.Content = req.Content
+	post.ContentHtml = Entities.ParseBBCode(req.Content)
+	post.UseCharacterProfile = req.UseCharacterProfile
+	post.GuestName = req.GuestName
+
+	var topicType int
+	if err := db.QueryRow("SELECT type FROM topics WHERE id = ?", req.TopicID).Scan(&topicType); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Topic not found"})
+		c.Abort()
+		return
+	}
+
+	if Entities.TopicType(topicType) != Entities.EpisodeTopic {
+		post.ContentHtml = mentionRegexp.ReplaceAllString(post.ContentHtml, `<span class="mention">$0</span>`)
+	}
+
+	if req.UseCharacterProfile && req.CharacterProfileID != nil {
+		row := db.QueryRow(`
+			SELECT cp.id, cp.character_id, cb.name, cp.avatar, cp.mask_name, cp.is_mask
+			FROM character_profile_base cp
+			JOIN character_base cb ON cp.character_id = cb.id
+			WHERE cp.id = ?`, *req.CharacterProfileID)
+
+		var charProfile Entities.CharacterProfile
+		var isMask bool
+		var maskName, avatar sql.NullString
+		var charID int
+		var charName string
+		if err := row.Scan(&charProfile.Id, &charID, &charName, &avatar, &maskName, &isMask); err == nil {
+			charProfile.CharacterId = &charID
+			charProfile.CharacterName = charName
+			if avatar.Valid {
+				charProfile.Avatar = &avatar.String
+			}
+			if maskName.Valid {
+				charProfile.MaskName = &maskName.String
+			}
+			charProfile.IsMask = &isMask
+		}
+		post.CharacterProfile = &charProfile
+	} else {
+		var userProfile Entities.UserProfile
+		userProfile.UserId = userID
+		if userID != 0 {
+			var username, avatar string
+			if err := db.QueryRow("SELECT username, avatar FROM users WHERE id = ?", userID).Scan(&username, &avatar); err == nil {
+				userProfile.UserName = username
+				userProfile.Avatar = avatar
+			}
+		} else if req.GuestName != nil {
+			userProfile.UserName = *req.GuestName
+		}
+		post.UserProfile = &userProfile
+	}
+
+	c.JSON(http.StatusOK, post)
+}
+
 func UpdatePost(c *gin.Context, db *sql.DB) {
 	postID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

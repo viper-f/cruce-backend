@@ -121,6 +121,9 @@ func main() {
 	optionalAuthRouter.POST("/post/create", "Create a new post in a topic", func(c *gin.Context) {
 		Controllers.CreatePost(c, Services.DB)
 	})
+	optionalAuthRouter.POST("/post/preview", "Preview a post without saving", func(c *gin.Context) {
+		Controllers.PreviewPost(c, Services.DB)
+	})
 	optionalAuthRouter.GET("/active-topics", "Get list of active topics", func(c *gin.Context) {
 		Controllers.GetActiveTopics(c, Services.DB)
 	})
