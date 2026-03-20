@@ -2,6 +2,7 @@ package EventHandlers
 
 import (
 	"cuento-backend/src/Events"
+	"cuento-backend/src/Services"
 	"cuento-backend/src/Websockets"
 	"database/sql"
 	"fmt"
@@ -45,19 +46,21 @@ func RegisterDirectChatEventHandlers() {
 				key = event.KeyAuthor
 			}
 
+			tz := Services.GetUserTimezone(participantID, db)
 			notification := map[string]interface{}{
 				"type": "direct_message_created",
 				"data": map[string]interface{}{
-					"id":            event.MessageID,
-					"chat_id":       event.ChatID,
-					"user_id":       event.SenderID,
-					"username":      username,
-					"avatar":        avatar,
-					"date_send":     event.DateSend,
-					"date_received": nil,
-					"ciphertext":    event.Ciphertext,
-					"iv":            event.IV,
-					"key":           key,
+					"id":                  event.MessageID,
+					"chat_id":             event.ChatID,
+					"user_id":             event.SenderID,
+					"username":            username,
+					"avatar":              avatar,
+					"date_send":           event.DateSend,
+					"date_send_localized": Services.LocalizeTime(event.DateSend, tz),
+					"date_received":       nil,
+					"ciphertext":          event.Ciphertext,
+					"iv":                  event.IV,
+					"key":                 key,
 				},
 			}
 

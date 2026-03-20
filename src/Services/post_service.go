@@ -62,9 +62,24 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 	}
 
 	cols, _ := rows.Columns()
+
+	// Find date_created column index to scan it directly into time.Time
+	dateCreatedIdx := -1
+	for i, col := range cols {
+		if col == "date_created" {
+			dateCreatedIdx = i
+			break
+		}
+	}
+
 	values := make([]interface{}, len(cols))
+	var dateCreated time.Time
 	for i := range values {
-		values[i] = new(sql.RawBytes)
+		if i == dateCreatedIdx {
+			values[i] = &dateCreated
+		} else {
+			values[i] = new(sql.RawBytes)
+		}
 	}
 
 	if err := rows.Scan(values...); err != nil {
@@ -73,6 +88,9 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 
 	rowMap := make(map[string]interface{})
 	for i, colName := range cols {
+		if i == dateCreatedIdx {
+			continue
+		}
 		val := *(values[i].(*sql.RawBytes))
 		if val != nil {
 			rowMap[colName] = string(val)
@@ -89,9 +107,7 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 	if val, ok := rowMap["author_user_id"]; ok {
 		post.AuthorUserId, _ = strconv.Atoi(val.(string))
 	}
-	if val, ok := rowMap["date_created"]; ok {
-		post.DateCreated, _ = time.Parse("2006-01-02 15:04:05", val.(string))
-	}
+	post.DateCreated = dateCreated
 	if val, ok := rowMap["content"]; ok {
 		post.Content = val.(string)
 		post.ContentHtml = Entities.ParseBBCode(post.Content)

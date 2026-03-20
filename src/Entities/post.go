@@ -3,16 +3,17 @@ package Entities
 import "time"
 
 type Post struct {
-	Id                  int               `json:"id"`
-	TopicId             int               `json:"topic_id"`
-	AuthorUserId        int               `json:"author_user_id"`
-	GuestName           *string           `json:"guest_name,omitempty"`
-	AuthorCharacterId   *int              `json:"author_character_id"`
-	DateCreated         time.Time         `json:"date_created"`
-	Content             string            `json:"content"`
-	ContentHtml         string            `json:"content_html"`
-	CharacterProfile    *CharacterProfile `json:"character_profile"`
-	UserProfile         *UserProfile      `json:"user_profile"`
-	UseCharacterProfile bool              `json:"use_character_profile"`
-	CanEdit             *bool             `json:"can_edit,omitempty" db:"-"`
+	Id                   int               `json:"id"`
+	TopicId              int               `json:"topic_id"`
+	AuthorUserId         int               `json:"author_user_id"`
+	GuestName            *string           `json:"guest_name,omitempty"`
+	AuthorCharacterId    *int              `json:"author_character_id"`
+	DateCreated          time.Time         `json:"date_created"`
+	DateCreatedLocalized string            `json:"date_created_localized,omitempty"`
+	Content              string            `json:"content"`
+	ContentHtml          string            `json:"content_html"`
+	CharacterProfile     *CharacterProfile `json:"character_profile"`
+	UserProfile          *UserProfile      `json:"user_profile"`
+	UseCharacterProfile  bool              `json:"use_character_profile"`
+	CanEdit              *bool             `json:"can_edit,omitempty" db:"-"`
 }

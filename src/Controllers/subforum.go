@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -67,10 +68,12 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 	defer rows.Close()
 
 	// 3. Group Results into Categories
+	userTimezone := Services.GetUserTimezone(userID, db)
 	var categories []Entities.Category
 	for rows.Next() {
 		var sub Entities.Subform
 		var cat Entities.Category
+		var dateLastPost *time.Time
 		if err := rows.Scan(
 			&sub.Id,
 			&sub.Name,
@@ -81,7 +84,7 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 			&sub.LastPostTopicId,
 			&sub.LastPostTopicName,
 			&sub.LastPostId,
-			&sub.DateLastPost,
+			&dateLastPost,
 			&sub.LastPostAuthorName,
 			&cat.Id,
 			&cat.Name,
@@ -90,6 +93,10 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan category data: " + err.Error()})
 			c.Abort()
 			return
+		}
+		if dateLastPost != nil {
+			localized := Services.LocalizeTime(*dateLastPost, userTimezone)
+			sub.DateLastPostLocalized = &localized
 		}
 
 		// Check if we need to start a new category block
@@ -136,6 +143,7 @@ func GetSubforum(c *gin.Context, db *sql.DB) {
 	}
 
 	var subforum Entities.Subform
+	var dateLastPost *time.Time
 	query := "SELECT id, category_id, name, description, position, topic_number, post_number, last_post_topic_id, last_post_topic_name, last_post_id, date_last_post, last_post_author_user_name FROM subforums WHERE id = ?"
 	err = db.QueryRow(query, id).Scan(
 		&subforum.Id,
@@ -148,7 +156,7 @@ func GetSubforum(c *gin.Context, db *sql.DB) {
 		&subforum.LastPostTopicId,
 		&subforum.LastPostTopicName,
 		&subforum.LastPostId,
-		&subforum.DateLastPost,
+		&dateLastPost,
 		&subforum.LastPostAuthorName,
 	)
 	if err != nil {
@@ -164,6 +172,10 @@ func GetSubforum(c *gin.Context, db *sql.DB) {
 	// Determine User Roles
 	var roleIDs []int
 	userID := Services.GetUserIdFromContext(c)
+	if dateLastPost != nil {
+		localized := Services.LocalizeTime(*dateLastPost, Services.GetUserTimezone(userID, db))
+		subforum.DateLastPostLocalized = &localized
+	}
 	if userID > 0 {
 		rows, err := db.Query("SELECT role_id FROM user_role WHERE user_id = ?", userID)
 		if err == nil {

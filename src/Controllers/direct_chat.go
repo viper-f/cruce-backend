@@ -49,16 +49,20 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 	messageIDStr := c.Query("message_id")
 
 	type Message struct {
-		Id           int        `json:"id"`
-		UserID       int        `json:"user_id"`
-		Username     string     `json:"username"`
-		Avatar       *string    `json:"avatar"`
-		DateSend     time.Time  `json:"date_send"`
-		DateReceived *time.Time `json:"date_received"`
-		Ciphertext   string     `json:"ciphertext"`
-		IV           string     `json:"iv"`
-		Key          string     `json:"key"`
+		Id                    int        `json:"id"`
+		UserID                int        `json:"user_id"`
+		Username              string     `json:"username"`
+		Avatar                *string    `json:"avatar"`
+		DateSend              time.Time  `json:"date_send"`
+		DateSendLocalized     string     `json:"date_send_localized"`
+		DateReceived          *time.Time `json:"date_received"`
+		DateReceivedLocalized *string    `json:"date_received_localized,omitempty"`
+		Ciphertext            string     `json:"ciphertext"`
+		IV                    string     `json:"iv"`
+		Key                   string     `json:"key"`
 	}
+
+	userTimezone := Services.GetUserTimezone(userID, db)
 
 	scanRows := func(rows *sql.Rows) ([]Message, error) {
 		var msgs []Message
@@ -72,6 +76,11 @@ func GetLastMessages(c *gin.Context, db *sql.DB) {
 				msg.Key = keyAuthor
 			} else {
 				msg.Key = keyReceiver
+			}
+			msg.DateSendLocalized = Services.LocalizeTime(msg.DateSend, userTimezone)
+			if msg.DateReceived != nil {
+				s := Services.LocalizeTime(*msg.DateReceived, userTimezone)
+				msg.DateReceivedLocalized = &s
 			}
 			msgs = append(msgs, msg)
 		}
@@ -209,16 +218,20 @@ func GetMessagesBefore(c *gin.Context, db *sql.DB) {
 	}
 
 	type Message struct {
-		Id           int        `json:"id"`
-		UserID       int        `json:"user_id"`
-		Username     string     `json:"username"`
-		Avatar       *string    `json:"avatar"`
-		DateSend     time.Time  `json:"date_send"`
-		DateReceived *time.Time `json:"date_received"`
-		Ciphertext   string     `json:"ciphertext"`
-		IV           string     `json:"iv"`
-		Key          string     `json:"key"`
+		Id                    int        `json:"id"`
+		UserID                int        `json:"user_id"`
+		Username              string     `json:"username"`
+		Avatar                *string    `json:"avatar"`
+		DateSend              time.Time  `json:"date_send"`
+		DateSendLocalized     string     `json:"date_send_localized"`
+		DateReceived          *time.Time `json:"date_received"`
+		DateReceivedLocalized *string    `json:"date_received_localized,omitempty"`
+		Ciphertext            string     `json:"ciphertext"`
+		IV                    string     `json:"iv"`
+		Key                   string     `json:"key"`
 	}
+
+	userTimezone := Services.GetUserTimezone(userID, db)
 
 	rows, err := db.Query(`
 		SELECT m.id, m.user_id, u.username, u.avatar, m.date_send, m.date_received, m.ciphertext, m.iv, m.key_author, m.key_receiver
@@ -248,6 +261,11 @@ func GetMessagesBefore(c *gin.Context, db *sql.DB) {
 			msg.Key = keyAuthor
 		} else {
 			msg.Key = keyReceiver
+		}
+		msg.DateSendLocalized = Services.LocalizeTime(msg.DateSend, userTimezone)
+		if msg.DateReceived != nil {
+			s := Services.LocalizeTime(*msg.DateReceived, userTimezone)
+			msg.DateReceivedLocalized = &s
 		}
 		messages = append(messages, msg)
 	}
@@ -305,16 +323,20 @@ func GetMessagesAfter(c *gin.Context, db *sql.DB) {
 	}
 
 	type Message struct {
-		Id           int        `json:"id"`
-		UserID       int        `json:"user_id"`
-		Username     string     `json:"username"`
-		Avatar       *string    `json:"avatar"`
-		DateSend     time.Time  `json:"date_send"`
-		DateReceived *time.Time `json:"date_received"`
-		Ciphertext   string     `json:"ciphertext"`
-		IV           string     `json:"iv"`
-		Key          string     `json:"key"`
+		Id                    int        `json:"id"`
+		UserID                int        `json:"user_id"`
+		Username              string     `json:"username"`
+		Avatar                *string    `json:"avatar"`
+		DateSend              time.Time  `json:"date_send"`
+		DateSendLocalized     string     `json:"date_send_localized"`
+		DateReceived          *time.Time `json:"date_received"`
+		DateReceivedLocalized *string    `json:"date_received_localized,omitempty"`
+		Ciphertext            string     `json:"ciphertext"`
+		IV                    string     `json:"iv"`
+		Key                   string     `json:"key"`
 	}
+
+	userTimezone := Services.GetUserTimezone(userID, db)
 
 	rows, err := db.Query(`
 		SELECT m.id, m.user_id, u.username, u.avatar, m.date_send, m.date_received, m.ciphertext, m.iv, m.key_author, m.key_receiver
@@ -344,6 +366,11 @@ func GetMessagesAfter(c *gin.Context, db *sql.DB) {
 			msg.Key = keyAuthor
 		} else {
 			msg.Key = keyReceiver
+		}
+		msg.DateSendLocalized = Services.LocalizeTime(msg.DateSend, userTimezone)
+		if msg.DateReceived != nil {
+			s := Services.LocalizeTime(*msg.DateReceived, userTimezone)
+			msg.DateReceivedLocalized = &s
 		}
 		messages = append(messages, msg)
 	}

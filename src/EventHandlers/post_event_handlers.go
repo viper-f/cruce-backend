@@ -28,14 +28,14 @@ func RegisterPostEventHandlers() {
 		topicIDStr := strconv.FormatInt(event.TopicID, 10)
 		users := Services.ActivityStorage.GetUsersOnPage("topic", topicIDStr)
 
-		notification := map[string]interface{}{
-			"type": msgType,
-			"data": event.Post,
-		}
-
-		// Send to each user on the page
+		// Send to each user on the page with their localized date
 		for _, u := range users {
-			Websockets.MainHub.SendNotification(u.UserID, notification)
+			userPost := event.Post
+			userPost.DateCreatedLocalized = Services.LocalizeTime(userPost.DateCreated, Services.GetUserTimezone(u.UserID, db))
+			Websockets.MainHub.SendNotification(u.UserID, map[string]interface{}{
+				"type": msgType,
+				"data": userPost,
+			})
 		}
 	})
 

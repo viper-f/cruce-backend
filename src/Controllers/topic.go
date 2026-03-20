@@ -26,6 +26,7 @@ type ViewforumRow struct {
 	Name                   string               `json:"name"`
 	Type                   Entities.TopicType   `json:"type"`
 	DateLastPost           *time.Time           `json:"date_last_post"`
+	DateLastPostLocalized  *string              `json:"date_last_post_localized,omitempty"`
 	PostNumber             int                  `json:"post_number"`
 	AuthorUserId           int                  `json:"author_user_id"`
 	AuthorUsername         string               `json:"author_username"`
@@ -84,6 +85,7 @@ func GetTopicsBySubforum(c *gin.Context, db *sql.DB) {
 	page := int(page64) - 1
 
 	userID := Services.GetUserIdFromContext(c)
+	userTimezone := Services.GetUserTimezone(userID, db)
 
 	var topics []ViewforumRow
 
@@ -132,6 +134,10 @@ func GetTopicsBySubforum(c *gin.Context, db *sql.DB) {
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan topics: " + err.Error()})
 			return
+		}
+		if topic.DateLastPost != nil {
+			localized := Services.LocalizeTime(*topic.DateLastPost, userTimezone)
+			topic.DateLastPostLocalized = &localized
 		}
 		topics = append(topics, topic)
 	}
@@ -309,13 +315,28 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 	posts := make([]Entities.Post, 0) // Initialize slice
 
 	currentUserID := Services.GetUserIdFromContext(c)
+	userTimezone := Services.GetUserTimezone(currentUserID, db)
 	var subforumID int
 
+	// Find date_created column index to scan it directly into time.Time
+	dateCreatedIdx := -1
+	for i, col := range cols {
+		if col == "date_created" {
+			dateCreatedIdx = i
+			break
+		}
+	}
+
 	for rows.Next() {
-		// Scan into a map
+		// Scan into a map, using *time.Time for date_created
 		values := make([]interface{}, len(cols))
+		var dateCreated time.Time
 		for i := range values {
-			values[i] = new(sql.RawBytes)
+			if i == dateCreatedIdx {
+				values[i] = &dateCreated
+			} else {
+				values[i] = new(sql.RawBytes)
+			}
 		}
 		if err := rows.Scan(values...); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan post data: " + err.Error()})
@@ -325,6 +346,9 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 
 		rowMap := make(map[string]interface{})
 		for i, colName := range cols {
+			if i == dateCreatedIdx {
+				continue
+			}
 			val := *(values[i].(*sql.RawBytes))
 			if val != nil {
 				rowMap[colName] = string(val) // Store as string for now
@@ -335,7 +359,8 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		var post Entities.Post
 		post.Id, _ = strconv.Atoi(rowMap["id"].(string))
 		post.AuthorUserId, _ = strconv.Atoi(rowMap["author_user_id"].(string))
-		post.DateCreated, _ = time.Parse("2006-01-02 15:04:05", rowMap["date_created"].(string))
+		post.DateCreated = dateCreated
+		post.DateCreatedLocalized = Services.LocalizeTime(post.DateCreated, userTimezone)
 		post.Content = rowMap["content"].(string)
 		post.ContentHtml = Entities.ParseBBCode(post.Content)
 		post.UseCharacterProfile, _ = strconv.ParseBool(rowMap["use_character_profile"].(string))
@@ -463,6 +488,8 @@ func GetTopic(c *gin.Context, db *sql.DB) {
 
 	// Check CanEdit
 	currentUserID := Services.GetUserIdFromContext(c)
+	topic.DateLastPostLocalized = Services.LocalizeTime(topic.DateLastPost, Services.GetUserTimezone(currentUserID, db))
+
 	// Get all permissions for this user in this subforum context
 	userPerms, err := Services.GetSubforumPermissions(currentUserID, topic.SubforumId, db)
 	if err != nil {

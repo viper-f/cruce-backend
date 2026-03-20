@@ -18,20 +18,21 @@ const (
 )
 
 type Topic struct {
-	Id                   int                  `json:"id"`
-	Status               TopicStatus          `json:"status"`
-	Name                 string               `json:"name"`
-	Type                 TopicType            `json:"type"`
-	DateCreated          time.Time            `json:"date_created"`
-	DateLastPost         time.Time            `json:"date_last_post"`
-	PostNumber           int                  `json:"post_number"`
-	AuthorUserId         int                  `json:"author_user_id"`
-	AuthorUsername       *string              `json:"author_username"`
-	LastPostAuthorUserId int                  `json:"last_post_author_user_id"`
-	LastPostAuthorName   *string              `json:"last_post_author_name"`
-	SubforumId           int                  `json:"subforum_id"`
-	Episode              *Episode             `json:"episode"`
-	Character            *Character           `json:"character"`
-	CanEdit              *bool                `json:"can_edit,omitempty" db:"-"`
-	Permissions          *SubforumPermissions `json:"permissions,omitempty" db:"-"`
+	Id                    int                  `json:"id"`
+	Status                TopicStatus          `json:"status"`
+	Name                  string               `json:"name"`
+	Type                  TopicType            `json:"type"`
+	DateCreated           time.Time            `json:"date_created"`
+	DateLastPost          time.Time            `json:"date_last_post"`
+	DateLastPostLocalized string               `json:"date_last_post_localized,omitempty"`
+	PostNumber            int                  `json:"post_number"`
+	AuthorUserId          int                  `json:"author_user_id"`
+	AuthorUsername        *string              `json:"author_username"`
+	LastPostAuthorUserId  int                  `json:"last_post_author_user_id"`
+	LastPostAuthorName    *string              `json:"last_post_author_name"`
+	SubforumId            int                  `json:"subforum_id"`
+	Episode               *Episode             `json:"episode"`
+	Character             *Character           `json:"character"`
+	CanEdit               *bool                `json:"can_edit,omitempty" db:"-"`
+	Permissions           *SubforumPermissions `json:"permissions,omitempty" db:"-"`
 }
