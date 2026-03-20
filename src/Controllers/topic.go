@@ -630,9 +630,8 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// Handle Mentions
-	// Regex to find @username (assuming alphanumeric + underscore)
-	re := regexp.MustCompile(`@([a-zA-Z0-9_]+)`)
+	// Handle Mentions — format is @<username>\u200A
+	re := regexp.MustCompile(`@([^\x{200A}]+)\x{200A}`)
 	matches := re.FindAllStringSubmatch(req.Content, -1)
 
 	if len(matches) > 0 {
