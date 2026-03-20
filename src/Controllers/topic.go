@@ -18,6 +18,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var mentionRegexp = regexp.MustCompile(`@\w+`)
+
 type ViewforumRow struct {
 	Id                     int                  `json:"id"`
 	Status                 Entities.TopicStatus `json:"status"`
@@ -281,7 +283,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 			p.id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
 			u.username, u.avatar, p.guest_name,
 			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar, cp.mask_name, cp.is_mask,
-			t.subforum_id
+			t.subforum_id, t.type as topic_type
 			%s
 		FROM posts p
 		JOIN topics t ON p.topic_id = t.id
@@ -338,6 +340,10 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		post.ContentHtml = Entities.ParseBBCode(post.Content)
 		post.UseCharacterProfile, _ = strconv.ParseBool(rowMap["use_character_profile"].(string))
 		subforumID, _ = strconv.Atoi(rowMap["subforum_id"].(string))
+		topicTypeInt, _ := strconv.Atoi(rowMap["topic_type"].(string))
+		if Entities.TopicType(topicTypeInt) != Entities.EpisodeTopic {
+			post.ContentHtml = mentionRegexp.ReplaceAllString(post.ContentHtml, `<span class="mention">$0</span>`)
+		}
 
 		// Check CanEdit
 		canEdit := false
