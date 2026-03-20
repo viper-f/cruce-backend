@@ -18,7 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var mentionRegexp = regexp.MustCompile(`@\w+`)
+var mentionRegexp = regexp.MustCompile(`@[^\x{200A}]+\x{200A}`)
 
 type ViewforumRow struct {
 	Id                     int                  `json:"id"`
