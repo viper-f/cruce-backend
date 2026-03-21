@@ -2,47 +2,18 @@ package Services
 
 import (
 	"database/sql"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-// LocalizeTime converts t into the user's timezone and returns a formatted string.
-// Accepts IANA names ("Europe/Moscow") or fixed-offset strings ("UTC+3", "UTC-5").
+// LocalizeTime converts t into the user's IANA timezone and returns a formatted string.
+// Falls back to UTC if the timezone is nil, empty, or unrecognised.
 func LocalizeTime(t time.Time, timezone *string) string {
 	loc := time.UTC
 	if timezone != nil && *timezone != "" {
-		tz := *timezone
-		// Try IANA timezone name first (e.g. "Europe/Moscow", "America/New_York")
-		if l, err := time.LoadLocation(tz); err == nil {
+		if l, err := time.LoadLocation(*timezone); err == nil {
 			loc = l
-		} else {
-			// Fall back to "UTC+05:00" / "UTC-05:00" / "UTC+5" fixed-offset parsing
-			offsetStr := strings.TrimPrefix(tz, "UTC")
-			sign := 1
-			if strings.HasPrefix(offsetStr, "-") {
-				sign = -1
-				offsetStr = offsetStr[1:]
-			} else if strings.HasPrefix(offsetStr, "+") {
-				offsetStr = offsetStr[1:]
-			}
-			totalSeconds, parsed := 0, false
-			if parts := strings.SplitN(offsetStr, ":", 2); len(parts) == 2 {
-				hours, errH := strconv.Atoi(parts[0])
-				minutes, errM := strconv.Atoi(parts[1])
-				if errH == nil && errM == nil {
-					totalSeconds = (hours*60 + minutes) * 60
-					parsed = true
-				}
-			} else if hours, err := strconv.Atoi(offsetStr); err == nil {
-				totalSeconds = hours * 3600
-				parsed = true
-			}
-			if parsed {
-				loc = time.FixedZone(tz, sign*totalSeconds)
-			}
 		}
 	}
 	return t.In(loc).Format("2006-01-02 15:04:05")
