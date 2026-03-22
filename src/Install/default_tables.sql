@@ -65,6 +65,9 @@ VALUES ('site_name', 'Site Name');
 INSERT INTO global_settings (setting_name, setting_value)
 VALUES ('posts_per_page', '20');
 
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('imgbb_api_key', '');
+
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NULL,
@@ -384,6 +387,17 @@ create table public_keys
     user_id    int          not null,
     public_key varchar(512) not null,
     constraint fk_public_keys_user foreign key (user_id) references users (id) on delete cascade
+);
+
+create table images
+(
+    id            int auto_increment primary key,
+    url           varchar(512) not null,
+    thumbnail_url varchar(512) null,
+    user_id       int          not null,
+    date_created  datetime     default current_timestamp,
+    delete_url    varchar(512) null,
+    constraint fk_images_user foreign key (user_id) references users (id) on delete cascade
 );
 
 create table user_topic_view

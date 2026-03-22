@@ -238,6 +238,9 @@ func main() {
 	protectedRouter.GET("/direct-chats", "Get list of current user's direct chats", func(c *gin.Context) {
 		Controllers.GetDirectChatList(c, Services.DB)
 	})
+	protectedRouter.POST("/image/upload", "Upload an image to imgbb", func(c *gin.Context) {
+		Controllers.UploadImage(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")
