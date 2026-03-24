@@ -81,6 +81,12 @@ func (s *UserActivityStorage) GetActiveUsers() []*UserActivity {
 	return activeUsers
 }
 
+func (s *UserActivityStorage) GetUserActivity(userID int) *UserActivity {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.users[userID]
+}
+
 func (s *UserActivityStorage) GetUsersOnPage(pageType string, pageId string) []*UserActivity {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

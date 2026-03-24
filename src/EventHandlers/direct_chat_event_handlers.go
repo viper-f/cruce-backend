@@ -1,11 +1,15 @@
 package EventHandlers
 
 import (
+	"cuento-backend/src/Entities"
 	"cuento-backend/src/Events"
 	"cuento-backend/src/Services"
 	"cuento-backend/src/Websockets"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 )
 
 func RegisterDirectChatEventHandlers() {
@@ -35,6 +39,8 @@ func RegisterDirectChatEventHandlers() {
 		}
 		defer rows.Close()
 
+		chatIDStr := strconv.Itoa(event.ChatID)
+
 		for rows.Next() {
 			var participantID int
 			if err := rows.Scan(&participantID); err != nil {
@@ -47,7 +53,7 @@ func RegisterDirectChatEventHandlers() {
 			}
 
 			tz := Services.GetUserTimezone(participantID, db)
-			notification := map[string]interface{}{
+			wsNotification := map[string]interface{}{
 				"type": "direct_message_created",
 				"data": map[string]interface{}{
 					"id":                  event.MessageID,
@@ -64,7 +70,59 @@ func RegisterDirectChatEventHandlers() {
 				},
 			}
 
-			Websockets.MainHub.SendNotification(participantID, notification)
+			Websockets.MainHub.SendNotification(participantID, wsNotification)
+
+			// For receivers (not the sender), create a DB notification unless they have this specific chat open
+			if participantID != event.SenderID {
+				activity := Services.ActivityStorage.GetUserActivity(participantID)
+				isViewingThisChat := activity != nil &&
+					activity.CurrentPageType == "direct_chat" &&
+					activity.CurrentPageId == chatIDStr
+
+				if !isViewingThisChat {
+					notification := saveDirectMessageNotification(db, participantID, event.ChatID, username, avatar)
+					// If the user is online, also push the notification via WS
+					if activity != nil && notification != nil {
+						Websockets.MainHub.SendNotification(participantID, map[string]interface{}{
+							"type": "notification",
+							"data": notification,
+						})
+					}
+				}
+			}
 		}
 	})
+}
+
+func saveDirectMessageNotification(db *sql.DB, receiverID int, chatID int, senderUsername string, senderAvatar *string) *Entities.Notification {
+	message := fmt.Sprintf("New message from %s", senderUsername)
+	dataJSON, err := json.Marshal(map[string]interface{}{
+		"chat_id":  chatID,
+		"username": senderUsername,
+		"avatar":   senderAvatar,
+	})
+	if err != nil {
+		fmt.Printf("Error marshaling direct message notification data: %v\n", err)
+		return nil
+	}
+
+	res, err := db.Exec(
+		"INSERT INTO notifications (user_id, type, title, message, data, date_created, is_read) VALUES (?, 'direct_message', 'New direct message', ?, ?, NOW(), FALSE)",
+		receiverID, message, dataJSON,
+	)
+	if err != nil {
+		fmt.Printf("Error saving direct message notification to DB: %v\n", err)
+		return nil
+	}
+
+	notificationID, _ := res.LastInsertId()
+	return &Entities.Notification{
+		Id:          int(notificationID),
+		UserId:      receiverID,
+		Type:        "direct_message",
+		Title:       "New direct message",
+		Message:     message,
+		DateCreated: time.Now(),
+		IsRead:      false,
+	}
 }
