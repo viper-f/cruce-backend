@@ -136,6 +136,9 @@ func main() {
 	optionalAuthRouter.GET("/user-masks/:userID", "Get user's masks", func(c *gin.Context) {
 		Controllers.GetUserMasks(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/post/:id", "Get post by ID", func(c *gin.Context) {
+		Controllers.GetPostById(c, Services.DB)
+	})
 
 	// Protected routes
 	protectedGroup := r.Group("/")

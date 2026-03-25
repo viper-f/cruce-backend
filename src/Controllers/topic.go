@@ -1172,3 +1172,50 @@ func GetActiveTopicCount(c *gin.Context, db *sql.DB) {
 
 	c.JSON(http.StatusOK, gin.H{"total": count})
 }
+
+func GetPostById(c *gin.Context, db *sql.DB) {
+	postID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid post ID"})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+
+	var subforumID int
+	err = db.QueryRow(`SELECT t.subforum_id FROM posts p JOIN topics t ON p.topic_id = t.id WHERE p.id = ?`, postID).Scan(&subforumID)
+	if err == sql.ErrNoRows {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Post not found"})
+		c.Abort()
+		return
+	}
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get post: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	permission := fmt.Sprintf("subforum_read:%d", subforumID)
+	if hasPerm, err := Services.HasPermission(userID, permission, db); err != nil || !hasPerm {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Post not found"})
+		c.Abort()
+		return
+	}
+
+	post, err := Services.GetPostById(postID, db)
+	if err == sql.ErrNoRows {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Post not found"})
+		c.Abort()
+		return
+	}
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get post: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	post.DateCreatedLocalized = Services.LocalizeTime(post.DateCreated, Services.GetUserTimezone(userID, db))
+
+	c.JSON(http.StatusOK, post)
+}

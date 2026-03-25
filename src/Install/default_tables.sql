@@ -411,13 +411,3 @@ create table user_topic_view
     constraint fk_user_topic_view_user foreign key (user_id) references users (id) on delete cascade,
     constraint fk_user_topic_view_topic foreign key (topic_id) references topics (id) on delete cascade
 );
-
-create table pages
-(
-    id           int auto_increment primary key,
-    title        varchar(255) null,
-    content      text         null,
-    author_id    int          not null,
-    date_created datetime     default current_timestamp,
-    constraint fk_pages_author foreign key (author_id) references users (id) on delete cascade
-);
