@@ -297,7 +297,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		LEFT JOIN character_profile_base cp ON p.character_profile_id = cp.id
 		LEFT JOIN character_base cb ON cp.character_id = cb.id
 		LEFT JOIN character_profile_flattened cpf ON cp.id = cpf.entity_id
-		WHERE p.topic_id = ?
+		WHERE p.topic_id = ? AND (p.is_deleted IS NULL OR p.is_deleted <> 1)
 		ORDER BY p.date_created ASC
 		LIMIT ? OFFSET ?
 	`, colsSelect)
