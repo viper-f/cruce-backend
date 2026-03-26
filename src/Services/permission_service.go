@@ -263,14 +263,30 @@ func UpdatePermissionMatrix(permissions []string, db *sql.DB) error {
 }
 
 func HasPermission(userID int, permission string, db *sql.DB) (bool, error) {
-	query := `
+	if userID > 0 {
+		var count int
+		err := db.QueryRow(`
+			SELECT COUNT(*)
+			FROM role_permission rp
+			JOIN user_role ur ON rp.role_id = ur.role_id
+			WHERE ur.user_id = ? AND rp.permission = ?
+		`, userID, permission).Scan(&count)
+		if err != nil {
+			return false, err
+		}
+		if count > 0 {
+			return true, nil
+		}
+	}
+
+	// Fall back to guest role, mirroring GetVisibleSubforums behaviour
+	var count int
+	err := db.QueryRow(`
 		SELECT COUNT(*)
 		FROM role_permission rp
-		JOIN user_role ur ON rp.role_id = ur.role_id
-		WHERE ur.user_id = ? AND rp.permission = ?
-	`
-	var count int
-	err := db.QueryRow(query, userID, permission).Scan(&count)
+		JOIN roles r ON rp.role_id = r.id
+		WHERE r.name = 'guest' AND rp.permission = ?
+	`, permission).Scan(&count)
 	if err != nil {
 		return false, err
 	}
