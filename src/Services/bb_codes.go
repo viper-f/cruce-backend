@@ -173,6 +173,17 @@ func GetBBCompiler() bbcode.Compiler {
 
 		out.Attrs["data-insert"] = strconv.Itoa(id)
 
+		js := fmt.Sprintf(
+			`(function(){var el=document.currentScript.parentElement;`+
+				`fetch('/post/%d').then(function(r){return r.json();}).then(function(d){`+
+				`el.innerHTML=d.content_html;`+
+				`});})();`,
+			id,
+		)
+		script := bbcode.NewHTMLTag(js)
+		script.Name = "script"
+		out.AppendChild(script)
+
 		return out, false
 	})
 
