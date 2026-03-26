@@ -63,6 +63,11 @@ func RegisterNotificationEventHandlers() {
 				if err := json.Unmarshal(dataJSON, &game); err == nil {
 					notification.Game = &game
 				}
+			case "system":
+				var system Entities.NotificationSystem
+				if err := json.Unmarshal(dataJSON, &system); err == nil {
+					notification.System = &system
+				}
 			}
 		}
 

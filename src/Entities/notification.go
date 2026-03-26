@@ -12,6 +12,7 @@ type Notification struct {
 	IsRead      bool                 `json:"is_read"`
 	Mention     *NotificationMention `json:"mention"`
 	Game        *NotificationGame    `json:"game"`
+	System      *NotificationSystem  `json:"system"`
 }
 
 type NotificationMention struct {
@@ -21,14 +22,20 @@ type NotificationMention struct {
 	CharacterName *string `json:"character_name"`
 	PostId        int     `json:"post_id"`
 	TopicId       int     `json:"topic_id"`
+	TopicName     string  `json:"topic_name"`
 }
 
 type NotificationGame struct {
 	TopicId           int    `json:"topic_id"`
 	TopicName         string `json:"topic_name"`
+	PostId            int    `json:"post_id"`
 	Type              string `json:"type"`
 	UserCharacterId   int    `json:"user_character_id"`
 	UserCharacterName string `json:"user_character_name"`
 	CharacterId       int    `json:"character_id"`
 	CharacterName     string `json:"character_name"`
+}
+
+type NotificationSystem struct {
+	TopicId int `json:"topic_id"`
 }

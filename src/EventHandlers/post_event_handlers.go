@@ -100,7 +100,8 @@ func RegisterPostEventHandlers() {
 
 		// 1. Check if topic type is episode
 		var topicType Entities.TopicType
-		err := db.QueryRow("SELECT type FROM topics WHERE id = ?", event.TopicID).Scan(&topicType)
+		var topicTitle string
+		err := db.QueryRow("SELECT type, name FROM topics WHERE id = ?", event.TopicID).Scan(&topicType, &topicTitle)
 		if err != nil || topicType != Entities.EpisodeTopic {
 			return
 		}
@@ -134,6 +135,8 @@ func RegisterPostEventHandlers() {
 			if err := rows.Scan(&participantUserID, &participantCharacterID); err == nil {
 				gameData := Entities.NotificationGame{
 					TopicId:         int(event.TopicID),
+					TopicName:       topicTitle,
+					PostId:          event.Post.Id,
 					Type:            "post_created",
 					UserCharacterId: participantCharacterID,
 					CharacterId:     authorCharacterID,
@@ -142,7 +145,7 @@ func RegisterPostEventHandlers() {
 				Events.Publish(db, Events.NotificationCreated, Events.NotificationEvent{
 					UserID:  participantUserID,
 					Type:    "game",
-					Message: fmt.Sprintf("New post in episode by %s", event.Post.CharacterProfile.CharacterName),
+					Message: fmt.Sprintf("New [post in episode %s] by %s", topicTitle, event.Post.CharacterProfile.CharacterName),
 					Data:    gameData,
 				})
 			}

@@ -65,6 +65,7 @@ type CharacterAcceptedEvent struct {
 	CharacterID   int
 	CharacterName string
 	UserID        int
+	TopicID       int
 }
 
 type UserRegisteredEvent struct {

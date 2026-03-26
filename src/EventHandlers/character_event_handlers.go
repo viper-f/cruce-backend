@@ -98,7 +98,7 @@ func RegisterCharacterEventHandlers() {
 			UserID:  event.UserID,
 			Type:    "system",
 			Message: fmt.Sprintf("Your character %s has been accepted", event.CharacterName),
-			Data:    nil,
+			Data:    map[string]interface{}{"topic_id": event.TopicID},
 		})
 	})
 }

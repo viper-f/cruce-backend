@@ -630,6 +630,10 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	// Fetch topic name for notifications
+	var topicNameForNotif string
+	_ = db.QueryRow("SELECT name FROM topics WHERE id = ?", req.TopicID).Scan(&topicNameForNotif)
+
 	// Handle Mentions — format is @<username>\u200A
 	re := regexp.MustCompile(`@([^\x{200A}]+)\x{200A}`)
 	matches := re.FindAllStringSubmatch(req.Content, -1)
@@ -685,12 +689,13 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 								CharacterName: authorCharacterName,
 								PostId:        int(postID),
 								TopicId:       req.TopicID,
+								TopicName:     topicNameForNotif,
 							}
 
 							Events.Publish(db, Events.NotificationCreated, Events.NotificationEvent{
 								UserID:  mUserID,
 								Type:    "mention",
-								Message: fmt.Sprintf("%s mentioned you in a post", authorName),
+								Message: fmt.Sprintf("%s mentioned you in %s", authorName, topicNameForNotif),
 								Data:    mentionData,
 							})
 						}
