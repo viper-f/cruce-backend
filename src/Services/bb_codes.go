@@ -190,8 +190,7 @@ func GetBBCompiler() bbcode.Compiler {
 
 	compiler.SetTag("spoiler", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
 		out := bbcode.NewHTMLTag("")
-		out.Name = "div"
-		out.Attrs["class"] = "spoiler-box"
+		out.Name = "spoiler-box"
 
 		title := node.GetOpeningTag().Value
 		if title == "" {
@@ -200,7 +199,6 @@ func GetBBCompiler() bbcode.Compiler {
 
 		header := bbcode.NewHTMLTag(html.EscapeString(title))
 		header.Name = "div"
-		header.Attrs["onclick"] = "var c=this.nextElementSibling;c.style.maxHeight=c.style.maxHeight?'':c.scrollHeight+'px';"
 		out.AppendChild(header)
 
 		content := bbcode.NewHTMLTag("")
