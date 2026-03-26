@@ -208,7 +208,7 @@ func GetBBCompiler() bbcode.Compiler {
 		content.Attrs["style"] = "max-height: 0; overflow: hidden; transition: max-height 0.3s ease;"
 		out.AppendChild(content)
 
-		return content, true
+		return out, true
 	})
 
 	compiler.SetTag("img", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
