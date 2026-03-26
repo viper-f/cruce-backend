@@ -200,11 +200,12 @@ func GetBBCompiler() bbcode.Compiler {
 
 		header := bbcode.NewHTMLTag(html.EscapeString(title))
 		header.Name = "div"
+		header.Attrs["onclick"] = "var c=this.nextElementSibling;c.style.maxHeight=c.style.maxHeight?'':c.scrollHeight+'px';"
 		out.AppendChild(header)
 
 		content := bbcode.NewHTMLTag("")
 		content.Name = "div"
-		content.Attrs["style"] = "display: none;"
+		content.Attrs["style"] = "max-height: 0; overflow: hidden; transition: max-height 0.3s ease;"
 		out.AppendChild(content)
 
 		return content, true
