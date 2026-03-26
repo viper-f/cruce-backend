@@ -169,7 +169,7 @@ func fillEntity(entity interface{}, data map[string]interface{}, config []Entiti
 				if conf, ok := configMap[key]; ok {
 					if conf.FieldType == "text" {
 						if s, ok := val.(string); ok {
-							cfValue.ContentHtml = Entities.ParseBBCode(s)
+							cfValue.ContentHtml = ParseBBCode(s)
 						}
 					}
 				}

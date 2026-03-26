@@ -110,7 +110,7 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 	post.DateCreated = dateCreated
 	if val, ok := rowMap["content"]; ok {
 		post.Content = val.(string)
-		post.ContentHtml = Entities.ParseBBCode(post.Content)
+		post.ContentHtml = ParseBBCode(post.Content)
 	}
 	if val, ok := rowMap["use_character_profile"]; ok {
 		post.UseCharacterProfile, _ = strconv.ParseBool(val.(string))
@@ -147,7 +147,7 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 				cfValue := Entities.CustomFieldValue{Content: val}
 				if field.FieldType == "text" {
 					if s, ok := val.(string); ok {
-						cfValue.ContentHtml = Entities.ParseBBCode(s)
+						cfValue.ContentHtml = ParseBBCode(s)
 					}
 				}
 				customFields[field.MachineFieldName] = cfValue

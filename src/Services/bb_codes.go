@@ -28,6 +28,12 @@ func getArgInt(node *bbcode.BBCodeNode, key string, min, max int) (int, bool) {
 	return n, true
 }
 
+var bbCompiler = GetBBCompiler()
+
+func ParseBBCode(text string) string {
+	return bbCompiler.Compile(text)
+}
+
 func GetBBCompiler() bbcode.Compiler {
 	compiler := bbcode.NewCompiler(true, true)
 

@@ -3,8 +3,6 @@ package Entities
 import (
 	"database/sql"
 	"fmt"
-
-	"cuento-backend/src/Services"
 )
 
 type CustomField struct {
@@ -37,11 +35,6 @@ type CustomFieldEntity struct {
 }
 
 // Compile-time check or global compiler initialization
-var compiler = Services.GetBBCompiler()
-
-func ParseBBCode(text string) string {
-	return compiler.Compile(text)
-}
 
 func GenerateEntityTables(entity CustomFieldEntity, entityName string, db *sql.DB) error {
 	customFieldMainTableSQL := "CREATE TABLE IF NOT EXISTS " + entityName + "_main (" +

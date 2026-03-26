@@ -362,7 +362,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		post.DateCreated = dateCreated
 		post.DateCreatedLocalized = Services.LocalizeTime(post.DateCreated, userTimezone)
 		post.Content = rowMap["content"].(string)
-		post.ContentHtml = Entities.ParseBBCode(post.Content)
+		post.ContentHtml = Services.ParseBBCode(post.Content)
 		post.UseCharacterProfile, _ = strconv.ParseBool(rowMap["use_character_profile"].(string))
 		subforumID, _ = strconv.Atoi(rowMap["subforum_id"].(string))
 		topicTypeInt, _ := strconv.Atoi(rowMap["topic_type"].(string))
@@ -421,7 +421,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 					cfValue := Entities.CustomFieldValue{Content: val}
 					if field.FieldType == "text" {
 						if s, ok := val.(string); ok {
-							cfValue.ContentHtml = Entities.ParseBBCode(s)
+							cfValue.ContentHtml = Services.ParseBBCode(s)
 						}
 					}
 					customFields[field.MachineFieldName] = cfValue
@@ -742,7 +742,7 @@ func PreviewPost(c *gin.Context, db *sql.DB) {
 	post.TopicId = req.TopicID
 	post.AuthorUserId = userID
 	post.Content = req.Content
-	post.ContentHtml = Entities.ParseBBCode(req.Content)
+	post.ContentHtml = Services.ParseBBCode(req.Content)
 	post.UseCharacterProfile = req.UseCharacterProfile
 	post.GuestName = req.GuestName
 
