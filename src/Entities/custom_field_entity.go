@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/frustra/bbcode"
+	"cuento-backend/src/Services"
 )
 
 type CustomField struct {
@@ -37,10 +37,9 @@ type CustomFieldEntity struct {
 }
 
 // Compile-time check or global compiler initialization
-var compiler = bbcode.NewCompiler(true, true)
+var compiler = Services.GetBBCompiler()
 
 func ParseBBCode(text string) string {
-	// You can customize tags here if needed
 	return compiler.Compile(text)
 }
 

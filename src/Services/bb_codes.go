@@ -16,6 +16,18 @@ func getArg(node *bbcode.BBCodeNode, key string) (string, bool) {
 	return html.EscapeString(val), true
 }
 
+func getArgInt(node *bbcode.BBCodeNode, key string, min, max int) (int, bool) {
+	val, ok := node.GetOpeningTag().Args[key]
+	if !ok || val == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n < min || n > max {
+		return 0, false
+	}
+	return n, true
+}
+
 func GetBBCompiler() bbcode.Compiler {
 	compiler := bbcode.NewCompiler(true, true)
 
@@ -95,6 +107,74 @@ func GetBBCompiler() bbcode.Compiler {
 		}
 
 		return out, true
+	})
+
+	compiler.SetTag("grid", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
+		out := bbcode.NewHTMLTag("")
+		out.Name = "div"
+
+		style := "display: grid;"
+		if cols, ok := getArgInt(node, "columns", 1, 12); ok {
+			style += fmt.Sprintf(" grid-template-columns: repeat(%d, 1fr);", cols)
+		}
+		if rows, ok := getArgInt(node, "rows", 1, 12); ok {
+			style += fmt.Sprintf(" grid-template-rows: repeat(%d, 1fr);", rows)
+		}
+		if gap, ok := getArg(node, "gap"); ok {
+			style += fmt.Sprintf(" gap: %s;", gap)
+		}
+		if width, ok := getArg(node, "width"); ok {
+			style += fmt.Sprintf(" width: %s;", width)
+		}
+
+		out.Attrs["style"] = style
+		return out, true
+	})
+
+	compiler.SetTag("grid-item", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
+		out := bbcode.NewHTMLTag("")
+		out.Name = "div"
+
+		var style string
+		if col, ok := getArgInt(node, "col", 1, 12); ok {
+			style += fmt.Sprintf("grid-column-start: %d;", col)
+		}
+		if row, ok := getArgInt(node, "row", 1, 12); ok {
+			style += fmt.Sprintf(" grid-row-start: %d;", row)
+		}
+		if colSpan, ok := getArgInt(node, "col-span", 1, 12); ok {
+			style += fmt.Sprintf(" grid-column-end: span %d;", colSpan)
+		}
+		if rowSpan, ok := getArgInt(node, "row-span", 1, 12); ok {
+			style += fmt.Sprintf(" grid-row-end: span %d;", rowSpan)
+		}
+		if style != "" {
+			out.Attrs["style"] = style
+		}
+
+		return out, true
+	})
+
+	compiler.SetTag("iframe-post", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
+		out := bbcode.NewHTMLTag("")
+		out.Name = "iframe"
+
+		value := node.GetOpeningTag().Value
+		id, err := strconv.Atoi(value)
+		if err != nil || id <= 0 {
+			return out, false
+		}
+
+		out.Attrs["src"] = fmt.Sprintf("/post-page/%d", id)
+		out.Attrs["frameborder"] = "0"
+		if width, ok := getArg(node, "width"); ok {
+			out.Attrs["width"] = width
+		}
+		if height, ok := getArg(node, "height"); ok {
+			out.Attrs["height"] = height
+		}
+
+		return out, false
 	})
 
 	compiler.SetTag("float", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
