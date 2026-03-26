@@ -161,9 +161,9 @@ func GetBBCompiler() bbcode.Compiler {
 		return out, true
 	})
 
-	compiler.SetTag("iframe-post", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
+	compiler.SetTag("insert-post", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
 		out := bbcode.NewHTMLTag("")
-		out.Name = "iframe"
+		out.Name = "div"
 
 		value := node.GetOpeningTag().Value
 		id, err := strconv.Atoi(value)
@@ -171,14 +171,7 @@ func GetBBCompiler() bbcode.Compiler {
 			return out, false
 		}
 
-		out.Attrs["src"] = fmt.Sprintf("/post-page/%d", id)
-		out.Attrs["frameborder"] = "0"
-		if width, ok := getArg(node, "width"); ok {
-			out.Attrs["width"] = width
-		}
-		if height, ok := getArg(node, "height"); ok {
-			out.Attrs["height"] = height
-		}
+		out.Attrs["data-insert"] = strconv.Itoa(id)
 
 		return out, false
 	})
@@ -193,6 +186,49 @@ func GetBBCompiler() bbcode.Compiler {
 		}
 
 		return out, true
+	})
+
+	compiler.SetTag("spoiler", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
+		out := bbcode.NewHTMLTag("")
+		out.Name = "div"
+		out.Attrs["class"] = "spoiler-box"
+
+		title := node.GetOpeningTag().Value
+		if title == "" {
+			title = "Spoiler"
+		}
+
+		header := bbcode.NewHTMLTag(html.EscapeString(title))
+		header.Name = "div"
+		out.AppendChild(header)
+
+		content := bbcode.NewHTMLTag("")
+		content.Name = "div"
+		content.Attrs["style"] = "display: none;"
+		out.AppendChild(content)
+
+		return content, true
+	})
+
+	compiler.SetTag("img", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
+		out := bbcode.NewHTMLTag("")
+		out.Name = "img"
+
+		value := node.GetOpeningTag().Value
+		if value == "" {
+			out.Attrs["src"] = bbcode.ValidURL(bbcode.CompileText(node))
+		} else {
+			out.Attrs["src"] = bbcode.ValidURL(value)
+			text := bbcode.CompileText(node)
+			if len(text) > 0 {
+				out.Attrs["alt"] = text
+				out.Attrs["title"] = text
+			}
+		}
+		out.Attrs["loading"] = "lazy"
+		out.Attrs["referrerpolicy"] = "no-referrer"
+
+		return out, false
 	})
 
 	return compiler
