@@ -62,3 +62,57 @@ func GetFactionTree(c *gin.Context, db *sql.DB) {
 	}
 	c.JSON(http.StatusOK, factions)
 }
+
+func UpdateFactionById(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid id"})
+		c.Abort()
+		return
+	}
+
+	var req Entities.Faction
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	res, err := db.Exec(
+		"UPDATE factions SET name = ?, parent_id = ?, level = ?, description = ?, icon = ?, show_on_profile = ? WHERE id = ?",
+		req.Name, req.ParentId, req.Level, req.Description, req.Icon, req.ShowOnProfile, id,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update faction: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Faction not found"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Faction updated"})
+}
+
+func CreateFaction(c *gin.Context, db *sql.DB) {
+	var req Entities.Faction
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	id, err := Services.CreateFaction(req, db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create faction: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	req.Id = int(id)
+	c.JSON(http.StatusOK, req)
+}

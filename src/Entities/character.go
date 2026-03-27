@@ -41,3 +41,22 @@ const (
 	InactiveCharacter CharacterStatus = 1
 	PendingCharacter  CharacterStatus = 2
 )
+
+type CharacterClaim struct {
+	Id          int     `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+	IsClaimed   bool    `json:"is_claimed"`
+	UserId      int     `json:"user_id"`
+	GuestHash   string  `json:"guest_hash"`
+}
+
+type WantedCharacter struct {
+	Id               int    `json:"id"`
+	Name             string `json:"name"`
+	IsClaimed        bool   `json:"is_claimed"`
+	AuthorUserId     int    `json:"author_user_id"`
+	DateCreated      time.Time
+	CharacterClaimId *int              `json:"character_claim_id"`
+	CustomFields     CustomFieldEntity `json:"custom_fields" db:"-"`
+}

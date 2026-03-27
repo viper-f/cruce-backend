@@ -161,6 +161,12 @@ func main() {
 	protectedRouter.GET("/faction-children/:parent_id/get", "Get child factions by parent ID", func(c *gin.Context) {
 		Controllers.GetFactionChildren(c, Services.DB)
 	})
+	protectedRouter.GET("/faction-tree", "Get faction tree by ID", func(c *gin.Context) {
+		Controllers.GetFactionTree(c, Services.DB)
+	})
+	protectedRouter.POST("/faction/create", "Create a new faction", func(c *gin.Context) {
+		Controllers.CreateFaction(c, Services.DB)
+	})
 
 	// Character Template routes
 	protectedRouter.GET("/template/:type/get", "Get character template by type", func(c *gin.Context) {
