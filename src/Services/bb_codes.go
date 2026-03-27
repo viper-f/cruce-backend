@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"strconv"
+	"strings"
 
 	"github.com/frustra/bbcode"
 )
@@ -192,7 +193,11 @@ func GetBBCompiler() bbcode.Compiler {
 		out := bbcode.NewHTMLTag("")
 		out.Name = "spoiler-box"
 
-		title := node.GetOpeningTag().Value
+		title := "Spoiler"
+		if raw := node.GetOpeningTag().Raw; strings.Contains(raw, "=") {
+			idx := strings.Index(raw, "=")
+			title = strings.TrimSpace(strings.TrimSuffix(raw[idx+1:], "]"))
+		}
 		if title == "" {
 			title = "Spoiler"
 		}
