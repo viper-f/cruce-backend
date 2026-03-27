@@ -80,7 +80,7 @@ func GetBBCompiler() bbcode.Compiler {
 		return out, true
 	})
 
-	compiler.SetTag("font-size", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
+	compiler.SetTag("size", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
 		out := bbcode.NewHTMLTag("")
 		out.Name = "span"
 
@@ -92,7 +92,7 @@ func GetBBCompiler() bbcode.Compiler {
 		return out, true
 	})
 
-	compiler.SetTag("font-family", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
+	compiler.SetTag("font", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
 		out := bbcode.NewHTMLTag("")
 		out.Name = "span"
 
