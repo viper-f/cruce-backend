@@ -197,16 +197,7 @@ func GetBBCompiler() bbcode.Compiler {
 			title = "Spoiler"
 		}
 
-		header := bbcode.NewHTMLTag(html.EscapeString(title))
-		header.Name = "div"
-		header.Attrs["class"] = "spoiler-header"
-		out.AppendChild(header)
-
-		content := bbcode.NewHTMLTag("")
-		content.Name = "div"
-		content.Attrs["class"] = "spoiler-content"
-		content.Attrs["style"] = "max-height: 0; overflow: hidden; transition: max-height 0.3s ease;"
-		out.AppendChild(content)
+		out.Attrs["data-title"] = html.EscapeString(title)
 
 		return out, true
 	})
