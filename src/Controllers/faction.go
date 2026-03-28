@@ -18,7 +18,7 @@ func GetFactionChildren(c *gin.Context, db *sql.DB) {
 	var err error
 
 	if parentIDStr == "" || parentIDStr == "0" {
-		rows, err = db.Query("SELECT id, name, parent_id, level, description, icon, show_on_profile FROM factions WHERE parent_id IS NULL ORDER BY name")
+		rows, err = db.Query("SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status FROM factions WHERE parent_id IS NULL AND faction_status = ? ORDER BY name", Entities.FactionActive)
 	} else {
 		parentID, convErr := strconv.Atoi(parentIDStr)
 		if convErr != nil {
@@ -26,7 +26,7 @@ func GetFactionChildren(c *gin.Context, db *sql.DB) {
 			c.Abort()
 			return
 		}
-		rows, err = db.Query("SELECT id, name, parent_id, level, description, icon, show_on_profile FROM factions WHERE parent_id = ? ORDER BY name", parentID)
+		rows, err = db.Query("SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status FROM factions WHERE parent_id = ? AND faction_status = ? ORDER BY name", parentID, Entities.FactionActive)
 	}
 
 	if err != nil {
@@ -39,7 +39,7 @@ func GetFactionChildren(c *gin.Context, db *sql.DB) {
 	var factions []Entities.Faction
 	for rows.Next() {
 		var f Entities.Faction
-		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile); err != nil {
+		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan faction: " + err.Error()})
 			c.Abort()
 			return
@@ -79,8 +79,8 @@ func UpdateFactionById(c *gin.Context, db *sql.DB) {
 	}
 
 	res, err := db.Exec(
-		"UPDATE factions SET name = ?, parent_id = ?, level = ?, description = ?, icon = ?, show_on_profile = ? WHERE id = ?",
-		req.Name, req.ParentId, req.Level, req.Description, req.Icon, req.ShowOnProfile, id,
+		"UPDATE factions SET name = ?, parent_id = ?, level = ?, description = ?, icon = ?, show_on_profile = ?, faction_status = ? WHERE id = ?",
+		req.Name, req.ParentId, req.Level, req.Description, req.Icon, req.ShowOnProfile, req.FactionStatus, id,
 	)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update faction: " + err.Error()})
@@ -115,4 +115,31 @@ func CreateFaction(c *gin.Context, db *sql.DB) {
 
 	req.Id = int(id)
 	c.JSON(http.StatusOK, req)
+}
+
+func GetPendingFactions(c *gin.Context, db *sql.DB) {
+	rows, err := db.Query("SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status FROM factions WHERE faction_status = ? ORDER BY name", Entities.FactionPending)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get pending factions: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	var factions []Entities.Faction
+	for rows.Next() {
+		var f Entities.Faction
+		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan faction: " + err.Error()})
+			c.Abort()
+			return
+		}
+		factions = append(factions, f)
+	}
+
+	if factions == nil {
+		factions = []Entities.Faction{}
+	}
+
+	c.JSON(http.StatusOK, factions)
 }

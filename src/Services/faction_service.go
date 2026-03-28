@@ -9,8 +9,8 @@ import (
 func GetFactionTreeByRoot(rootID int, db *sql.DB) ([]Entities.Faction, error) {
 	// Fetch all factions that belong to this root (including the root itself)
 	query := `
-		SELECT id, name, parent_id, level, description, icon, show_on_profile 
-		FROM factions 
+		SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status
+		FROM factions
 		WHERE root_id = ? OR id = ?
 	`
 	rows, err := db.Query(query, rootID, rootID)
@@ -22,7 +22,7 @@ func GetFactionTreeByRoot(rootID int, db *sql.DB) ([]Entities.Faction, error) {
 	var allFactions []Entities.Faction
 	for rows.Next() {
 		var f Entities.Faction
-		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile); err != nil {
+		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus); err != nil {
 			return nil, err
 		}
 		allFactions = append(allFactions, f)
@@ -75,10 +75,11 @@ func GetFactionTreeByRoot(rootID int, db *sql.DB) ([]Entities.Faction, error) {
 func GetFactionTree(db *sql.DB) ([]Entities.Faction, error) {
 	// Fetch all factions
 	query := `
-		SELECT id, name, parent_id, level, description, icon, show_on_profile 
+		SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status
 		FROM factions
+		WHERE faction_status = ?
 	`
-	rows, err := db.Query(query)
+	rows, err := db.Query(query, Entities.FactionActive)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +88,7 @@ func GetFactionTree(db *sql.DB) ([]Entities.Faction, error) {
 	var allFactions []Entities.Faction
 	for rows.Next() {
 		var f Entities.Faction
-		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile); err != nil {
+		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus); err != nil {
 			return nil, err
 		}
 		allFactions = append(allFactions, f)
@@ -168,7 +169,7 @@ func RemoveFactionCharacter(factionID int, characterID int, db DBExecutor) error
 
 func GetFactionTreeByCharacter(characterID int, db *sql.DB) ([]Entities.Faction, error) {
 	query := `
-		SELECT f.id, f.name, f.parent_id, f.level, f.description, f.icon, f.show_on_profile
+		SELECT f.id, f.name, f.parent_id, f.level, f.description, f.icon, f.show_on_profile, f.faction_status
 		FROM factions f
 		JOIN character_faction cf ON f.id = cf.faction_id
 		WHERE cf.character_id = ? ORDER BY f.level, f.name
@@ -182,7 +183,7 @@ func GetFactionTreeByCharacter(characterID int, db *sql.DB) ([]Entities.Faction,
 	var factions []Entities.Faction
 	for rows.Next() {
 		var f Entities.Faction
-		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile); err != nil {
+		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus); err != nil {
 			return nil, err
 		}
 		factions = append(factions, f)
