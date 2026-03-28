@@ -173,6 +173,9 @@ func main() {
 	protectedRouter.GET("/factions/pending", "Get pending factions", func(c *gin.Context) {
 		Controllers.GetPendingFactions(c, Services.DB)
 	})
+	protectedRouter.POST("/faction/update/:id", "Update faction by ID", func(c *gin.Context) {
+		Controllers.UpdateFactionById(c, Services.DB)
+	})
 	protectedRouter.GET("/global-settings", "Get all global settings", func(c *gin.Context) {
 		Controllers.GetGlobalSettings(c, Services.DB)
 	})

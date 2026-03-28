@@ -43,8 +43,9 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 			subforums.last_post_topic_id,
 			subforums.last_post_topic_name,
 			subforums.last_post_id,
-			subforums.date_last_post, 
+			subforums.date_last_post,
 			subforums.last_post_author_user_name,
+			subforums.show_last_topic,
 			categories.id as category_id,
 			categories.name as category_name,
 			categories.position as category_position
@@ -86,6 +87,7 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 			&sub.LastPostId,
 			&dateLastPost,
 			&sub.LastPostAuthorName,
+			&sub.ShowLastTopic,
 			&cat.Id,
 			&cat.Name,
 			&cat.Position,
@@ -144,7 +146,7 @@ func GetSubforum(c *gin.Context, db *sql.DB) {
 
 	var subforum Entities.Subform
 	var dateLastPost *time.Time
-	query := "SELECT id, category_id, name, description, position, topic_number, post_number, last_post_topic_id, last_post_topic_name, last_post_id, date_last_post, last_post_author_user_name FROM subforums WHERE id = ?"
+	query := "SELECT id, category_id, name, description, position, topic_number, post_number, last_post_topic_id, last_post_topic_name, last_post_id, date_last_post, last_post_author_user_name, show_last_topic FROM subforums WHERE id = ?"
 	err = db.QueryRow(query, id).Scan(
 		&subforum.Id,
 		&subforum.CategoryId,
@@ -158,6 +160,7 @@ func GetSubforum(c *gin.Context, db *sql.DB) {
 		&subforum.LastPostId,
 		&dateLastPost,
 		&subforum.LastPostAuthorName,
+		&subforum.ShowLastTopic,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

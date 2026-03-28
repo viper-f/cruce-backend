@@ -14,6 +14,7 @@ type Subform struct {
 	DateLastPost          *string              `json:"date_last_post"`
 	DateLastPostLocalized *string              `json:"date_last_post_localized,omitempty"`
 	LastPostAuthorName    *string              `json:"last_post_author_name"`
+	ShowLastTopic         bool                 `json:"show_last_topic"`
 	Permissions           *SubforumPermissions `json:"permissions"`
 }
 
