@@ -149,6 +149,9 @@ func main() {
 	protectedRouter.POST("/character/create", "Create a new character", func(c *gin.Context) {
 		Controllers.CreateCharacter(c, Services.DB)
 	})
+	protectedRouter.POST("/character/preview", "Preview a character without saving", func(c *gin.Context) {
+		Controllers.PreviewCharacter(c, Services.DB)
+	})
 	protectedRouter.POST("/character/update/:id", "Update character by ID", func(c *gin.Context) {
 		Controllers.UpdateCharacter(c, Services.DB)
 	})
@@ -183,6 +186,9 @@ func main() {
 	})
 	protectedRouter.POST("/episode/create", "Create a new episode", func(c *gin.Context) {
 		Controllers.CreateEpisode(c, Services.DB)
+	})
+	protectedRouter.POST("/episode/preview", "Preview an episode without saving", func(c *gin.Context) {
+		Controllers.PreviewEpisode(c, Services.DB)
 	})
 	protectedRouter.POST("/episode/update/:id", "Update episode by ID", func(c *gin.Context) {
 		Controllers.UpdateEpisode(c, Services.DB)

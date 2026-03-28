@@ -228,6 +228,44 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusCreated, createdEntity)
 }
 
+func PreviewCharacter(c *gin.Context, db *sql.DB) {
+	var req CreateCharacterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	cfMap := make(map[string]Entities.CustomFieldValue)
+	for k, v := range req.CustomFields {
+		cfMap[k] = Entities.CustomFieldValue{Content: v}
+	}
+
+	fieldConfig, _ := Services.GetFieldConfig("character", db)
+	for _, conf := range fieldConfig {
+		if conf.FieldType == "text" {
+			if val, ok := cfMap[conf.MachineFieldName]; ok {
+				if s, ok := val.Content.(string); ok {
+					val.ContentHtml = Services.ParseBBCode(s)
+					cfMap[conf.MachineFieldName] = val
+				}
+			}
+		}
+	}
+
+	character := Entities.Character{
+		Name:   req.Name,
+		Avatar: req.Avatar,
+		CustomFields: Entities.CustomFieldEntity{
+			CustomFields: cfMap,
+			FieldConfig:  fieldConfig,
+		},
+		Factions: req.FactionIDs,
+	}
+
+	c.JSON(http.StatusOK, character)
+}
+
 func UpdateCharacter(c *gin.Context, db *sql.DB) {
 	characterID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

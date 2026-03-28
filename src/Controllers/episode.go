@@ -169,6 +169,42 @@ func CreateEpisode(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Episode created successfully", "episode_id": createdEpisode.Id, "topic_id": topicID})
 }
 
+func PreviewEpisode(c *gin.Context, db *sql.DB) {
+	var req CreateEpisodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	cfMap := make(map[string]Entities.CustomFieldValue)
+	for k, v := range req.CustomFields {
+		cfMap[k] = Entities.CustomFieldValue{Content: v}
+	}
+
+	fieldConfig, _ := Services.GetFieldConfig("episode", db)
+	for _, conf := range fieldConfig {
+		if conf.FieldType == "text" {
+			if val, ok := cfMap[conf.MachineFieldName]; ok {
+				if s, ok := val.Content.(string); ok {
+					val.ContentHtml = Services.ParseBBCode(s)
+					cfMap[conf.MachineFieldName] = val
+				}
+			}
+		}
+	}
+
+	episode := Entities.Episode{
+		Name: req.Name,
+		CustomFields: Entities.CustomFieldEntity{
+			CustomFields: cfMap,
+			FieldConfig:  fieldConfig,
+		},
+	}
+
+	c.JSON(http.StatusOK, episode)
+}
+
 func GetEpisodes(c *gin.Context, db *sql.DB) {
 	var req GetEpisodesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
