@@ -93,7 +93,7 @@ CREATE TABLE subforums (
     last_post_topic_name varchar(255) null,
     last_post_id bigint unsigned null,
     last_post_author_user_name varchar(255) null,
-    show_last_topic boolean default true not null,
+    show_last_topic boolean null,
     constraint subforums_categories_id_fk
         foreign key (category_id) references categories (id)
 );

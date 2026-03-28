@@ -223,6 +223,8 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 	Events.Publish(db, Events.CharacterCreated, Events.CharacterCreatedEvent{
 		CharacterID: characterID,
 		SubforumID:  req.SubforumID,
+		TopicID:     topicID,
+		TopicName:   req.Name,
 	})
 
 	c.JSON(http.StatusCreated, createdEntity)

@@ -164,6 +164,8 @@ func CreateEpisode(c *gin.Context, db *sql.DB) {
 	Events.Publish(db, Events.EpisodeCreated, Events.EpisodeCreatedEvent{
 		EpisodeID:  episodeID,
 		SubforumID: req.SubforumID,
+		TopicID:    topicID,
+		TopicName:  req.Name,
 	})
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Episode created successfully", "episode_id": createdEpisode.Id, "topic_id": topicID})

@@ -4,6 +4,7 @@ import (
 	"cuento-backend/src/Entities"
 	"database/sql"
 	"sort"
+	"strings"
 )
 
 func GetFactionTreeByRoot(rootID int, db *sql.DB) ([]Entities.Faction, error) {
@@ -72,14 +73,33 @@ func GetFactionTreeByRoot(rootID int, db *sql.DB) ([]Entities.Faction, error) {
 	return result, nil
 }
 
+func GetActiveFactionTree(db *sql.DB) ([]Entities.Faction, error) {
+	return getFactionTree(db, &[]Entities.FactionStatus{Entities.FactionActive})
+}
+
 func GetFactionTree(db *sql.DB) ([]Entities.Faction, error) {
+	return getFactionTree(db, &[]Entities.FactionStatus{Entities.FactionActive, Entities.FactionInactive})
+}
+
+func getFactionTree(db *sql.DB, statusFilter *[]Entities.FactionStatus) ([]Entities.Faction, error) {
 	// Fetch all factions
 	query := `
 		SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status
 		FROM factions
-		WHERE faction_status = ?
 	`
-	rows, err := db.Query(query, Entities.FactionActive)
+	var rows *sql.Rows
+	var err error
+	if statusFilter != nil && len(*statusFilter) > 0 {
+		placeholders := strings.Repeat("?,", len(*statusFilter)-1) + "?"
+		query += " WHERE faction_status IN (" + placeholders + ")"
+		args := make([]interface{}, len(*statusFilter))
+		for i, s := range *statusFilter {
+			args[i] = s
+		}
+		rows, err = db.Query(query, args...)
+	} else {
+		rows, err = db.Query(query)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +119,7 @@ func GetFactionTree(db *sql.DB) ([]Entities.Faction, error) {
 	var roots []Entities.Faction
 
 	for _, f := range allFactions {
-		if f.ParentId == nil {
+		if f.ParentId == nil || *f.ParentId == 0 {
 			roots = append(roots, f)
 		} else {
 			childrenMap[*f.ParentId] = append(childrenMap[*f.ParentId], f)
@@ -139,8 +159,11 @@ func GetFactionTree(db *sql.DB) ([]Entities.Faction, error) {
 }
 
 func CreateFaction(faction Entities.Faction, db DBExecutor) (int64, error) {
+	if faction.ParentId != nil && *faction.ParentId == 0 {
+		faction.ParentId = nil
+	}
 	query := `
-		INSERT INTO factions (name, parent_id, level, description, icon, show_on_profile) 
+		INSERT INTO factions (name, parent_id, level, description, icon, show_on_profile)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 	res, err := db.Exec(query, faction.Name, faction.ParentId, faction.Level, faction.Description, faction.Icon, faction.ShowOnProfile)

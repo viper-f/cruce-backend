@@ -101,7 +101,7 @@ func main() {
 		Controllers.GetMaskAutocomplete(c, Services.DB)
 	})
 	optionalAuthRouter.GET("/factions/get", "Get faction tree", func(c *gin.Context) {
-		Controllers.GetFactionTree(c, Services.DB)
+		Controllers.GetActiveFactionTree(c, Services.DB)
 	})
 	optionalAuthRouter.POST("/episodes/get", "Get episode list", func(c *gin.Context) {
 		Controllers.GetEpisodes(c, Services.DB)

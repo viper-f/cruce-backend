@@ -54,11 +54,15 @@ type UserReadingTopicEvent struct {
 type CharacterCreatedEvent struct {
 	CharacterID int64
 	SubforumID  int
+	TopicID     int64
+	TopicName   string
 }
 
 type EpisodeCreatedEvent struct {
 	EpisodeID  int64
 	SubforumID int
+	TopicID    int64
+	TopicName  string
 }
 
 type CharacterAcceptedEvent struct {

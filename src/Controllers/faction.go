@@ -7,9 +7,20 @@ import (
 	"database/sql"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
+
+type FactionUpdateRequest struct {
+	Name          *string                 `json:"name"`
+	ParentId      *int                    `json:"parent_id"`
+	Level         *int                    `json:"level"`
+	Description   *string                 `json:"description"`
+	Icon          *string                 `json:"icon"`
+	ShowOnProfile *bool                   `json:"show_on_profile"`
+	FactionStatus *Entities.FactionStatus `json:"faction_status"`
+}
 
 func GetFactionChildren(c *gin.Context, db *sql.DB) {
 	parentIDStr := c.Param("parent_id")
@@ -59,6 +70,17 @@ func GetFactionTree(c *gin.Context, db *sql.DB) {
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get faction tree: " + err.Error()})
 		c.Abort()
+		return
+	}
+	c.JSON(http.StatusOK, factions)
+}
+
+func GetActiveFactionTree(c *gin.Context, db *sql.DB) {
+	factions, err := Services.GetActiveFactionTree(db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get faction tree: " + err.Error()})
+		c.Abort()
+		return
 	}
 	c.JSON(http.StatusOK, factions)
 }
@@ -71,17 +93,53 @@ func UpdateFactionById(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	var req Entities.Faction
+	var req FactionUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
 		c.Abort()
 		return
 	}
 
-	res, err := db.Exec(
-		"UPDATE factions SET name = ?, parent_id = ?, level = ?, description = ?, icon = ?, show_on_profile = ?, faction_status = ? WHERE id = ?",
-		req.Name, req.ParentId, req.Level, req.Description, req.Icon, req.ShowOnProfile, req.FactionStatus, id,
-	)
+	setClauses := []string{}
+	args := []interface{}{}
+
+	if req.Name != nil {
+		setClauses = append(setClauses, "name = ?")
+		args = append(args, *req.Name)
+	}
+	if req.ParentId != nil {
+		setClauses = append(setClauses, "parent_id = ?")
+		args = append(args, *req.ParentId)
+	}
+	if req.Level != nil {
+		setClauses = append(setClauses, "level = ?")
+		args = append(args, *req.Level)
+	}
+	if req.Description != nil {
+		setClauses = append(setClauses, "description = ?")
+		args = append(args, *req.Description)
+	}
+	if req.Icon != nil {
+		setClauses = append(setClauses, "icon = ?")
+		args = append(args, *req.Icon)
+	}
+	if req.ShowOnProfile != nil {
+		setClauses = append(setClauses, "show_on_profile = ?")
+		args = append(args, *req.ShowOnProfile)
+	}
+	if req.FactionStatus != nil {
+		setClauses = append(setClauses, "faction_status = ?")
+		args = append(args, *req.FactionStatus)
+	}
+
+	if len(setClauses) == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "Faction updated"})
+		return
+	}
+
+	args = append(args, id)
+	query := "UPDATE factions SET " + strings.Join(setClauses, ", ") + " WHERE id = ?"
+	res, err := db.Exec(query, args...)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update faction: " + err.Error()})
 		c.Abort()
