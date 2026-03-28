@@ -68,6 +68,12 @@ VALUES ('posts_per_page', '20');
 INSERT INTO global_settings (setting_name, setting_value)
 VALUES ('imgbb_api_key', '');
 
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_add_faction', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_wanted_for_claims', 'moderated');
+
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NULL,
