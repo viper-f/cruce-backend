@@ -599,7 +599,9 @@ func GetTopic(c *gin.Context, db *sql.DB) {
 				return
 			}
 			if wc, ok := entity.(*Entities.WantedCharacter); ok {
-				wc.Factions, _ = Services.GetFactionTreeByWantedCharacter(wantedCharacterID, db)
+				if wc.CharacterClaimId != nil {
+					wc.Factions, _ = Services.GetFactionTreeByCharacterClaim(*wc.CharacterClaimId, db)
+				}
 				topic.WantedCharacter = wc
 			}
 		}

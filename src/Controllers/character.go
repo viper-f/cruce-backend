@@ -502,7 +502,7 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 			JOIN factions f ON ccf.faction_id = f.id
 			WHERE cc.is_claimed IS NOT TRUE
 		)
-		SELECT r.id, r.name, r.faction_id, wc.id AS wanted_character_id
+		SELECT r.id, r.name, r.faction_id, wc.topic_id AS wanted_character_id
 		FROM RankedFactions r
 		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = r.id
 		WHERE r.rn = 1
