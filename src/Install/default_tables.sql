@@ -418,3 +418,56 @@ create table user_topic_view
     constraint fk_user_topic_view_user foreign key (user_id) references users (id) on delete cascade,
     constraint fk_user_topic_view_topic foreign key (topic_id) references topics (id) on delete cascade
 );
+
+create table character_claim
+(
+    id              int auto_increment primary key,
+    name            varchar(255) not null,
+    description     text         null,
+    is_claimed      boolean      default false not null,
+    user_id         int          null,
+    guest_hash      varchar(255) null,
+    can_change_name boolean      default false not null,
+    last_claim_date datetime     null,
+    constraint fk_character_claim_user foreign key (user_id) references users (id) on delete set null
+);
+
+create table character_claim_faction
+(
+    character_claim_id int null,
+    faction_id         int null,
+    constraint character_claim_faction_claim_id_fk
+        foreign key (character_claim_id) references character_claim (id),
+    constraint character_claim_faction_factions_id_fk
+        foreign key (faction_id) references factions (id)
+);
+
+create table wanted_character_base
+(
+    id                 int auto_increment primary key,
+    name               varchar(255) not null,
+    is_claimed         boolean      default false not null,
+    author_user_id     int          not null,
+    date_created       datetime     default current_timestamp,
+    character_claim_id int          null,
+    is_deleted         boolean      null,
+    constraint fk_wanted_character_author foreign key (author_user_id) references users (id) on delete cascade,
+    constraint fk_wanted_character_claim  foreign key (character_claim_id) references character_claim (id) on delete set null
+);
+
+create table wanted_character_main
+(
+    entity_id          int            null,
+    field_machine_name varchar(255)   null,
+    field_type         varchar(10)    null,
+    value_int          int            null,
+    value_decimal      decimal(10, 2) null,
+    value_string       varchar(255)   null,
+    value_text         text           null,
+    value_date         varchar(255)   null
+);
+
+create table wanted_character_flattened
+(
+    entity_id int primary key
+);

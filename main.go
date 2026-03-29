@@ -182,6 +182,9 @@ func main() {
 	protectedRouter.POST("/global-settings/update", "Update global settings", func(c *gin.Context) {
 		Controllers.UpdateGlobalSettings(c, Services.DB)
 	})
+	protectedRouter.GET("/character-claims", "Get list of all character claims grouped by faction", func(c *gin.Context) {
+		Controllers.GetCharacterClaims(c, Services.DB)
+	})
 
 	// Character Template routes
 	protectedRouter.GET("/template/:type/get", "Get character template by type", func(c *gin.Context) {

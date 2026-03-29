@@ -447,49 +447,85 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 	// 2. Create a map for easy access to factions by ID
 	factionMap := make(map[int]*Entities.Faction)
 	for i := range factions {
-		factions[i].Characters = []Entities.Character{}
+		factions[i].Characters = []Entities.CharacterListItem{}
 		factionMap[factions[i].Id] = &factions[i]
 	}
 
-	// 3. Fetch active characters and their factions
-	query := `
+	// 3. Fetch active characters with their deepest faction
+	charQuery := `
 		WITH RankedFactions AS (
 			SELECT
 				c.id,
 				c.name,
-				c.avatar,
-				f.id as faction_id,
-				ROW_NUMBER() OVER(PARTITION BY c.id ORDER BY f.level DESC) as rn
-			FROM
-				character_base c
-			JOIN
-				character_faction cf ON c.id = cf.character_id
-			JOIN
-				factions f ON cf.faction_id = f.id
-			WHERE
-				c.character_status = 0
+				f.id AS faction_id,
+				ROW_NUMBER() OVER(PARTITION BY c.id ORDER BY f.level DESC) AS rn
+			FROM character_base c
+			JOIN character_faction cf ON c.id = cf.character_id
+			JOIN factions f ON cf.faction_id = f.id
+			WHERE c.character_status = 0
 		)
-		SELECT id, name, avatar, faction_id FROM RankedFactions WHERE rn = 1
+		SELECT id, name, faction_id FROM RankedFactions WHERE rn = 1
 	`
-	rows, err := db.Query(query)
+	charRows, err := db.Query(charQuery)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get characters: " + err.Error()})
 		c.Abort()
 		return
 	}
-	defer rows.Close()
+	defer charRows.Close()
 
-	// 4. Assign characters to their determined faction
-	for rows.Next() {
-		var char Entities.Character
+	for charRows.Next() {
+		var item Entities.CharacterListItem
 		var factionID int
-		if err := rows.Scan(&char.Id, &char.Name, &char.Avatar, &factionID); err != nil {
+		if err := charRows.Scan(&item.Id, &item.Name, &factionID); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character: " + err.Error()})
 			c.Abort()
 			return
 		}
+		item.IsClaim = false
+		item.WantedCharacterId = nil
 		if faction, ok := factionMap[factionID]; ok {
-			faction.Characters = append(faction.Characters, char)
+			faction.Characters = append(faction.Characters, item)
+		}
+	}
+
+	// 4. Fetch character claims with their deepest faction and associated wanted character
+	claimQuery := `
+		WITH RankedFactions AS (
+			SELECT
+				cc.id,
+				cc.name,
+				f.id AS faction_id,
+				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
+			FROM character_claim cc
+			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
+			JOIN factions f ON ccf.faction_id = f.id
+			WHERE cc.is_claimed IS NOT TRUE
+		)
+		SELECT r.id, r.name, r.faction_id, wc.id AS wanted_character_id
+		FROM RankedFactions r
+		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = r.id
+		WHERE r.rn = 1
+	`
+	claimRows, err := db.Query(claimQuery)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character claims: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer claimRows.Close()
+
+	for claimRows.Next() {
+		var item Entities.CharacterListItem
+		var factionID int
+		if err := claimRows.Scan(&item.Id, &item.Name, &factionID, &item.WantedCharacterId); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
+			c.Abort()
+			return
+		}
+		item.IsClaim = true
+		if faction, ok := factionMap[factionID]; ok {
+			faction.Characters = append(faction.Characters, item)
 		}
 	}
 
@@ -1116,4 +1152,74 @@ func GetUserMasks(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, masks)
+}
+
+func GetCharacterClaims(c *gin.Context, db *sql.DB) {
+	factions, err := Services.GetFactionTree(db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get faction tree: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	response := make([]Entities.ClaimFactionResponse, len(factions))
+	factionMap := make(map[int]*Entities.ClaimFactionResponse)
+	for i, f := range factions {
+		response[i] = Entities.ClaimFactionResponse{
+			Id:            f.Id,
+			Name:          f.Name,
+			ParentId:      f.ParentId,
+			Level:         f.Level,
+			Description:   f.Description,
+			Icon:          f.Icon,
+			ShowOnProfile: f.ShowOnProfile,
+			FactionStatus: f.FactionStatus,
+			Claims:        []Entities.CharacterClaim{},
+		}
+		factionMap[f.Id] = &response[i]
+	}
+
+	claimQuery := `
+		WITH RankedFactions AS (
+			SELECT
+				cc.id,
+				cc.name,
+				cc.description,
+				cc.is_claimed,
+				cc.user_id,
+				cc.guest_hash,
+				cc.can_change_name,
+				cc.last_claim_date,
+				f.id AS faction_id,
+				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
+			FROM character_claim cc
+			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
+			JOIN factions f ON ccf.faction_id = f.id
+		)
+		SELECT id, name, description, is_claimed, user_id, guest_hash, can_change_name, last_claim_date, faction_id
+		FROM RankedFactions
+		WHERE rn = 1
+	`
+	claimRows, err := db.Query(claimQuery)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character claims: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer claimRows.Close()
+
+	for claimRows.Next() {
+		var claim Entities.CharacterClaim
+		var factionID int
+		if err := claimRows.Scan(&claim.Id, &claim.Name, &claim.Description, &claim.IsClaimed, &claim.UserId, &claim.GuestHash, &claim.CanChangeName, &claim.LastClaimDate, &factionID); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
+			c.Abort()
+			return
+		}
+		if faction, ok := factionMap[factionID]; ok {
+			faction.Claims = append(faction.Claims, claim)
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
 }

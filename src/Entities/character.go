@@ -43,20 +43,34 @@ const (
 )
 
 type CharacterClaim struct {
-	Id          int     `json:"id"`
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	IsClaimed   bool    `json:"is_claimed"`
-	UserId      int     `json:"user_id"`
-	GuestHash   string  `json:"guest_hash"`
+	Id            int        `json:"id"`
+	Name          string     `json:"name"`
+	Description   *string    `json:"description"`
+	IsClaimed     bool       `json:"is_claimed"`
+	UserId        int        `json:"user_id"`
+	GuestHash     string     `json:"guest_hash"`
+	CanChangeName bool       `json:"can_change_name"`
+	LastClaimDate *time.Time `json:"last_claim_date"`
 }
 
 type WantedCharacter struct {
-	Id               int    `json:"id"`
-	Name             string `json:"name"`
-	IsClaimed        bool   `json:"is_claimed"`
-	AuthorUserId     int    `json:"author_user_id"`
-	DateCreated      time.Time
+	Id               int               `json:"id"`
+	Name             string            `json:"name"`
+	IsClaimed        bool              `json:"is_claimed"`
+	AuthorUserId     int               `json:"author_user_id"`
+	DateCreated      time.Time         `json:"date_created"`
 	CharacterClaimId *int              `json:"character_claim_id"`
+	IsDeleted        *bool             `json:"is_deleted"`
 	CustomFields     CustomFieldEntity `json:"custom_fields" db:"-"`
+}
+
+func (w *WantedCharacter) GetBaseFields() []string {
+	return []string{"name", "is_claimed", "author_user_id", "date_created", "character_claim_id", "is_deleted"}
+}
+
+type CharacterListItem struct {
+	Id                int    `json:"id"`
+	Name              string `json:"name"`
+	IsClaim           bool   `json:"is_claim"`
+	WantedCharacterId *int   `json:"wanted_character_id"`
 }
