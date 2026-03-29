@@ -52,6 +52,11 @@ INSERT INTO custom_field_config (entity_type, config)
 VALUES ('character_profile', '[]')
     ON DUPLICATE KEY UPDATE config = '[]';
 
+INSERT INTO custom_field_config (entity_type, config)
+VALUES ('wanted_character', '[]')
+    ON DUPLICATE KEY UPDATE config = '[]';
+
+
 CREATE TABLE global_settings
 (
     setting_name  VARCHAR(255) NOT NULL,
@@ -264,11 +269,6 @@ create table character_faction
         foreign key (character_id) references character_base (id),
     constraint character_faction_factions_id_fk
         foreign key (faction_id) references factions (id)
-);
-
-create table factions_flattened
-(
-    entity_id int primary key
 );
 
 create table character_flattened

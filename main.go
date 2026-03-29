@@ -185,6 +185,9 @@ func main() {
 	protectedRouter.GET("/character-claims", "Get list of all character claims grouped by faction", func(c *gin.Context) {
 		Controllers.GetCharacterClaims(c, Services.DB)
 	})
+	protectedRouter.POST("/character-claim/create", "Create a new character claim", func(c *gin.Context) {
+		Controllers.CreateCharacterClaim(c, Services.DB)
+	})
 
 	// Character Template routes
 	protectedRouter.GET("/template/:type/get", "Get character template by type", func(c *gin.Context) {

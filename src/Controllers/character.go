@@ -1223,3 +1223,59 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+type CreateCharacterClaimRequest struct {
+	Claim      Entities.CharacterClaim `json:"claim" binding:"required"`
+	FactionIDs []int                   `json:"faction_ids" binding:"required"`
+}
+
+func CreateCharacterClaim(c *gin.Context, db *sql.DB) {
+	var req CreateCharacterClaimRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(
+		"INSERT INTO character_claim (name, description, is_claimed, user_id, guest_hash, can_change_name, last_claim_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		req.Claim.Name, req.Claim.Description, req.Claim.IsClaimed, req.Claim.UserId, req.Claim.GuestHash, req.Claim.CanChangeName, req.Claim.LastClaimDate,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to insert character claim: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	claimID, err := res.LastInsertId()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get claim ID"})
+		c.Abort()
+		return
+	}
+
+	for _, factionID := range req.FactionIDs {
+		if _, err := tx.Exec("INSERT INTO character_claim_faction (character_claim_id, faction_id) VALUES (?, ?)", claimID, factionID); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: fmt.Sprintf("Failed to insert faction %d: %s", factionID, err.Error())})
+			c.Abort()
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	req.Claim.Id = int(claimID)
+	c.JSON(http.StatusOK, req.Claim)
+}
