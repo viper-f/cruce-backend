@@ -28,6 +28,128 @@ type CreateWantedCharacterRequest struct {
 	Factions         []Entities.Faction     `json:"factions"`
 }
 
+func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
+	rows, err := db.Query(`
+		SELECT id, name, is_claimed, author_user_id, date_created, character_claim_id, is_deleted, topic_id
+		FROM wanted_character_base
+		WHERE is_claimed = false AND (is_deleted IS NULL OR is_deleted = false)
+	`)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	var list []*Entities.WantedCharacter
+	for rows.Next() {
+		var wc Entities.WantedCharacter
+		if err := rows.Scan(&wc.Id, &wc.Name, &wc.IsClaimed, &wc.AuthorUserId, &wc.DateCreated, &wc.CharacterClaimId, &wc.IsDeleted, &wc.TopicId); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan wanted character: " + err.Error()})
+			c.Abort()
+			return
+		}
+		list = append(list, &wc)
+	}
+
+	for _, wc := range list {
+		if wc.CharacterClaimId != nil {
+			wc.Factions, _ = Services.GetFactionTreeByCharacterClaim(*wc.CharacterClaimId, db)
+		} else {
+			wc.Factions = []Entities.Faction{}
+		}
+	}
+
+	if list == nil {
+		list = []*Entities.WantedCharacter{}
+	}
+
+	c.JSON(http.StatusOK, list)
+}
+
+func GetWantedCharacterTreeList(c *gin.Context, db *sql.DB) {
+	factions, err := Services.GetFactionTree(db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get faction tree: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	factionMap := make(map[int]*Entities.Faction)
+	for i := range factions {
+		factions[i].Characters = []Entities.CharacterListItem{}
+		factionMap[factions[i].Id] = &factions[i]
+	}
+
+	rows, err := db.Query(`
+		WITH RankedFactions AS (
+			SELECT
+				cc.id,
+				cc.name,
+				f.id AS faction_id,
+				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
+			FROM character_claim cc
+			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
+			JOIN factions f ON ccf.faction_id = f.id
+			WHERE cc.is_claimed IS NOT TRUE
+		)
+		SELECT r.id, r.name, r.faction_id, wc.topic_id
+		FROM RankedFactions r
+		JOIN wanted_character_base wc ON wc.character_claim_id = r.id
+		WHERE r.rn = 1
+		  AND wc.is_claimed = false
+		  AND (wc.is_deleted IS NULL OR wc.is_deleted = false)
+	`)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var item Entities.CharacterListItem
+		var factionID int
+		if err := rows.Scan(&item.Id, &item.Name, &factionID, &item.WantedCharacterId); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan wanted character: " + err.Error()})
+			c.Abort()
+			return
+		}
+		item.IsClaim = true
+		if faction, ok := factionMap[factionID]; ok {
+			faction.Characters = append(faction.Characters, item)
+		}
+	}
+
+	keepIDs := make(map[int]bool)
+	for _, f := range factions {
+		if len(f.Characters) > 0 {
+			keepIDs[f.Id] = true
+			parentId := f.ParentId
+			for parentId != nil {
+				if keepIDs[*parentId] {
+					break
+				}
+				keepIDs[*parentId] = true
+				if parent, ok := factionMap[*parentId]; ok {
+					parentId = parent.ParentId
+				} else {
+					break
+				}
+			}
+		}
+	}
+
+	result := make([]Entities.Faction, 0)
+	for _, f := range factions {
+		if keepIDs[f.Id] {
+			result = append(result, f)
+		}
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 func GetWantedCharacter(c *gin.Context, db *sql.DB) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

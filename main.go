@@ -62,6 +62,12 @@ func main() {
 	publicRouter.GET("/character-profile/get/:id", "Get character profile details by ID", func(c *gin.Context) {
 		Controllers.GetCharacterProfile(c, Services.DB)
 	})
+	publicRouter.GET("/wanted-character/list", "Get list of unclaimed wanted characters", func(c *gin.Context) {
+		Controllers.GetWantedCharacterList(c, Services.DB)
+	})
+	publicRouter.GET("/wanted-character/tree-list", "Get faction tree with unclaimed wanted characters", func(c *gin.Context) {
+		Controllers.GetWantedCharacterTreeList(c, Services.DB)
+	})
 	publicRouter.GET("/wanted-character/get/:id", "Get wanted character details by ID", func(c *gin.Context) {
 		Controllers.GetWantedCharacter(c, Services.DB)
 	})
