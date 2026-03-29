@@ -17,17 +17,18 @@ const (
 )
 
 var SubforumPermissions = map[string]string{
-	"subforum_read":                   "View subforum",
-	"subforum_create_general_topic":   "Create general topic",
-	"subforum_create_episode_topic":   "Create episode topic",
-	"subforum_create_character_topic": "Create character topic",
-	"subforum_post":                   "Post in subforum",
-	"subforum_delete_topic":           "Delete own topic",
-	"subforum_delete_others_topic":    "Delete others' topic",
-	"subforum_edit_others_post":       "Edit others' post",
-	"subforum_edit_own_post":          "Edit own post",
-	"subforum_edit_others_topic":      "Edit others' topic",
-	"subforum_edit_own_topic":         "Edit own topic",
+	"subforum_read":                          "View subforum",
+	"subforum_create_general_topic":          "Create general topic",
+	"subforum_create_episode_topic":          "Create episode topic",
+	"subforum_create_character_topic":        "Create character topic",
+	"subforum_create_wanted_character_topic": "Create wanted character topic",
+	"subforum_post":                          "Post in subforum",
+	"subforum_delete_topic":                  "Delete own topic",
+	"subforum_delete_others_topic":           "Delete others' topic",
+	"subforum_edit_others_post":              "Edit others' post",
+	"subforum_edit_own_post":                 "Edit own post",
+	"subforum_edit_others_topic":             "Edit others' topic",
+	"subforum_edit_own_topic":                "Edit own topic",
 }
 
 type PermissionMatrixObject struct {
@@ -385,14 +386,15 @@ func GetSubforumPermissions(userID int, subforumID int, db *sql.DB) (*Entities.S
 	}
 
 	permMap := map[string]*bool{
-		fmt.Sprintf("subforum_create_general_topic:%d", subforumID):   &permissions.SubforumCreateGeneralTopic,
-		fmt.Sprintf("subforum_create_episode_topic:%d", subforumID):   &permissions.SubforumCreateEpisodeTopic,
-		fmt.Sprintf("subforum_create_character_topic:%d", subforumID): &permissions.SubforumCreateCharacterTopic,
-		fmt.Sprintf("subforum_post:%d", subforumID):                   &permissions.SubforumPost,
-		fmt.Sprintf("subforum_delete_topic:%d", subforumID):           &permissions.SubforumDeleteOwnTopic,
-		fmt.Sprintf("subforum_delete_others_topic:%d", subforumID):    &permissions.SubforumDeleteOthersTopic,
-		fmt.Sprintf("subforum_edit_others_post:%d", subforumID):       &permissions.SubforumEditOthersPost,
-		fmt.Sprintf("subforum_edit_own_post:%d", subforumID):          &permissions.SubforumEditOwnPost,
+		fmt.Sprintf("subforum_create_general_topic:%d", subforumID):          &permissions.SubforumCreateGeneralTopic,
+		fmt.Sprintf("subforum_create_episode_topic:%d", subforumID):          &permissions.SubforumCreateEpisodeTopic,
+		fmt.Sprintf("subforum_create_character_topic:%d", subforumID):        &permissions.SubforumCreateCharacterTopic,
+		fmt.Sprintf("subforum_create_wanted_character_topic:%d", subforumID): &permissions.SubforumCreateWantedCharacterTopic,
+		fmt.Sprintf("subforum_post:%d", subforumID):                          &permissions.SubforumPost,
+		fmt.Sprintf("subforum_delete_topic:%d", subforumID):                  &permissions.SubforumDeleteOwnTopic,
+		fmt.Sprintf("subforum_delete_others_topic:%d", subforumID):           &permissions.SubforumDeleteOthersTopic,
+		fmt.Sprintf("subforum_edit_others_post:%d", subforumID):              &permissions.SubforumEditOthersPost,
+		fmt.Sprintf("subforum_edit_own_post:%d", subforumID):                 &permissions.SubforumEditOwnPost,
 	}
 
 	var permStrings []string

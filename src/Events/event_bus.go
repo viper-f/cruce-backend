@@ -10,15 +10,16 @@ import (
 type EventType string
 
 const (
-	TopicCreated         EventType = "TopicCreated"
-	PostCreated          EventType = "PostCreated"
-	NotificationCreated  EventType = "NotificationCreated"
-	UserReadingTopic     EventType = "UserReadingTopic"
-	CharacterCreated     EventType = "CharacterCreated"
-	EpisodeCreated       EventType = "EpisodeCreated"
-	CharacterAccepted    EventType = "CharacterAccepted"
-	UserRegistered       EventType = "UserRegistered"
-	DirectMessageCreated EventType = "DirectMessageCreated"
+	TopicCreated           EventType = "TopicCreated"
+	PostCreated            EventType = "PostCreated"
+	NotificationCreated    EventType = "NotificationCreated"
+	UserReadingTopic       EventType = "UserReadingTopic"
+	CharacterCreated       EventType = "CharacterCreated"
+	EpisodeCreated         EventType = "EpisodeCreated"
+	CharacterAccepted      EventType = "CharacterAccepted"
+	UserRegistered         EventType = "UserRegistered"
+	DirectMessageCreated   EventType = "DirectMessageCreated"
+	WantedCharacterCreated EventType = "WantedCharacterCreated"
 )
 
 type EventData interface{}
@@ -75,6 +76,13 @@ type CharacterAcceptedEvent struct {
 type UserRegisteredEvent struct {
 	UserID   int
 	Username string
+}
+
+type WantedCharacterCreatedEvent struct {
+	WantedCharacterID int64
+	SubforumID        int
+	TopicID           int64
+	TopicName         string
 }
 
 type DirectMessageCreatedEvent struct {

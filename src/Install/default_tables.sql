@@ -449,10 +449,12 @@ create table wanted_character_base
     is_claimed         boolean      default false not null,
     author_user_id     int          not null,
     date_created       datetime     default current_timestamp,
-    character_claim_id int          null,
-    is_deleted         boolean      null,
+    character_claim_id int             null,
+    is_deleted         boolean         null,
+    topic_id           bigint unsigned null,
     constraint fk_wanted_character_author foreign key (author_user_id) references users (id) on delete cascade,
-    constraint fk_wanted_character_claim  foreign key (character_claim_id) references character_claim (id) on delete set null
+    constraint fk_wanted_character_claim  foreign key (character_claim_id) references character_claim (id) on delete set null,
+    constraint fk_wanted_character_topic  foreign key (topic_id) references topics (id) on delete set null
 );
 
 create table wanted_character_main
@@ -470,4 +472,14 @@ create table wanted_character_main
 create table wanted_character_flattened
 (
     entity_id int primary key
+);
+
+create table wanted_character_faction
+(
+    wanted_character_id int null,
+    faction_id          int null,
+    constraint wanted_character_faction_wanted_character_base_id_fk
+        foreign key (wanted_character_id) references wanted_character_base (id),
+    constraint wanted_character_faction_factions_id_fk
+        foreign key (faction_id) references factions (id)
 );

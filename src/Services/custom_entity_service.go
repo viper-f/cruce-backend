@@ -372,6 +372,11 @@ func CreateEntity(className string, entity interface{}, db DBExecutor) (interfac
 				var fieldValue interface{}
 				if cfVal, ok := fieldValueRaw.(Entities.CustomFieldValue); ok {
 					fieldValue = cfVal.Content
+					if contentMap, isMap := fieldValue.(map[string]interface{}); isMap {
+						if content, hasContent := contentMap["content"]; hasContent {
+							fieldValue = content
+						}
+					}
 				} else {
 					fieldValue = fieldValueRaw
 				}

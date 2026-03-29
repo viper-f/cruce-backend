@@ -588,6 +588,23 @@ func GetTopic(c *gin.Context, db *sql.DB) {
 		}
 	}
 
+	if topic.Type == Entities.WantedCharacterTopic {
+		var wantedCharacterID int
+		err := db.QueryRow("SELECT id FROM wanted_character_base WHERE topic_id = ?", topic.Id).Scan(&wantedCharacterID)
+		if err == nil {
+			entity, err := Services.GetEntity(int64(wantedCharacterID), "wanted_character", db)
+			if err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted character entity: " + err.Error()})
+				c.Abort()
+				return
+			}
+			if wc, ok := entity.(*Entities.WantedCharacter); ok {
+				wc.Factions, _ = Services.GetFactionTreeByWantedCharacter(wantedCharacterID, db)
+				topic.WantedCharacter = wc
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, topic)
 }
 

@@ -24,14 +24,15 @@ type ShortSubform struct {
 }
 
 type SubforumPermissions struct {
-	SubforumCreateGeneralTopic   bool `json:"subforum_create_general_topic"`
-	SubforumCreateEpisodeTopic   bool `json:"subforum_create_episode_topic"`
-	SubforumCreateCharacterTopic bool `json:"subforum_create_character_topic"`
-	SubforumPost                 bool `json:"subforum_post"`
-	SubforumDeleteOwnTopic       bool `json:"subforum_delete_topic"`
-	SubforumDeleteOthersTopic    bool `json:"subforum_delete_others_topic"`
-	SubforumEditOwnTopic         bool `json:"subforum_edit_own_topic"`
-	SubforumEditOthersTopic      bool `json:"subforum_edit_others_topic"`
-	SubforumEditOthersPost       bool `json:"subforum_edit_others_post"`
-	SubforumEditOwnPost          bool `json:"subforum_edit_own_post"`
+	SubforumCreateGeneralTopic         bool `json:"subforum_create_general_topic"`
+	SubforumCreateEpisodeTopic         bool `json:"subforum_create_episode_topic"`
+	SubforumCreateCharacterTopic       bool `json:"subforum_create_character_topic"`
+	SubforumCreateWantedCharacterTopic bool `json:"subforum_create_wanted_character_topic"`
+	SubforumPost                       bool `json:"subforum_post"`
+	SubforumDeleteOwnTopic             bool `json:"subforum_delete_topic"`
+	SubforumDeleteOthersTopic          bool `json:"subforum_delete_others_topic"`
+	SubforumEditOwnTopic               bool `json:"subforum_edit_own_topic"`
+	SubforumEditOthersTopic            bool `json:"subforum_edit_others_topic"`
+	SubforumEditOthersPost             bool `json:"subforum_edit_others_post"`
+	SubforumEditOwnPost                bool `json:"subforum_edit_own_post"`
 }

@@ -62,6 +62,9 @@ func main() {
 	publicRouter.GET("/character-profile/get/:id", "Get character profile details by ID", func(c *gin.Context) {
 		Controllers.GetCharacterProfile(c, Services.DB)
 	})
+	publicRouter.GET("/wanted-character/get/:id", "Get wanted character details by ID", func(c *gin.Context) {
+		Controllers.GetWantedCharacter(c, Services.DB)
+	})
 
 	// Optional Auth routes (Context populated if token present, otherwise Guest)
 	optionalAuthGroup := r.Group("/")
@@ -198,6 +201,12 @@ func main() {
 	})
 	protectedRouter.POST("/episode/create", "Create a new episode", func(c *gin.Context) {
 		Controllers.CreateEpisode(c, Services.DB)
+	})
+	protectedRouter.POST("/wanted-character/create", "Create a new wanted character", func(c *gin.Context) {
+		Controllers.CreateWantedCharacter(c, Services.DB)
+	})
+	protectedRouter.POST("/wanted-character/update/:id", "Update a wanted character by ID", func(c *gin.Context) {
+		Controllers.UpdateWantedCharacter(c, Services.DB)
 	})
 	protectedRouter.POST("/episode/preview", "Preview an episode without saving", func(c *gin.Context) {
 		Controllers.PreviewEpisode(c, Services.DB)

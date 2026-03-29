@@ -206,14 +206,15 @@ func GetSubforum(c *gin.Context, db *sql.DB) {
 
 	if len(roleIDs) > 0 {
 		permMap := map[string]*bool{
-			fmt.Sprintf("subforum_create_general_topic:%d", id):   &permissions.SubforumCreateGeneralTopic,
-			fmt.Sprintf("subforum_create_episode_topic:%d", id):   &permissions.SubforumCreateEpisodeTopic,
-			fmt.Sprintf("subforum_create_character_topic:%d", id): &permissions.SubforumCreateCharacterTopic,
-			fmt.Sprintf("subforum_post:%d", id):                   &permissions.SubforumPost,
-			fmt.Sprintf("subforum_delete_topic:%d", id):           &permissions.SubforumDeleteOwnTopic,
-			fmt.Sprintf("subforum_delete_others_topic:%d", id):    &permissions.SubforumDeleteOthersTopic,
-			fmt.Sprintf("subforum_edit_others_post:%d", id):       &permissions.SubforumEditOthersPost,
-			fmt.Sprintf("subforum_edit_own_post:%d", id):          &permissions.SubforumEditOwnPost,
+			fmt.Sprintf("subforum_create_general_topic:%d", id):          &permissions.SubforumCreateGeneralTopic,
+			fmt.Sprintf("subforum_create_episode_topic:%d", id):          &permissions.SubforumCreateEpisodeTopic,
+			fmt.Sprintf("subforum_create_character_topic:%d", id):        &permissions.SubforumCreateCharacterTopic,
+			fmt.Sprintf("subforum_create_wanted_character_topic:%d", id): &permissions.SubforumCreateWantedCharacterTopic,
+			fmt.Sprintf("subforum_post:%d", id):                          &permissions.SubforumPost,
+			fmt.Sprintf("subforum_delete_topic:%d", id):                  &permissions.SubforumDeleteOwnTopic,
+			fmt.Sprintf("subforum_delete_others_topic:%d", id):           &permissions.SubforumDeleteOthersTopic,
+			fmt.Sprintf("subforum_edit_others_post:%d", id):              &permissions.SubforumEditOthersPost,
+			fmt.Sprintf("subforum_edit_own_post:%d", id):                 &permissions.SubforumEditOwnPost,
 		}
 
 		var permStrings []string

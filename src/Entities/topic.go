@@ -5,9 +5,10 @@ import "time"
 type TopicType int
 
 const (
-	GeneralTopic        TopicType = 0
-	EpisodeTopic        TopicType = 1
-	CharacterSheetTopic TopicType = 2
+	GeneralTopic         TopicType = 0
+	EpisodeTopic         TopicType = 1
+	CharacterSheetTopic  TopicType = 2
+	WantedCharacterTopic TopicType = 3
 )
 
 type TopicStatus int
@@ -33,6 +34,7 @@ type Topic struct {
 	SubforumId            int                  `json:"subforum_id"`
 	Episode               *Episode             `json:"episode"`
 	Character             *Character           `json:"character"`
+	WantedCharacter       *WantedCharacter     `json:"wanted_character"`
 	CanEdit               *bool                `json:"can_edit,omitempty" db:"-"`
 	Permissions           *SubforumPermissions `json:"permissions,omitempty" db:"-"`
 }
