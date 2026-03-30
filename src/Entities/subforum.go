@@ -5,6 +5,7 @@ type Subform struct {
 	CategoryId            int                  `json:"category_id"`
 	Name                  string               `json:"name"`
 	Description           string               `json:"description"`
+	DescriptionHtml       string               `json:"description_html,omitempty"`
 	Position              int                  `json:"position"`
 	TopicNumber           int                  `json:"topic_number"`
 	PostNumber            int                  `json:"post_number"`

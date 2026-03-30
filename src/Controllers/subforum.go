@@ -100,6 +100,7 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 			localized := Services.LocalizeTime(*dateLastPost, userTimezone)
 			sub.DateLastPostLocalized = &localized
 		}
+		sub.DescriptionHtml = Services.ParseBBCode(sub.Description)
 
 		// Check if we need to start a new category block
 		if len(categories) == 0 || categories[len(categories)-1].Id != cat.Id {
