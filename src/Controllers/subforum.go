@@ -230,11 +230,10 @@ func UpdateSubforum(c *gin.Context, db *sql.DB) {
 	}
 
 	var input struct {
-		CategoryId    int    `json:"category_id" binding:"required"`
-		Name          string `json:"name" binding:"required"`
-		Description   string `json:"description"`
-		Position      int    `json:"position"`
-		ShowLastTopic *bool  `json:"show_last_topic"`
+		CategoryId  int    `json:"category_id" binding:"required"`
+		Name        string `json:"name" binding:"required"`
+		Description string `json:"description"`
+		Position    int    `json:"position"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid input: " + err.Error()})
@@ -243,8 +242,8 @@ func UpdateSubforum(c *gin.Context, db *sql.DB) {
 	}
 
 	result, err := db.Exec(
-		"UPDATE subforums SET category_id = ?, name = ?, description = ?, position = ?, show_last_topic = ? WHERE id = ?",
-		input.CategoryId, input.Name, input.Description, input.Position, input.ShowLastTopic, id,
+		"UPDATE subforums SET category_id = ?, name = ?, description = ?, position = ? WHERE id = ?",
+		input.CategoryId, input.Name, input.Description, input.Position, id,
 	)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update subforum: " + err.Error()})
