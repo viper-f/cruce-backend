@@ -289,6 +289,24 @@ func main() {
 	protectedRouter.POST("/image/upload", "Upload an image to imgbb", func(c *gin.Context) {
 		Controllers.UploadImage(c, Services.DB)
 	})
+	protectedRouter.POST("/category/create", "Create a new category", func(c *gin.Context) {
+		Controllers.CreateCategory(c, Services.DB)
+	})
+	protectedRouter.POST("/category/update/:id", "Update category by ID", func(c *gin.Context) {
+		Controllers.UpdateCategory(c, Services.DB)
+	})
+	protectedRouter.POST("/subforum/create", "Create a new subforum", func(c *gin.Context) {
+		Controllers.CreateSubforum(c, Services.DB)
+	})
+	protectedRouter.POST("/subforum/update/:id", "Update subforum by ID", func(c *gin.Context) {
+		Controllers.UpdateSubforum(c, Services.DB)
+	})
+	protectedRouter.GET("/category/delete/:id", "Delete category by ID", func(c *gin.Context) {
+		Controllers.DeleteCategory(c, Services.DB)
+	})
+	protectedRouter.GET("/subforum/delete/:id", "Delete subforum by ID", func(c *gin.Context) {
+		Controllers.DeleteSubforum(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")

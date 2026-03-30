@@ -136,6 +136,202 @@ func GetShortSubforumList(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, subforums)
 }
 
+func CreateCategory(c *gin.Context, db *sql.DB) {
+	var input struct {
+		Name     string `json:"name" binding:"required"`
+		Position int    `json:"position"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid input: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	result, err := db.Exec("INSERT INTO categories (name, position) VALUES (?, ?)", input.Name, input.Position)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create category: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	id, _ := result.LastInsertId()
+	c.JSON(http.StatusCreated, gin.H{"id": id})
+}
+
+func UpdateCategory(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid ID"})
+		c.Abort()
+		return
+	}
+
+	var input struct {
+		Name     string `json:"name" binding:"required"`
+		Position int    `json:"position"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid input: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	result, err := db.Exec("UPDATE categories SET name = ?, position = ? WHERE id = ?", input.Name, input.Position, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update category: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Category not found"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Category updated"})
+}
+
+func CreateSubforum(c *gin.Context, db *sql.DB) {
+	var input struct {
+		CategoryId    int    `json:"category_id" binding:"required"`
+		Name          string `json:"name" binding:"required"`
+		Description   string `json:"description"`
+		Position      int    `json:"position"`
+		ShowLastTopic *bool  `json:"show_last_topic"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid input: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	result, err := db.Exec(
+		"INSERT INTO subforums (category_id, name, description, position, show_last_topic) VALUES (?, ?, ?, ?, ?)",
+		input.CategoryId, input.Name, input.Description, input.Position, input.ShowLastTopic,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create subforum: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	id, _ := result.LastInsertId()
+	c.JSON(http.StatusCreated, gin.H{"id": id})
+}
+
+func UpdateSubforum(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid ID"})
+		c.Abort()
+		return
+	}
+
+	var input struct {
+		CategoryId    int    `json:"category_id" binding:"required"`
+		Name          string `json:"name" binding:"required"`
+		Description   string `json:"description"`
+		Position      int    `json:"position"`
+		ShowLastTopic *bool  `json:"show_last_topic"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid input: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	result, err := db.Exec(
+		"UPDATE subforums SET category_id = ?, name = ?, description = ?, position = ?, show_last_topic = ? WHERE id = ?",
+		input.CategoryId, input.Name, input.Description, input.Position, input.ShowLastTopic, id,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update subforum: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Subforum not found"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Subforum updated"})
+}
+
+func DeleteCategory(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid ID"})
+		c.Abort()
+		return
+	}
+
+	var subforumCount int
+	if err := db.QueryRow("SELECT COUNT(*) FROM subforums WHERE category_id = ?", id).Scan(&subforumCount); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to check subforums: " + err.Error()})
+		c.Abort()
+		return
+	}
+	if subforumCount > 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Cannot delete category: it still has subforums"})
+		c.Abort()
+		return
+	}
+
+	result, err := db.Exec("DELETE FROM categories WHERE id = ?", id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to delete category: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Category not found"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Category deleted"})
+}
+
+func DeleteSubforum(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid ID"})
+		c.Abort()
+		return
+	}
+
+	var topicCount int
+	if err := db.QueryRow("SELECT COUNT(*) FROM topics WHERE subforum_id = ?", id).Scan(&topicCount); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to check topics: " + err.Error()})
+		c.Abort()
+		return
+	}
+	if topicCount > 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Cannot delete subforum: it still has topics"})
+		c.Abort()
+		return
+	}
+
+	result, err := db.Exec("DELETE FROM subforums WHERE id = ?", id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to delete subforum: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Subforum not found"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Subforum deleted"})
+}
+
 func GetSubforum(c *gin.Context, db *sql.DB) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

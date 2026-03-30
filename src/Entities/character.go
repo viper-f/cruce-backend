@@ -47,7 +47,7 @@ type CharacterClaim struct {
 	Name          string     `json:"name"`
 	Description   *string    `json:"description"`
 	IsClaimed     bool       `json:"is_claimed"`
-	UserId        int        `json:"user_id"`
+	UserId        *int       `json:"user_id"`
 	GuestHash     string     `json:"guest_hash"`
 	CanChangeName bool       `json:"can_change_name"`
 	LastClaimDate *time.Time `json:"last_claim_date"`
