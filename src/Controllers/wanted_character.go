@@ -53,6 +53,11 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 	}
 
 	for _, wc := range list {
+		if entity, err := Services.GetEntity(int64(wc.Id), "wanted_character", db); err == nil {
+			if full, ok := entity.(*Entities.WantedCharacter); ok {
+				wc.CustomFields = full.CustomFields
+			}
+		}
 		if wc.CharacterClaimId != nil {
 			wc.Factions, _ = Services.GetFactionTreeByCharacterClaim(*wc.CharacterClaimId, db)
 		} else {
@@ -170,7 +175,11 @@ func GetWantedCharacter(c *gin.Context, db *sql.DB) {
 	}
 
 	if wc, ok := entity.(*Entities.WantedCharacter); ok {
-		wc.Factions, _ = Services.GetFactionTreeByWantedCharacter(wc.Id, db)
+		if wc.CharacterClaimId != nil {
+			wc.Factions, _ = Services.GetFactionTreeByCharacterClaim(*wc.CharacterClaimId, db)
+		} else {
+			wc.Factions = []Entities.Faction{}
+		}
 	}
 
 	c.JSON(http.StatusOK, entity)
