@@ -238,6 +238,9 @@ func main() {
 	protectedRouter.POST("/topic/update/:id", "Update topic by ID", func(c *gin.Context) {
 		Controllers.UpdateTopic(c, Services.DB)
 	})
+	protectedRouter.POST("/topics/move", "Move topics to a different subforum", func(c *gin.Context) {
+		Controllers.MoveTopics(c, Services.DB)
+	})
 	protectedRouter.GET("/notifications/unread", "Get unread notifications for the current user", func(c *gin.Context) {
 		Controllers.GetUnreadNotifications(c, Services.DB)
 	})

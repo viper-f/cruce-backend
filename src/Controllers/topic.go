@@ -1197,6 +1197,55 @@ func GetActiveTopicCount(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"total": count})
 }
 
+func MoveTopics(c *gin.Context, db *sql.DB) {
+	var req struct {
+		SubforumID int   `json:"subforum_id" binding:"required"`
+		TopicIDs   []int `json:"topic_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if len(req.TopicIDs) == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "topic_ids must not be empty"})
+		c.Abort()
+		return
+	}
+
+	var exists bool
+	if err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM subforums WHERE id = ?)", req.SubforumID).Scan(&exists); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to verify subforum: " + err.Error()})
+		c.Abort()
+		return
+	}
+	if !exists {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Target subforum not found"})
+		c.Abort()
+		return
+	}
+
+	placeholders := strings.Repeat("?,", len(req.TopicIDs)-1) + "?"
+	query := fmt.Sprintf("UPDATE topics SET subforum_id = ? WHERE id IN (%s)", placeholders)
+
+	args := make([]interface{}, 0, len(req.TopicIDs)+1)
+	args = append(args, req.SubforumID)
+	for _, id := range req.TopicIDs {
+		args = append(args, id)
+	}
+
+	result, err := db.Exec(query, args...)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to move topics: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	moved, _ := result.RowsAffected()
+	c.JSON(http.StatusOK, gin.H{"moved": moved})
+}
+
 func GetPostById(c *gin.Context, db *sql.DB) {
 	postID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
