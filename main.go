@@ -310,6 +310,12 @@ func main() {
 	protectedRouter.GET("/subforum/delete/:id", "Delete subforum by ID", func(c *gin.Context) {
 		Controllers.DeleteSubforum(c, Services.DB)
 	})
+	protectedRouter.GET("/user/private-key-check", "Check if user has private keys or private messages", func(c *gin.Context) {
+		Controllers.PrivateKeyCheck(c, Services.DB)
+	})
+	protectedRouter.POST("/user/save-recovery-keys", "Save recovery private keys for the current user", func(c *gin.Context) {
+		Controllers.SaveRecoveryKeys(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")

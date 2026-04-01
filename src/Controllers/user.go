@@ -654,6 +654,88 @@ func GetPublicKeyByUserId(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, pk)
 }
 
+type RecoveryKeyItem struct {
+	PrivateKey string `json:"private_key" binding:"required"`
+	IV         string `json:"iv" binding:"required"`
+	Salt       string `json:"salt" binding:"required"`
+}
+
+type SaveRecoveryKeysRequest struct {
+	Codes       []string          `json:"codes" binding:"required"`
+	PrivateKeys []RecoveryKeyItem `json:"private_keys" binding:"required"`
+}
+
+func SaveRecoveryKeys(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	var req SaveRecoveryKeysRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if len(req.Codes) != len(req.PrivateKeys) {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "codes and private_keys must have the same length"})
+		c.Abort()
+		return
+	}
+
+	for i, code := range req.Codes {
+		res, err := db.Exec(
+			"INSERT INTO recovery_codes (user_id, recovery_code) VALUES (?, ?)",
+			userID, code,
+		)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save recovery code: " + err.Error()})
+			c.Abort()
+			return
+		}
+
+		codeID, err := res.LastInsertId()
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get recovery code ID: " + err.Error()})
+			c.Abort()
+			return
+		}
+
+		pk := req.PrivateKeys[i]
+		_, err = db.Exec(
+			"INSERT INTO private_keys (user_id, private_key, salt, iv, recovery_code_id, is_active) VALUES (?, ?, ?, ?, ?, false)",
+			userID, pk.PrivateKey, pk.Salt, pk.IV, codeID,
+		)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save recovery key: " + err.Error()})
+			c.Abort()
+			return
+		}
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Recovery keys saved successfully"})
+}
+
+func PrivateKeyCheck(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	var keyCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM private_keys WHERE user_id = ?", userID).Scan(&keyCount)
+
+	var messageCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM direct_chat_messages WHERE user_id = ?", userID).Scan(&messageCount)
+
+	c.JSON(http.StatusOK, gin.H{"result": keyCount > 0 || messageCount > 0})
+}
+
 func UserAutocomplete(c *gin.Context, db *sql.DB) {
 	term := c.Param("term")
 
