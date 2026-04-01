@@ -100,7 +100,7 @@ The system allows admins to define custom fields for entities on the fly.
    - `_flattened` table: A standard table where columns match the field names.
 3. **Synchronization**: Database triggers automatically update the flattened table whenever the main table changes, ensuring fast read speeds for filtering and sorting.
 
-### Event Bus
+### Event Bus.
 The application uses an internal `EventBus` to handle side effects. For example, when a `TopicCreated` event occurs:
 - A subscriber updates the global post/topic counts.
 - A subscriber updates the specific subforum stats.
