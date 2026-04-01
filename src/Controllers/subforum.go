@@ -221,6 +221,13 @@ func CreateSubforum(c *gin.Context, db *sql.DB) {
 	}
 
 	id, _ := result.LastInsertId()
+
+	var adminRoleID int
+	if err := db.QueryRow("SELECT id FROM roles WHERE name = 'admin'").Scan(&adminRoleID); err == nil {
+		permission := fmt.Sprintf("subforum_read:%d", id)
+		_, _ = db.Exec("INSERT INTO role_permission (type, role_id, permission) VALUES (1, ?, ?)", adminRoleID, permission)
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
 

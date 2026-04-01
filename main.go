@@ -75,7 +75,7 @@ func main() {
 	// Optional Auth routes (Context populated if token present, otherwise Guest)
 	optionalAuthGroup := r.Group("/")
 	optionalAuthGroup.Use(Middlewares.OptionalAuthMiddleware())
-	optionalAuthRouter := Router.NewCustomRouter(optionalAuthGroup)
+	optionalAuthRouter := Router.NewProtectedCustomRouter(optionalAuthGroup)
 	optionalAuthRouter.GET("/categories/home", "Get home page categories", func(c *gin.Context) {
 		Controllers.GetHomeCategories(c, Services.DB)
 	})
@@ -153,7 +153,7 @@ func main() {
 	protectedGroup := r.Group("/")
 	protectedGroup.Use(Middlewares.AuthMiddleware())
 	protectedGroup.Use(Middlewares.PermissionsMiddleware(Services.DB))
-	protectedRouter := Router.NewCustomRouter(protectedGroup)
+	protectedRouter := Router.NewProtectedCustomRouter(protectedGroup)
 
 	protectedRouter.POST("/character/create", "Create a new character", func(c *gin.Context) {
 		Controllers.CreateCharacter(c, Services.DB)

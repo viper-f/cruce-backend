@@ -80,9 +80,9 @@ func GetEndpointPermissionMatrix(db *sql.DB) (PermissionMatrixObject, error) {
 	// 3. Build the full matrix, permissions map, and ordered list of keys
 	permissionMatrix := make(map[string]map[int]bool)
 	permissionsMap := make(map[string]string)
-	permissionOrder := make([]string, len(Router.AllRoutes))
+	permissionOrder := make([]string, len(Router.ProtectedRoutes))
 
-	for i, route := range Router.AllRoutes {
+	for i, route := range Router.ProtectedRoutes {
 		permission := route.Path
 		permissionOrder[i] = permission
 		permissionsMap[permission] = route.Definition
