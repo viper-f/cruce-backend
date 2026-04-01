@@ -75,13 +75,14 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 		var sub Entities.Subform
 		var cat Entities.Category
 		var dateLastPost *time.Time
+		var topicNumber, postNumber sql.NullInt64
 		if err := rows.Scan(
 			&sub.Id,
 			&sub.Name,
 			&sub.Description,
 			&sub.Position,
-			&sub.TopicNumber,
-			&sub.PostNumber,
+			&topicNumber,
+			&postNumber,
 			&sub.LastPostTopicId,
 			&sub.LastPostTopicName,
 			&sub.LastPostId,
@@ -96,6 +97,8 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 			c.Abort()
 			return
 		}
+		sub.TopicNumber = int(topicNumber.Int64)
+		sub.PostNumber = int(postNumber.Int64)
 		if dateLastPost != nil {
 			localized := Services.LocalizeTime(*dateLastPost, userTimezone)
 			sub.DateLastPostLocalized = &localized
@@ -342,6 +345,7 @@ func GetSubforum(c *gin.Context, db *sql.DB) {
 
 	var subforum Entities.Subform
 	var dateLastPost *time.Time
+	var topicNumber, postNumber sql.NullInt64
 	query := "SELECT id, category_id, name, description, position, topic_number, post_number, last_post_topic_id, last_post_topic_name, last_post_id, date_last_post, last_post_author_user_name, show_last_topic FROM subforums WHERE id = ?"
 	err = db.QueryRow(query, id).Scan(
 		&subforum.Id,
@@ -349,8 +353,8 @@ func GetSubforum(c *gin.Context, db *sql.DB) {
 		&subforum.Name,
 		&subforum.Description,
 		&subforum.Position,
-		&subforum.TopicNumber,
-		&subforum.PostNumber,
+		&topicNumber,
+		&postNumber,
 		&subforum.LastPostTopicId,
 		&subforum.LastPostTopicName,
 		&subforum.LastPostId,
@@ -367,6 +371,9 @@ func GetSubforum(c *gin.Context, db *sql.DB) {
 		c.Abort()
 		return
 	}
+
+	subforum.TopicNumber = int(topicNumber.Int64)
+	subforum.PostNumber = int(postNumber.Int64)
 
 	// Determine User Roles
 	var roleIDs []int
