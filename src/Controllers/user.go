@@ -508,6 +508,53 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 	})
 }
 
+type AdminUserListItem struct {
+	Id               int        `json:"id"`
+	Username         string     `json:"username"`
+	UserStatus       int        `json:"user_status"`
+	DateRegistered   *time.Time `json:"date_registered"`
+	DateLastVisit    *time.Time `json:"date_last_visit"`
+	CharacterCount   int        `json:"character_count"`
+	LastGamePostDate *time.Time `json:"last_game_post_date"`
+}
+
+func GetAdminUserList(c *gin.Context, db *sql.DB) {
+	rows, err := db.Query(`
+		SELECT
+			u.id,
+			u.username,
+			u.user_status,
+			u.date_registered,
+			u.date_last_visit,
+			COUNT(c.id) AS character_count,
+			MAX(c.date_last_post) AS last_game_post_date
+		FROM users u
+		LEFT JOIN character_base c ON c.user_id = u.id
+		WHERE u.id > 1
+		GROUP BY u.id, u.username, u.user_status, u.date_registered, u.date_last_visit
+		ORDER BY u.username ASC
+	`)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get users: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	users := []AdminUserListItem{}
+	for rows.Next() {
+		var u AdminUserListItem
+		if err := rows.Scan(&u.Id, &u.Username, &u.UserStatus, &u.DateRegistered, &u.DateLastVisit, &u.CharacterCount, &u.LastGamePostDate); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan user: " + err.Error()})
+			c.Abort()
+			return
+		}
+		users = append(users, u)
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
 func GetUserList(c *gin.Context, db *sql.DB) {
 	// 1. Fetch active users ordered alphabetically
 	query := "SELECT id, username FROM users WHERE user_status = 0 AND id > 1 ORDER BY username ASC"

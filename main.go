@@ -268,6 +268,9 @@ func main() {
 	protectedRouter.POST("/user/settings/update", "Update user settings", func(c *gin.Context) {
 		Controllers.UpdateSettings(c, Services.DB)
 	})
+	protectedRouter.GET("/admin/user-list", "Get full user list for admin panel", func(c *gin.Context) {
+		Controllers.GetAdminUserList(c, Services.DB)
+	})
 	protectedRouter.POST("/mask/create", "Create a new mask", func(c *gin.Context) {
 		Controllers.CreateMask(c, Services.DB)
 	})
