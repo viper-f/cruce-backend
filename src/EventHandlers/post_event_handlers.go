@@ -91,6 +91,32 @@ func RegisterPostEventHandlers() {
 		}
 	})
 
+	// Subscriber: Update character stats on episode post created
+	Events.Subscribe(Events.PostCreated, func(db *sql.DB, data Events.EventData) {
+		event, ok := data.(Events.PostCreatedEvent)
+		if !ok || event.Type == "post_updated" {
+			return
+		}
+
+		if event.Post.CharacterProfile == nil || event.Post.CharacterProfile.CharacterId == nil {
+			return
+		}
+
+		var topicType Entities.TopicType
+		err := db.QueryRow("SELECT type FROM topics WHERE id = ?", event.TopicID).Scan(&topicType)
+		if err != nil || topicType != Entities.EpisodeTopic {
+			return
+		}
+
+		_, err = db.Exec(
+			"UPDATE character_base SET total_posts = total_posts + 1, date_last_post = ? WHERE id = ?",
+			event.Post.DateCreated, *event.Post.CharacterProfile.CharacterId,
+		)
+		if err != nil {
+			fmt.Printf("Error updating character stats: %v\n", err)
+		}
+	})
+
 	// Subscriber 11: Send Game Notifications for Episode Posts
 	Events.Subscribe(Events.PostCreated, func(db *sql.DB, data Events.EventData) {
 		event, ok := data.(Events.PostCreatedEvent)
