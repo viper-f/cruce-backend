@@ -25,6 +25,22 @@ func RegisterEpisodeEventHandlers() {
 		}
 	})
 
+	// Subscriber: Update total_episodes for characters added to a new episode
+	Events.Subscribe(Events.EpisodeCreated, func(db *sql.DB, data Events.EventData) {
+		event, ok := data.(Events.EpisodeCreatedEvent)
+		if !ok {
+			return
+		}
+
+		_, err := db.Exec(
+			"UPDATE character_base SET total_episodes = total_episodes + 1 WHERE id IN (SELECT character_id FROM episode_character WHERE episode_id = ?)",
+			event.EpisodeID,
+		)
+		if err != nil {
+			fmt.Printf("Error updating character total_episodes: %v\n", err)
+		}
+	})
+
 	// Subscriber 10: Update Subforum Stats on Episode Created
 	Events.Subscribe(Events.EpisodeCreated, func(db *sql.DB, data Events.EventData) {
 		event, ok := data.(Events.EpisodeCreatedEvent)
