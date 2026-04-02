@@ -6,6 +6,7 @@ import (
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -1278,4 +1279,68 @@ func CreateCharacterClaim(c *gin.Context, db *sql.DB) {
 
 	req.Claim.Id = int(claimID)
 	c.JSON(http.StatusOK, req.Claim)
+}
+
+func CustomFieldList(c *gin.Context, db *sql.DB) {
+	machineName := c.Param("machine_name")
+
+	var configJSON string
+	err := db.QueryRow("SELECT config FROM custom_field_config WHERE entity_type = 'character'").Scan(&configJSON)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "No character field config found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to load field config: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	var fieldConfigs []Entities.CustomFieldConfig
+	if err := json.Unmarshal([]byte(configJSON), &fieldConfigs); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to parse field config: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var matched *Entities.CustomFieldConfig
+	for i := range fieldConfigs {
+		if fieldConfigs[i].MachineFieldName == machineName {
+			matched = &fieldConfigs[i]
+			break
+		}
+	}
+	if matched == nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Custom field not found"})
+		c.Abort()
+		return
+	}
+	if matched.FieldType != "string" {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Field is not of type string"})
+		c.Abort()
+		return
+	}
+
+	query := fmt.Sprintf(
+		"SELECT DISTINCT `%s` FROM character_flattened WHERE `%s` IS NOT NULL AND `%s` != '' ORDER BY `%s` ASC",
+		machineName, machineName, machineName, machineName,
+	)
+	rows, err := db.Query(query)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to query field values: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	values := []string{}
+	for rows.Next() {
+		var val string
+		if err := rows.Scan(&val); err != nil {
+			continue
+		}
+		values = append(values, val)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"human_field_name": matched.HumanFieldName, "values": values})
 }

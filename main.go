@@ -62,6 +62,9 @@ func main() {
 	publicRouter.POST("/update-password", "Update user password via recovery flow", func(c *gin.Context) {
 		Controllers.UpdatePassword(c, Services.DB)
 	})
+	publicRouter.GET("/character/field-list/:machine_name", "Get distinct values of a string character custom field", func(c *gin.Context) {
+		Controllers.CustomFieldList(c, Services.DB)
+	})
 	publicRouter.GET("/character/get/:id", "Get character details by ID", func(c *gin.Context) {
 		Controllers.GetCharacter(c, Services.DB)
 	})
