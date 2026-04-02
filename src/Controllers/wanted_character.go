@@ -152,6 +152,32 @@ func GetWantedCharacterTreeList(c *gin.Context, db *sql.DB) {
 		}
 	}
 
+	noFaction := Entities.Faction{Id: 0, Name: "No Faction", Characters: []Entities.CharacterListItem{}}
+
+	noFactionRows, err := db.Query(`
+		SELECT cc.id, cc.name, wc.topic_id
+		FROM character_claim cc
+		JOIN wanted_character_base wc ON wc.character_claim_id = cc.id
+		WHERE cc.is_claimed IS NOT TRUE
+		AND wc.is_claimed = false
+		AND (wc.is_deleted IS NULL OR wc.is_deleted = false)
+		AND cc.id NOT IN (SELECT character_claim_id FROM character_claim_faction)
+	`)
+	if err == nil {
+		defer noFactionRows.Close()
+		for noFactionRows.Next() {
+			var item Entities.CharacterListItem
+			if err := noFactionRows.Scan(&item.Id, &item.Name, &item.WantedCharacterId); err == nil {
+				item.IsClaim = true
+				noFaction.Characters = append(noFaction.Characters, item)
+			}
+		}
+	}
+
+	if len(noFaction.Characters) > 0 {
+		result = append(result, noFaction)
+	}
+
 	c.JSON(http.StatusOK, result)
 }
 

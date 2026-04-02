@@ -530,6 +530,48 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		}
 	}
 
+	noFaction := Entities.Faction{Id: 0, Name: "No Faction", Characters: []Entities.CharacterListItem{}}
+
+	// Characters with no faction
+	noFactionCharRows, err := db.Query(`
+		SELECT id, name FROM character_base
+		WHERE character_status = 0
+		AND id NOT IN (SELECT character_id FROM character_faction)
+	`)
+	if err == nil {
+		defer noFactionCharRows.Close()
+		for noFactionCharRows.Next() {
+			var item Entities.CharacterListItem
+			if err := noFactionCharRows.Scan(&item.Id, &item.Name); err == nil {
+				item.IsClaim = false
+				noFaction.Characters = append(noFaction.Characters, item)
+			}
+		}
+	}
+
+	// Claims with no faction
+	noFactionClaimRows, err := db.Query(`
+		SELECT cc.id, cc.name, wc.topic_id
+		FROM character_claim cc
+		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = cc.id
+		WHERE cc.is_claimed IS NOT TRUE
+		AND cc.id NOT IN (SELECT character_claim_id FROM character_claim_faction)
+	`)
+	if err == nil {
+		defer noFactionClaimRows.Close()
+		for noFactionClaimRows.Next() {
+			var item Entities.CharacterListItem
+			if err := noFactionClaimRows.Scan(&item.Id, &item.Name, &item.WantedCharacterId); err == nil {
+				item.IsClaim = true
+				noFaction.Characters = append(noFaction.Characters, item)
+			}
+		}
+	}
+
+	if len(noFaction.Characters) > 0 {
+		factions = append(factions, noFaction)
+	}
+
 	c.JSON(http.StatusOK, factions)
 }
 
