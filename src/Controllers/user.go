@@ -12,6 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -111,24 +115,13 @@ func Register(c *gin.Context, db *sql.DB) {
 	user.Password = "" // Don't return password
 	user.Roles = []Entities.Role{{Id: defaultRoleID, Name: "user"}}
 
-	// Generate recovery codes
-	recoveryCodes, err := Services.GenerateAndStoreRecoveryCodes(user.Id, db)
-	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to generate recovery codes: " + err.Error()})
-		c.Abort()
-		return
-	}
-
 	// Emit UserRegistered event
 	Events.Publish(db, Events.UserRegistered, Events.UserRegisteredEvent{
 		UserID:   user.Id,
 		Username: user.Username,
 	})
 
-	c.JSON(http.StatusCreated, gin.H{
-		"user":           user,
-		"recovery_codes": recoveryCodes,
-	})
+	c.JSON(http.StatusCreated, gin.H{"user": user})
 }
 
 func Login(c *gin.Context, db *sql.DB) {
@@ -557,9 +550,17 @@ func GetUserList(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, users)
 }
 
+type SaveKeysPrivateKeyItem struct {
+	PrivateKey string `json:"private_key" binding:"required"`
+	IV         string `json:"iv" binding:"required"`
+	Salt       string `json:"salt" binding:"required"`
+}
+
 type SaveKeysRequest struct {
-	PrivateKeys []Entities.PrivateKey `json:"private_keys" binding:"required"`
-	PublicKey   Entities.PublicKey    `json:"public_key" binding:"required"`
+	Codes               []string                 `json:"codes" binding:"required"`
+	PrivateKey          SaveKeysPrivateKeyItem   `json:"private_key" binding:"required"`
+	RecoveryPrivateKeys []SaveKeysPrivateKeyItem `json:"recovery_private_keys" binding:"required"`
+	PublicKey           Entities.PublicKey       `json:"public_key" binding:"required"`
 }
 
 func SaveKeys(c *gin.Context, db *sql.DB) {
@@ -577,19 +578,58 @@ func SaveKeys(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	for _, pk := range req.PrivateKeys {
-		_, err := db.Exec(
-			"INSERT INTO private_keys (user_id, private_key, salt, iv, recovery_code_id, is_active) VALUES (?, ?, ?, ?, ?, ?)",
-			userID, pk.PrivateKey, pk.Salt, pk.IV, pk.RecoveryKeyId, pk.RecoveryKeyId == nil,
+	if len(req.Codes) != len(req.RecoveryPrivateKeys) {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "codes and recovery_private_keys must have the same length"})
+		c.Abort()
+		return
+	}
+
+	// Insert the active (password-encrypted) private key
+	_, err := db.Exec(
+		"INSERT INTO private_keys (user_id, private_key, salt, iv, recovery_code_id, is_active) VALUES (?, ?, ?, ?, NULL, true)",
+		userID, req.PrivateKey.PrivateKey, req.PrivateKey.Salt, req.PrivateKey.IV,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save private key: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Insert recovery codes and their linked private keys
+	for i, code := range req.Codes {
+		hashBytes := sha256.Sum256([]byte(code))
+		hashHex := fmt.Sprintf("%x", hashBytes)
+
+		res, err := db.Exec(
+			"INSERT INTO recovery_codes (user_id, recovery_code) VALUES (?, ?)",
+			userID, hashHex,
 		)
 		if err != nil {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save private key: " + err.Error()})
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save recovery code: " + err.Error()})
+			c.Abort()
+			return
+		}
+
+		codeID, err := res.LastInsertId()
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get recovery code ID: " + err.Error()})
+			c.Abort()
+			return
+		}
+
+		pk := req.RecoveryPrivateKeys[i]
+		_, err = db.Exec(
+			"INSERT INTO private_keys (user_id, private_key, salt, iv, recovery_code_id, is_active) VALUES (?, ?, ?, ?, ?, false)",
+			userID, pk.PrivateKey, pk.Salt, pk.IV, codeID,
+		)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save recovery private key: " + err.Error()})
 			c.Abort()
 			return
 		}
 	}
 
-	_, err := db.Exec(
+	_, err = db.Exec(
 		"INSERT INTO public_keys (user_id, public_key) VALUES (?, ?)",
 		userID, req.PublicKey.PublicKey,
 	)
@@ -717,6 +757,132 @@ func SaveRecoveryKeys(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Recovery keys saved successfully"})
+}
+
+type RecoveryRequest struct {
+	Code string `json:"code" binding:"required"`
+}
+
+type UpdatePasswordRequest struct {
+	Password     string `json:"password" binding:"required"`
+	PrivateKey   string `json:"private_key" binding:"required"`
+	IV           string `json:"iv" binding:"required"`
+	Salt         string `json:"salt" binding:"required"`
+	SecurityCode string `json:"security_code" binding:"required"`
+}
+
+func UpdatePassword(c *gin.Context, db *sql.DB) {
+	var req UpdatePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var userID int
+	err := db.QueryRow(
+		"SELECT user_id FROM recovery_codes WHERE security_code = ?",
+		req.SecurityCode,
+	).Scan(&userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Invalid security code"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to validate security code: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	dummyUser := Entities.User{}
+	if err := dummyUser.HashPassword(req.Password); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to hash password: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	_, err = db.Exec("UPDATE users SET password = ? WHERE id = ?", dummyUser.Password, userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update password: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	_, err = db.Exec(
+		"UPDATE private_keys SET private_key = ?, iv = ?, salt = ? WHERE user_id = ? AND is_active = true",
+		req.PrivateKey, req.IV, req.Salt, userID,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update private key: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	_, _ = db.Exec("UPDATE recovery_codes SET security_code = NULL, date_used = ? WHERE user_id = ?", time.Now(), userID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password updated successfully"})
+}
+
+func Recovery(c *gin.Context, db *sql.DB) {
+	var req RecoveryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	hashBytes := sha256.Sum256([]byte(req.Code))
+	hashHex := fmt.Sprintf("%x", hashBytes)
+
+	var recoveryCodeID int
+	err := db.QueryRow(
+		"SELECT id FROM recovery_codes WHERE recovery_code = ? AND date_used IS NULL",
+		hashHex,
+	).Scan(&recoveryCodeID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Recovery code not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to look up recovery code: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	var pk Entities.PrivateKey
+	err = db.QueryRow(
+		"SELECT user_id, private_key, salt, iv, recovery_code_id FROM private_keys WHERE recovery_code_id = ?",
+		recoveryCodeID,
+	).Scan(&pk.UserId, &pk.PrivateKey, &pk.Salt, &pk.IV, &pk.RecoveryKeyId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "No private key found for this recovery code"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get private key: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	securityCodeBytes := make([]byte, 32)
+	if _, err := rand.Read(securityCodeBytes); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to generate security code: " + err.Error()})
+		c.Abort()
+		return
+	}
+	securityCode := hex.EncodeToString(securityCodeBytes)
+
+	_, err = db.Exec(
+		"UPDATE recovery_codes SET security_code = ? WHERE id = ?",
+		securityCode, recoveryCodeID,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to save security code: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"private_key": pk, "security_code": securityCode})
 }
 
 func PrivateKeyCheck(c *gin.Context, db *sql.DB) {

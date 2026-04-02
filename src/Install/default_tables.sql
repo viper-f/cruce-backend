@@ -338,6 +338,7 @@ create table recovery_codes
     id            int auto_increment primary key,
     user_id       int          not null,
     recovery_code varchar(255) not null,
+    security_code varchar(64)  null,
     date_used     datetime     null,
     constraint fk_recovery_codes_user foreign key (user_id) references users (id) on delete cascade
 );

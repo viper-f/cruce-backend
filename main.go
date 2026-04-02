@@ -56,6 +56,12 @@ func main() {
 	publicRouter.GET("/user/autocomplete/:term", "Get users matching search term", func(c *gin.Context) {
 		Controllers.UserAutocomplete(c, Services.DB)
 	})
+	publicRouter.POST("/recovery", "Retrieve private key by recovery code hash", func(c *gin.Context) {
+		Controllers.Recovery(c, Services.DB)
+	})
+	publicRouter.POST("/update-password", "Update user password via recovery flow", func(c *gin.Context) {
+		Controllers.UpdatePassword(c, Services.DB)
+	})
 	publicRouter.GET("/character/get/:id", "Get character details by ID", func(c *gin.Context) {
 		Controllers.GetCharacter(c, Services.DB)
 	})
