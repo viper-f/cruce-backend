@@ -259,6 +259,12 @@ func main() {
 	protectedRouter.POST("/character/accept/:id", "Accept a character", func(c *gin.Context) {
 		Controllers.AcceptCharacter(c, Services.DB)
 	})
+	protectedRouter.POST("/character/deactivate/:id", "Deactivate a character", func(c *gin.Context) {
+		Controllers.DeactivateCharacter(c, Services.DB)
+	})
+	protectedRouter.POST("/character/activate/:id", "Activate a character", func(c *gin.Context) {
+		Controllers.ActivateCharacter(c, Services.DB)
+	})
 	protectedRouter.POST("/user/settings/update", "Update user settings", func(c *gin.Context) {
 		Controllers.UpdateSettings(c, Services.DB)
 	})
