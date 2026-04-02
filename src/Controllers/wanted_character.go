@@ -17,6 +17,7 @@ import (
 type UpdateWantedCharacterRequest struct {
 	Name         string                 `json:"name" binding:"required"`
 	CustomFields map[string]interface{} `json:"custom_fields"`
+	Factions     []Entities.Faction     `json:"factions"`
 }
 
 type CreateWantedCharacterRequest struct {
@@ -403,6 +404,30 @@ func UpdateWantedCharacter(c *gin.Context, db *sql.DB) {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update wanted character entity: " + err.Error()})
 		c.Abort()
 		return
+	}
+
+	if req.Factions != nil {
+		var claimID int
+		err = tx.QueryRow("SELECT character_claim_id FROM wanted_character_base WHERE id = ?", wantedCharacterID).Scan(&claimID)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character claim ID: " + err.Error()})
+			c.Abort()
+			return
+		}
+
+		if _, err = tx.Exec("DELETE FROM character_claim_faction WHERE character_claim_id = ?", claimID); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to clear factions: " + err.Error()})
+			c.Abort()
+			return
+		}
+
+		for _, faction := range req.Factions {
+			if _, err = tx.Exec("INSERT INTO character_claim_faction (character_claim_id, faction_id) VALUES (?, ?)", claimID, faction.Id); err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: fmt.Sprintf("Failed to insert faction %d: %s", faction.Id, err.Error())})
+				c.Abort()
+				return
+			}
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
