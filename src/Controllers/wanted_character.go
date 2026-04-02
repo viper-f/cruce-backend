@@ -15,9 +15,8 @@ import (
 )
 
 type UpdateWantedCharacterRequest struct {
-	Name             string                 `json:"name" binding:"required"`
-	CharacterClaimId *int                   `json:"character_claim_id"`
-	CustomFields     map[string]interface{} `json:"custom_fields"`
+	Name         string                 `json:"name" binding:"required"`
+	CustomFields map[string]interface{} `json:"custom_fields"`
 }
 
 type CreateWantedCharacterRequest struct {
@@ -396,9 +395,8 @@ func UpdateWantedCharacter(c *gin.Context, db *sql.DB) {
 	}
 
 	updates := map[string]interface{}{
-		"name":               req.Name,
-		"character_claim_id": req.CharacterClaimId,
-		"custom_fields":      req.CustomFields,
+		"name":          req.Name,
+		"custom_fields": req.CustomFields,
 	}
 	_, err = Services.PatchEntity(int64(wantedCharacterID), "wanted_character", updates, tx)
 	if err != nil {
