@@ -902,12 +902,24 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 		}
 
 	case Entities.GeneralTopic:
+		// Prepend the user's main account
+		var username string
+		var userAvatar *string
+		if err := db.QueryRow("SELECT username, avatar FROM users WHERE id = ?", userID).Scan(&username, &userAvatar); err == nil {
+			mainProfile := Entities.CharacterProfile{
+				Id:            0,
+				CharacterName: username,
+				Avatar:        userAvatar,
+			}
+			profiles = append(profiles, mainProfile)
+		}
+
 		// Return all active user's character profiles
 		query := `
-			SELECT cp.id, cp.character_id, cb.name, cp.avatar 
-			FROM character_profile_base cp 
-			JOIN character_base cb ON cp.character_id = cb.id 
-			WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask <> true
+			SELECT cp.id, cp.character_id, cb.name, cp.avatar
+			FROM character_profile_base cp
+			JOIN character_base cb ON cp.character_id = cb.id
+			WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask IS NOT TRUE
 		`
 		rows, err := db.Query(query, userID)
 		if err != nil {
