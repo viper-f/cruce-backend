@@ -197,9 +197,10 @@ CREATE TABLE posts (
 ALTER TABLE topics ADD CONSTRAINT topics_posts_id_fk FOREIGN KEY (last_post_id) REFERENCES posts (id);
 
 create table episode_base
-		(id      bigint unsigned auto_increment primary key,
-		topic_id bigint unsigned          null,
-		name    varchar(255) null,
+		(id               bigint unsigned auto_increment primary key,
+		topic_id          bigint unsigned null,
+		name              varchar(255)    null,
+		open_to_everyone  boolean         default false not null,
 		constraint episode_base_topics_id_fk
 		foreign key (topic_id) references topics (id)
 		);

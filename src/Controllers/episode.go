@@ -23,10 +23,11 @@ type CreateEpisodeRequest struct {
 }
 
 type UpdateEpisodeRequest struct {
-	Name         string                 `json:"name" binding:"required"`
-	CharacterIDs []int                  `json:"character_ids"`
-	MaskIds      []int                  `json:"mask_ids"`
-	CustomFields map[string]interface{} `json:"custom_fields"`
+	Name           string                 `json:"name" binding:"required"`
+	CharacterIDs   []int                  `json:"character_ids"`
+	MaskIds        []int                  `json:"mask_ids"`
+	CustomFields   map[string]interface{} `json:"custom_fields"`
+	OpenToEveryone *bool                  `json:"open_to_everyone"`
 }
 
 type GetEpisodesRequest struct {
@@ -449,6 +450,9 @@ func UpdateEpisode(c *gin.Context, db *sql.DB) {
 	updates := map[string]interface{}{
 		"name":          req.Name,
 		"custom_fields": req.CustomFields,
+	}
+	if req.OpenToEveryone != nil {
+		updates["open_to_everyone"] = *req.OpenToEveryone
 	}
 	_, err = Services.PatchEntity(int64(episodeID), "episode", updates, tx)
 	if err != nil {

@@ -631,6 +631,53 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 		guestName = req.GuestName
 	}
 
+	// For episode topics, check character membership unless open_to_everyone
+	if req.UseCharacterProfile && req.CharacterProfileID != nil {
+		var topicType int
+		if err := tx.QueryRow("SELECT type FROM topics WHERE id = ?", req.TopicID).Scan(&topicType); err == nil &&
+			topicType == int(Entities.EpisodeTopic) {
+
+			var openToEveryone bool
+			err := tx.QueryRow(`
+				SELECT eb.open_to_everyone
+				FROM episode_base eb
+				JOIN topics t ON t.id = eb.topic_id
+				WHERE t.id = ?
+			`, req.TopicID).Scan(&openToEveryone)
+
+			if err == nil && !openToEveryone {
+				var characterID int
+				if err := tx.QueryRow(
+					"SELECT character_id FROM character_profile_base WHERE id = ?",
+					*req.CharacterProfileID,
+				).Scan(&characterID); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve character profile"})
+					return
+				}
+
+				var episodeID int
+				if err := tx.QueryRow(
+					"SELECT id FROM episode_base WHERE topic_id = ?",
+					req.TopicID,
+				).Scan(&episodeID); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve episode"})
+					return
+				}
+
+				var memberCount int
+				_ = tx.QueryRow(
+					"SELECT COUNT(*) FROM episode_character WHERE episode_id = ? AND character_id = ?",
+					episodeID, characterID,
+				).Scan(&memberCount)
+
+				if memberCount == 0 {
+					c.JSON(http.StatusForbidden, gin.H{"error": "This character is not a participant in this episode"})
+					return
+				}
+			}
+		}
+	}
+
 	// Insert Post
 	res, err := tx.Exec("INSERT INTO posts (topic_id, author_user_id, content, date_created, use_character_profile, character_profile_id, guest_name) VALUES (?, ?, ?, NOW(), ?, ?, ?)",
 		req.TopicID, userID, req.Content, req.UseCharacterProfile, req.CharacterProfileID, guestName)
