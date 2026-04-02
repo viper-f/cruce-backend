@@ -845,16 +845,33 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 		return
 
 	case Entities.EpisodeTopic:
-		// Return only characters who participate in this episode
-		query := `
-			SELECT cp.id, cp.character_id, cb.name, cp.avatar 
-			FROM character_profile_base cp 
-			JOIN character_base cb ON cp.character_id = cb.id 
-			JOIN episode_character ec ON cb.id = ec.character_id
-			JOIN episode_base e ON ec.episode_id = e.id
-			WHERE cb.user_id = ? AND e.topic_id = ? AND cp.is_mask is null
-		`
-		rows, err := db.Query(query, userID, topicID)
+		// Check if episode is open to everyone
+		var openToEveryone bool
+		_ = db.QueryRow("SELECT open_to_everyone FROM episode_base WHERE topic_id = ?", topicID).Scan(&openToEveryone)
+
+		var query string
+		var rows *sql.Rows
+		if openToEveryone {
+			// Return all active user's character profiles
+			query = `
+				SELECT cp.id, cp.character_id, cb.name, cp.avatar
+				FROM character_profile_base cp
+				JOIN character_base cb ON cp.character_id = cb.id
+				WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask <> true
+			`
+			rows, err = db.Query(query, userID)
+		} else {
+			// Return only characters who participate in this episode
+			query = `
+				SELECT cp.id, cp.character_id, cb.name, cp.avatar
+				FROM character_profile_base cp
+				JOIN character_base cb ON cp.character_id = cb.id
+				JOIN episode_character ec ON cb.id = ec.character_id
+				JOIN episode_base e ON ec.episode_id = e.id
+				WHERE cb.user_id = ? AND e.topic_id = ? AND cp.is_mask is null
+			`
+			rows, err = db.Query(query, userID, topicID)
+		}
 		if err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get episode characters: " + err.Error()})
 			c.Abort()
