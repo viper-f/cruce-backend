@@ -857,7 +857,7 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 				SELECT cp.id, cp.character_id, cb.name, cp.avatar
 				FROM character_profile_base cp
 				JOIN character_base cb ON cp.character_id = cb.id
-				WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask <> true
+				WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask IS NOT TRUE
 			`
 			rows, err = db.Query(query, userID)
 		} else {
