@@ -11,6 +11,8 @@ create table users
     interface_timezone varchar(50)  null,
     interface_font_size decimal(5,2) default 1.00 not null,
     user_status        int default 0 not null,
+    total_posts        int default 0 not null,
+    total_general_posts int default 0 not null,
     constraint users_pk_2
         unique (username)
 );

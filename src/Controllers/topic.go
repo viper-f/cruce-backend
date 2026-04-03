@@ -287,7 +287,7 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 	query := fmt.Sprintf(`
 		SELECT
 			p.id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
-			u.username, u.avatar, p.guest_name,
+			u.username, u.avatar, u.total_posts, u.total_general_posts, p.guest_name,
 			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar, cp.mask_name, cp.is_mask,
 			t.subforum_id, t.type as topic_type
 			%s
@@ -443,6 +443,12 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 			}
 			if avatar, ok := rowMap["avatar"]; ok {
 				userProfile.Avatar = avatar.(string)
+			}
+			if v, ok := rowMap["total_posts"]; ok {
+				userProfile.TotalPosts, _ = strconv.Atoi(v.(string))
+			}
+			if v, ok := rowMap["total_general_posts"]; ok {
+				userProfile.TotalGeneralPosts, _ = strconv.Atoi(v.(string))
 			}
 			post.UserProfile = &userProfile
 		}
@@ -855,9 +861,12 @@ func PreviewPost(c *gin.Context, db *sql.DB) {
 		userProfile.UserId = userID
 		if userID != 0 {
 			var username, avatar string
-			if err := db.QueryRow("SELECT username, avatar FROM users WHERE id = ?", userID).Scan(&username, &avatar); err == nil {
+			var totalPosts, totalGeneralPosts int
+			if err := db.QueryRow("SELECT username, avatar, total_posts, total_general_posts FROM users WHERE id = ?", userID).Scan(&username, &avatar, &totalPosts, &totalGeneralPosts); err == nil {
 				userProfile.UserName = username
 				userProfile.Avatar = avatar
+				userProfile.TotalPosts = totalPosts
+				userProfile.TotalGeneralPosts = totalGeneralPosts
 				post.AuthorUserName = username
 			}
 		} else if req.GuestName != nil {

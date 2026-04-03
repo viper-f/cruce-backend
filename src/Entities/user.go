@@ -13,6 +13,8 @@ type User struct {
 	InterfaceTimezone *string    `json:"interface_timezone"`
 	InterfaceFontSize float64    `json:"interface_font_size"`
 	UserStatus        UserStatus `json:"user_status"`
+	TotalPosts        int        `json:"total_posts"`
+	TotalGeneralPosts int        `json:"total_general_posts"`
 	Roles             []Role     `json:"roles"`
 }
 
@@ -22,9 +24,11 @@ type ShortUser struct {
 }
 
 type UserProfile struct {
-	UserId   int    `json:"user_id"`
-	UserName string `json:"user_name"`
-	Avatar   string `json:"avatar"`
+	UserId            int    `json:"user_id"`
+	UserName          string `json:"user_name"`
+	Avatar            string `json:"avatar"`
+	TotalPosts        int    `json:"total_posts"`
+	TotalGeneralPosts int    `json:"total_general_posts"`
 }
 
 type UserStatus int

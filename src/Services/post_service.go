@@ -39,7 +39,7 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 	query := fmt.Sprintf(`
 		SELECT
 			p.id, p.topic_id, p.author_user_id, p.date_created, p.content, p.use_character_profile,
-			u.username, u.avatar,
+			u.username, u.avatar, u.total_posts, u.total_general_posts,
 			cp.id as character_profile_id, cp.character_id, cb.name as character_name, cp.avatar as character_avatar, cp.mask_name, cp.is_mask
 			%s
 		FROM posts p
@@ -167,6 +167,12 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 		}
 		if avatar, ok := rowMap["avatar"]; ok {
 			userProfile.Avatar = avatar.(string)
+		}
+		if v, ok := rowMap["total_posts"]; ok {
+			userProfile.TotalPosts, _ = strconv.Atoi(v.(string))
+		}
+		if v, ok := rowMap["total_general_posts"]; ok {
+			userProfile.TotalGeneralPosts, _ = strconv.Atoi(v.(string))
 		}
 		post.UserProfile = &userProfile
 	}

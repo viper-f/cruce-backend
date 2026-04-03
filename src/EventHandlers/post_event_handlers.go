@@ -117,6 +117,30 @@ func RegisterPostEventHandlers() {
 		}
 	})
 
+	// Subscriber: Update user post counts on post created
+	Events.Subscribe(Events.PostCreated, func(db *sql.DB, data Events.EventData) {
+		event, ok := data.(Events.PostCreatedEvent)
+		if !ok || event.Type == "post_updated" {
+			return
+		}
+
+		var topicType Entities.TopicType
+		err := db.QueryRow("SELECT type FROM topics WHERE id = ?", event.TopicID).Scan(&topicType)
+		if err != nil {
+			fmt.Printf("Error fetching topic type for user post count: %v\n", err)
+			return
+		}
+
+		if topicType == Entities.EpisodeTopic {
+			_, err = db.Exec("UPDATE users SET total_posts = total_posts + 1 WHERE id = ?", event.Post.AuthorUserId)
+		} else {
+			_, err = db.Exec("UPDATE users SET total_general_posts = total_general_posts + 1 WHERE id = ?", event.Post.AuthorUserId)
+		}
+		if err != nil {
+			fmt.Printf("Error updating user post count: %v\n", err)
+		}
+	})
+
 	// Subscriber 11: Send Game Notifications for Episode Posts
 	Events.Subscribe(Events.PostCreated, func(db *sql.DB, data Events.EventData) {
 		event, ok := data.(Events.PostCreatedEvent)

@@ -30,11 +30,14 @@ type RefreshTokenRequest struct {
 }
 
 type UserProfileResponse struct {
-	UserId           int                        `json:"user_id"`
-	Username         string                     `json:"username"`
-	Avatar           *string                    `json:"avatar"`
-	RegistrationDate time.Time                  `json:"registration_date"`
-	Characters       []CharacterProfileListItem `json:"characters"`
+	UserId                    int                        `json:"user_id"`
+	Username                  string                     `json:"username"`
+	Avatar                    *string                    `json:"avatar"`
+	RegistrationDate          time.Time                  `json:"registration_date"`
+	RegistrationDateLocalized string                     `json:"registration_date_localized"`
+	TotalPosts                int                        `json:"total_posts"`
+	TotalGeneralPosts         int                        `json:"total_general_posts"`
+	Characters                []CharacterProfileListItem `json:"characters"`
 }
 
 type CharacterProfileListItem struct {
@@ -256,8 +259,8 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 
 	// Fetch user details
 	var user Entities.User
-	query := "SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status FROM users WHERE id = ?"
-	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus)
+	query := "SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts FROM users WHERE id = ?"
+	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch user details"})
 		c.Abort()
@@ -364,7 +367,7 @@ func GetUserProfile(c *gin.Context, db *sql.DB) {
 	}
 
 	var profile UserProfileResponse
-	err = db.QueryRow("SELECT id, username, avatar, date_registered FROM users WHERE id = ?", userID).Scan(&profile.UserId, &profile.Username, &profile.Avatar, &profile.RegistrationDate)
+	err = db.QueryRow("SELECT id, username, avatar, date_registered, total_posts, total_general_posts FROM users WHERE id = ?", userID).Scan(&profile.UserId, &profile.Username, &profile.Avatar, &profile.RegistrationDate, &profile.TotalPosts, &profile.TotalGeneralPosts)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "User not found"})
@@ -374,6 +377,10 @@ func GetUserProfile(c *gin.Context, db *sql.DB) {
 		c.Abort()
 		return
 	}
+
+	currentUserID := Services.GetUserIdFromContext(c)
+	viewerTimezone := Services.GetUserTimezone(currentUserID, db)
+	profile.RegistrationDateLocalized = Services.LocalizeTime(profile.RegistrationDate, viewerTimezone)
 
 	// Fetch characters for this user
 	charRows, err := db.Query("SELECT id, name, total_episodes, total_posts, date_last_post FROM character_base WHERE user_id = ?", userID)
@@ -477,7 +484,7 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 
 	// Fetch updated user details
 	var user Entities.User
-	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus)
+	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated user details"})
 		c.Abort()
