@@ -1,6 +1,7 @@
 package Controllers
 
 import (
+	"cuento-backend/src/Entities"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"cuento-backend/src/Websockets"
@@ -57,11 +58,13 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 
 	Websockets.MainHub.Register(client)
 	Services.ActivityStorage.AddUser(userID, username)
+	broadcastActiveUsersToHome()
 
 	// Read loop to keep connection alive and detect disconnects
 	go func() {
 		defer func() {
 			Services.ActivityStorage.RemoveUser(userID)
+			broadcastActiveUsersToHome()
 			Websockets.MainHub.Unregister(client)
 			conn.Close()
 		}()
@@ -98,6 +101,9 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 						pageIdStr = fmt.Sprintf("%d", v)
 					}
 					Services.ActivityStorage.UpdateUserLocation(db, userID, msg.PageType, pageIdStr)
+					if msg.PageType == "home" {
+						broadcastActiveUsersToHome()
+					}
 				} else if msg.Type == "topic_view" && msg.TopicId != nil && msg.PostId != nil {
 					var topicID int64
 					switch v := msg.TopicId.(type) {
@@ -122,4 +128,19 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 			}
 		}
 	}()
+}
+
+func broadcastActiveUsersToHome() {
+	activeUsers := Services.ActivityStorage.GetActiveUsers()
+	shortUsers := make([]Entities.ShortUser, 0, len(activeUsers))
+	for _, u := range activeUsers {
+		shortUsers = append(shortUsers, Entities.ShortUser{Id: u.UserID, Username: u.Username})
+	}
+	msg := map[string]interface{}{
+		"type": "active_users_update",
+		"data": shortUsers,
+	}
+	for _, u := range Services.ActivityStorage.GetUsersOnPage("home", "") {
+		Websockets.MainHub.SendNotification(u.UserID, msg)
+	}
 }
