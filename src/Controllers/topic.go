@@ -359,6 +359,9 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		var post Entities.Post
 		post.Id, _ = strconv.Atoi(rowMap["id"].(string))
 		post.AuthorUserId, _ = strconv.Atoi(rowMap["author_user_id"].(string))
+		if username, ok := rowMap["username"]; ok {
+			post.AuthorUserName = username.(string)
+		}
 		post.DateCreated = dateCreated
 		post.DateCreatedLocalized = Services.LocalizeTime(post.DateCreated, userTimezone)
 		post.Content = rowMap["content"].(string)
@@ -855,6 +858,7 @@ func PreviewPost(c *gin.Context, db *sql.DB) {
 			if err := db.QueryRow("SELECT username, avatar FROM users WHERE id = ?", userID).Scan(&username, &avatar); err == nil {
 				userProfile.UserName = username
 				userProfile.Avatar = avatar
+				post.AuthorUserName = username
 			}
 		} else if req.GuestName != nil {
 			userProfile.UserName = *req.GuestName

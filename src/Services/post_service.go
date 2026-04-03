@@ -107,6 +107,9 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 	if val, ok := rowMap["author_user_id"]; ok {
 		post.AuthorUserId, _ = strconv.Atoi(val.(string))
 	}
+	if val, ok := rowMap["username"]; ok {
+		post.AuthorUserName = val.(string)
+	}
 	post.DateCreated = dateCreated
 	if val, ok := rowMap["content"]; ok {
 		post.Content = val.(string)
