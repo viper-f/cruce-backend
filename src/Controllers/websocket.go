@@ -140,7 +140,9 @@ func broadcastActiveUsersToHome() {
 		"type": "active_users_update",
 		"data": shortUsers,
 	}
-	for _, u := range Services.ActivityStorage.GetUsersOnPage("home", "") {
-		Websockets.MainHub.SendNotification(u.UserID, msg)
+	for _, u := range Services.ActivityStorage.GetActiveUsers() {
+		if u.CurrentPageType == "home" {
+			Websockets.MainHub.SendNotification(u.UserID, msg)
+		}
 	}
 }
