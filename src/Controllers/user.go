@@ -50,11 +50,12 @@ type CharacterProfileListItem struct {
 }
 
 type UpdateSettingsRequest struct {
-	Avatar   *string  `json:"avatar"`
-	Timezone *string  `json:"interface_timezone"`
-	Language *string  `json:"interface_language"`
-	FontSize *float64 `json:"interface_font_size"`
-	Password *string  `json:"password"`
+	Avatar       *string  `json:"avatar"`
+	Timezone     *string  `json:"interface_timezone"`
+	Language     *string  `json:"interface_language"`
+	FontSize     *float64 `json:"interface_font_size"`
+	Password     *string  `json:"password"`
+	DisableSound *bool    `json:"disable_sound"`
 }
 
 type UserListItem struct {
@@ -259,8 +260,8 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 
 	// Fetch user details
 	var user Entities.User
-	query := "SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts FROM users WHERE id = ?"
-	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts)
+	query := "SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, disable_sound FROM users WHERE id = ?"
+	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.DisableSound)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch user details"})
 		c.Abort()
@@ -455,6 +456,10 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		updates = append(updates, "interface_font_size = ?")
 		args = append(args, *req.FontSize)
 	}
+	if req.DisableSound != nil {
+		updates = append(updates, "disable_sound = ?")
+		args = append(args, *req.DisableSound)
+	}
 	if req.Password != nil {
 		// Hash the password before updating
 		dummyUser := Entities.User{}
@@ -484,7 +489,7 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 
 	// Fetch updated user details
 	var user Entities.User
-	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts)
+	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, disable_sound FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.DisableSound)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated user details"})
 		c.Abort()

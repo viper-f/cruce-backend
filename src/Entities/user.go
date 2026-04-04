@@ -15,6 +15,7 @@ type User struct {
 	UserStatus        UserStatus `json:"user_status"`
 	TotalPosts        int        `json:"total_posts"`
 	TotalGeneralPosts int        `json:"total_general_posts"`
+	DisableSound      bool       `json:"disable_sound"`
 	Roles             []Role     `json:"roles"`
 }
 
