@@ -33,6 +33,12 @@ type WidgetListItem struct {
 	TemplateName string `json:"template_name"`
 }
 
+type CreateWidgetRequest struct {
+	Name       string  `json:"name" binding:"required"`
+	TemplateId int     `json:"template_id" binding:"required"`
+	Config     *string `json:"config"`
+}
+
 type UpdateWidgetRequest struct {
 	Name       *string `json:"name"`
 	TemplateId *int    `json:"template_id"`
@@ -130,6 +136,38 @@ func GetWidget(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, w)
+}
+
+func CreateWidget(c *gin.Context, db *sql.DB) {
+	var req CreateWidgetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	res, err := db.Exec("INSERT INTO widgets (name, template_id, config) VALUES (?, ?, ?)", req.Name, req.TemplateId, req.Config)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create widget: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	id, _ := res.LastInsertId()
+	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+func DeleteWidget(c *gin.Context, db *sql.DB) {
+	id := c.Param("id")
+
+	_, err := db.Exec("DELETE FROM widgets WHERE id = ?", id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to delete widget: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Widget deleted successfully"})
 }
 
 func UpdateWidget(c *gin.Context, db *sql.DB) {

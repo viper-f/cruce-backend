@@ -346,11 +346,17 @@ func main() {
 	protectedRouter.GET("/widget-type/:name/config-template", "Get config template for a widget type by name", func(c *gin.Context) {
 		Controllers.GetWidgetTypeConfigTemplate(c, Services.DB)
 	})
+	protectedRouter.POST("/widget/create", "Create a new widget", func(c *gin.Context) {
+		Controllers.CreateWidget(c, Services.DB)
+	})
 	protectedRouter.GET("/widget/:id", "Get widget by ID", func(c *gin.Context) {
 		Controllers.GetWidget(c, Services.DB)
 	})
 	protectedRouter.POST("/widget/:id/update", "Update widget by ID", func(c *gin.Context) {
 		Controllers.UpdateWidget(c, Services.DB)
+	})
+	protectedRouter.GET("/widget/:id/delete", "Delete widget by ID", func(c *gin.Context) {
+		Controllers.DeleteWidget(c, Services.DB)
 	})
 	protectedRouter.GET("/panel/list", "Get list of all panels", func(c *gin.Context) {
 		Controllers.GetPanelList(c, Services.DB)
