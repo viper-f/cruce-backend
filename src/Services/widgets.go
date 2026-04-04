@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 )
 
 // widgetRegistry maps the func column value to the actual Go function.
@@ -77,26 +76,20 @@ func RenderWidget(id int, db *sql.DB) (string, error) {
 
 var widgetTagRe = regexp.MustCompile(`\[widget=(\d+)\]`)
 
-// RenderPanelContent processes panel content by rendering [widget=N] tags and
-// passing the remaining text through the standard BB code parser.
+// RenderPanelContent parses BB code first, then replaces [widget=N] tags with rendered widget HTML.
 func RenderPanelContent(content string, db *sql.DB) string {
-	// Split on widget tags, preserving the tag text as separate segments.
-	parts := widgetTagRe.Split(content, -1)
-	matches := widgetTagRe.FindAllStringSubmatch(content, -1)
+	html := ParseBBCode(content)
 
-	var sb strings.Builder
-	for i, part := range parts {
-		sb.WriteString(ParseBBCode(part))
-		if i < len(matches) {
-			id, _ := strconv.Atoi(matches[i][1])
-			html, err := RenderWidget(id, db)
-			if err != nil {
-				// Leave a visible placeholder so content authors notice the issue.
-				sb.WriteString(fmt.Sprintf("<!-- widget %d error: %s -->", id, err.Error()))
-			} else {
-				sb.WriteString(html)
-			}
+	return widgetTagRe.ReplaceAllStringFunc(html, func(match string) string {
+		sub := widgetTagRe.FindStringSubmatch(match)
+		if len(sub) < 2 {
+			return match
 		}
-	}
-	return sb.String()
+		id, _ := strconv.Atoi(sub[1])
+		rendered, err := RenderWidget(id, db)
+		if err != nil {
+			return fmt.Sprintf("<!-- widget %d error: %s -->", id, err.Error())
+		}
+		return rendered
+	})
 }
