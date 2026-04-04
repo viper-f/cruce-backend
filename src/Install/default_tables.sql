@@ -487,3 +487,32 @@ create table wanted_character_faction
     constraint wanted_character_faction_factions_id_fk
         foreign key (faction_id) references factions (id)
 );
+
+create table widget_types
+(
+    id              int auto_increment primary key,
+    name            varchar(255) not null,
+    config_template text         null,
+    func            varchar(255) not null
+);
+
+INSERT INTO widget_types (name, config_template, func) VALUES ('last_post', '{"topic_id": "int"}', 'WidgetLastPost');
+
+create table widgets
+(
+    id          int auto_increment primary key,
+    name        varchar(255) not null,
+    template_id int          not null,
+    config      text         null,
+    constraint widgets_widget_types_id_fk
+        foreign key (template_id) references widget_types (id)
+);
+
+create table widget_panels
+(
+    `key`     varchar(255) not null primary key,
+    content   text         null,
+    is_hidden boolean      not null default false
+);
+
+INSERT INTO widget_panels (`key`, content, is_hidden) VALUES ('header', NULL, false);

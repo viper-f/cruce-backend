@@ -47,6 +47,9 @@ func main() {
 	publicRouter.GET("/board/info", "Get board information", func(c *gin.Context) {
 		Controllers.GetBoard(c, Services.DB)
 	})
+	publicRouter.GET("/panel/:key/content", "Get rendered panel content by key", func(c *gin.Context) {
+		Controllers.GetPanelContentByName(c, Services.DB)
+	})
 	publicRouter.GET("/user/profile/:userID", "Get user profile details", func(c *gin.Context) {
 		Controllers.GetUserProfile(c, Services.DB)
 	})
@@ -333,6 +336,34 @@ func main() {
 	})
 	protectedRouter.POST("/user/save-recovery-keys", "Save recovery private keys for the current user", func(c *gin.Context) {
 		Controllers.SaveRecoveryKeys(c, Services.DB)
+	})
+	protectedRouter.GET("/widget-type/list", "Get list of all widget types", func(c *gin.Context) {
+		Controllers.GetWidgetTypeList(c, Services.DB)
+	})
+	protectedRouter.GET("/widget/list", "Get list of all widgets", func(c *gin.Context) {
+		Controllers.GetWidgetList(c, Services.DB)
+	})
+	protectedRouter.GET("/widget-type/:name/config-template", "Get config template for a widget type by name", func(c *gin.Context) {
+		Controllers.GetWidgetTypeConfigTemplate(c, Services.DB)
+	})
+	protectedRouter.GET("/widget/:id", "Get widget by ID", func(c *gin.Context) {
+		Controllers.GetWidget(c, Services.DB)
+	})
+	protectedRouter.POST("/widget/:id/update", "Update widget by ID", func(c *gin.Context) {
+		Controllers.UpdateWidget(c, Services.DB)
+	})
+	protectedRouter.GET("/panel/list", "Get list of all panels", func(c *gin.Context) {
+		Controllers.GetPanelList(c, Services.DB)
+	})
+	protectedRouter.GET("/panel/:key", "Get panel by key", func(c *gin.Context) {
+		Controllers.GetPanelByName(c, Services.DB)
+	})
+
+	protectedRouter.POST("/panel/:key/update", "Update panel by key", func(c *gin.Context) {
+		Controllers.UpdatePanelByName(c, Services.DB)
+	})
+	protectedRouter.POST("/panel/preview", "Preview rendered panel content", func(c *gin.Context) {
+		Controllers.PanelPreview(c, Services.DB)
 	})
 
 	// WebSocket route with special authentication
