@@ -327,7 +327,15 @@ func CreateEntity(className string, entity interface{}, db DBExecutor) (interfac
 		}
 
 		cols = append(cols, snakeName)
-		vals = append(vals, field.Interface())
+		fieldVal := field.Interface()
+		if fv := reflect.ValueOf(fieldVal); fv.Kind() == reflect.Ptr {
+			if fv.IsNil() {
+				fieldVal = nil
+			} else {
+				fieldVal = fv.Elem().Interface()
+			}
+		}
+		vals = append(vals, fieldVal)
 		placeholders = append(placeholders, "?")
 	}
 
