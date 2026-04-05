@@ -6,6 +6,8 @@ import (
 	"cuento-backend/src/Services"
 	"database/sql"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -298,6 +300,32 @@ func PanelPreview(c *gin.Context, db *sql.DB) {
 	html := ""
 	if req.Content != nil {
 		html = Services.RenderPanelContent(*req.Content, db)
+	}
+
+	c.String(http.StatusOK, html)
+}
+
+func RenderWidget(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid widget ID"})
+		c.Abort()
+		return
+	}
+
+	html, err := Services.RenderWidget(id, db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to render widget: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if c.Query("innerOnly") == "true" {
+		start := strings.Index(html, ">")
+		end := strings.LastIndex(html, "</div>")
+		if start != -1 && end != -1 && end > start {
+			html = html[start+1 : end]
+		}
 	}
 
 	c.String(http.StatusOK, html)

@@ -63,6 +63,7 @@ func RenderWidget(id int, db *sql.DB) (string, error) {
 			return "", fmt.Errorf("invalid widget config: %w", err)
 		}
 	}
+	config["_widget_id"] = id
 
 	// For fields marked can_empty in the template, inject a zero default if missing from config.
 	if configTemplateJSON.Valid && configTemplateJSON.String != "" {
