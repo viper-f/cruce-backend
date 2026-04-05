@@ -69,6 +69,9 @@ func RenderWidget(id int, db *sql.DB) (string, error) {
 		var tmpl map[string]map[string]interface{}
 		if err := json.Unmarshal([]byte(configTemplateJSON.String), &tmpl); err == nil {
 			for fieldName, fieldMeta := range tmpl {
+				if strings.HasPrefix(fieldName, "_") {
+					continue
+				}
 				if canEmpty, ok := fieldMeta["can_empty"].(bool); ok && canEmpty {
 					if _, exists := config[fieldName]; !exists {
 						switch fieldMeta["type"] {
@@ -173,8 +176,17 @@ func WidgetRandomEntities(config map[string]interface{}, db *sql.DB) (string, er
 		field2IsImage = hasField2 && isImageType(fieldTypeMap[field2])
 	}
 
+	// Build data-* attributes from config fields starting with _.
+	var dataAttrs strings.Builder
+	for key, val := range config {
+		if strings.HasPrefix(key, "_") {
+			attrName := "data-" + strings.ReplaceAll(key[1:], "_", "-")
+			dataAttrs.WriteString(fmt.Sprintf(` %s="%v"`, attrName, val))
+		}
+	}
+
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf(`<div class="widget-grid widget-grid--cols-%d">`, number))
+	sb.WriteString(fmt.Sprintf(`<div class="widget-grid widget-grid--cols-%d"%s>`, number, dataAttrs.String()))
 	for rows.Next() {
 		var id int
 		var name string
