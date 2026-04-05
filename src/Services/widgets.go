@@ -168,8 +168,9 @@ func WidgetRandomEntities(config map[string]interface{}, db *sql.DB) (string, er
 		for _, fc := range fieldConfigs {
 			fieldTypeMap[fc.MachineFieldName] = fc.ContentFieldType
 		}
-		field1IsImage = fieldTypeMap[field1] == "image"
-		field2IsImage = hasField2 && fieldTypeMap[field2] == "image"
+		isImageType := func(t string) bool { return t == "image" || t == "cropped_image" }
+		field1IsImage = isImageType(fieldTypeMap[field1])
+		field2IsImage = hasField2 && isImageType(fieldTypeMap[field2])
 	}
 
 	var sb strings.Builder
