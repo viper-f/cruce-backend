@@ -66,10 +66,14 @@ func RenderWidget(id int, db *sql.DB) (string, error) {
 
 	// For fields marked can_empty in the template, inject a zero default if missing from config.
 	if configTemplateJSON.Valid && configTemplateJSON.String != "" {
-		var tmpl map[string]map[string]interface{}
-		if err := json.Unmarshal([]byte(configTemplateJSON.String), &tmpl); err == nil {
-			for fieldName, fieldMeta := range tmpl {
+		var rawTmpl map[string]interface{}
+		if err := json.Unmarshal([]byte(configTemplateJSON.String), &rawTmpl); err == nil {
+			for fieldName, rawMeta := range rawTmpl {
 				if strings.HasPrefix(fieldName, "_") {
+					continue
+				}
+				fieldMeta, ok := rawMeta.(map[string]interface{})
+				if !ok {
 					continue
 				}
 				if canEmpty, ok := fieldMeta["can_empty"].(bool); ok && canEmpty {
@@ -129,10 +133,7 @@ func WidgetRandomEntities(config map[string]interface{}, db *sql.DB) (string, er
 	if err != nil {
 		return "", err
 	}
-	field2, err := extractStringValue(config, "entity_field_2")
-	if err != nil {
-		return "", err
-	}
+	field2, _ := extractStringValue(config, "entity_field_2")
 
 	// Sanitize field names to prevent SQL injection
 	if !safeFieldName.MatchString(field1) {
@@ -149,7 +150,7 @@ func WidgetRandomEntities(config map[string]interface{}, db *sql.DB) (string, er
 	}
 
 	query := fmt.Sprintf(`
-		SELECT b.id, b.name, %s
+		SELECT b.id, b.topic_id, b.name, %s
 		FROM %s_base b
 		JOIN %s_flattened f ON b.id = f.entity_id
 		ORDER BY RAND()
@@ -162,6 +163,8 @@ func WidgetRandomEntities(config map[string]interface{}, db *sql.DB) (string, er
 		return "", fmt.Errorf("failed to query random entities: %w", err)
 	}
 	defer rows.Close()
+
+	useTopicId := entityType == "episode" || entityType == "wanted_character"
 
 	// Look up content_field_type for the selected fields from entity config.
 	field1IsImage := false
@@ -189,19 +192,24 @@ func WidgetRandomEntities(config map[string]interface{}, db *sql.DB) (string, er
 	sb.WriteString(fmt.Sprintf(`<div class="widget-grid widget-grid--cols-%d"%s>`, number, dataAttrs.String()))
 	for rows.Next() {
 		var id int
+		var topicId sql.NullInt64
 		var name string
 		var val1 sql.NullString
 		var val2 sql.NullString
 
 		var scanArgs []interface{}
-		scanArgs = append(scanArgs, &id, &name, &val1)
+		scanArgs = append(scanArgs, &id, &topicId, &name, &val1)
 		if hasField2 {
 			scanArgs = append(scanArgs, &val2)
 		}
 		if err := rows.Scan(scanArgs...); err != nil {
 			continue
 		}
-		sb.WriteString(`<div class="widget-grid__item">`)
+		entityId := id
+		if useTopicId && topicId.Valid {
+			entityId = int(topicId.Int64)
+		}
+		sb.WriteString(fmt.Sprintf(`<div class="widget-grid__item" data-entity-type="%s" data-entity-id="%d">`, entityType, entityId))
 		sb.WriteString(fmt.Sprintf(`<div class="widget-grid__name">%s</div>`, name))
 		if val1.Valid {
 			if field1IsImage {
