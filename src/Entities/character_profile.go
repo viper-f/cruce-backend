@@ -13,7 +13,7 @@ type CharacterProfile struct {
 }
 
 func (cp *CharacterProfile) GetBaseFields() []string {
-	return []string{"character_id", "avatar"}
+	return []string{"character_id", "avatar", "is_mask", "user_id", "mask_name"}
 }
 
 type ShortMask struct {
