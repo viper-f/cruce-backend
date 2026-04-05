@@ -395,6 +395,13 @@ func UpdateWantedCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	_, err = tx.Exec("UPDATE character_claim SET name = ? WHERE id = (SELECT character_claim_id FROM wanted_character_base WHERE id = ?)", req.Name, wantedCharacterID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update character claim name: " + err.Error()})
+		c.Abort()
+		return
+	}
+
 	updates := map[string]interface{}{
 		"name":          req.Name,
 		"custom_fields": req.CustomFields,
