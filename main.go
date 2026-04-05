@@ -50,6 +50,9 @@ func main() {
 	publicRouter.GET("/panel/:key/content", "Get rendered panel content by key", func(c *gin.Context) {
 		Controllers.GetPanelContentByName(c, Services.DB)
 	})
+	publicRouter.GET("/entity/fields/:entity_type", "Get field names for an entity type", func(c *gin.Context) {
+		Controllers.GetEntityFields(c, Services.DB)
+	})
 	publicRouter.GET("/user/profile/:userID", "Get user profile details", func(c *gin.Context) {
 		Controllers.GetUserProfile(c, Services.DB)
 	})

@@ -45,6 +45,32 @@ type UpdateWidgetRequest struct {
 	Config     *string `json:"config"`
 }
 
+type EntityFieldItem struct {
+	MachineFieldName string `json:"machine_field_name"`
+	HumanFieldName   string `json:"human_field_name"`
+}
+
+func GetEntityFields(c *gin.Context, db *sql.DB) {
+	entityType := c.Param("entity_type")
+
+	config, err := Services.GetFieldConfig(entityType, db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get entity fields: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	fields := make([]EntityFieldItem, 0, len(config))
+	for _, f := range config {
+		fields = append(fields, EntityFieldItem{
+			MachineFieldName: f.MachineFieldName,
+			HumanFieldName:   f.HumanFieldName,
+		})
+	}
+
+	c.JSON(http.StatusOK, fields)
+}
+
 func GetWidgetTypeList(c *gin.Context, db *sql.DB) {
 	rows, err := db.Query("SELECT id, name FROM widget_types ORDER BY name")
 	if err != nil {

@@ -497,7 +497,8 @@ create table widget_types
     func            varchar(255) not null
 );
 
-INSERT INTO widget_types (name, config_template, func) VALUES ('last_post', '{"topic_id": "int"}', 'WidgetLastPost');
+INSERT INTO widget_types (name, config_template, func) VALUES ('last_post', '{"topic_id": {"type": "int"}}', 'WidgetLastPost');
+INSERT INTO widget_types (name, config_template, func) VALUES ('random_entities', '{"number": {"type": "int"}, "entity_type": {"type": "string", "values": ["wanted_character", "character"]}, "entity_field_1": {"type": "string", "endpoint": "entity/fields/:entity_type"}, "entity_field_2": {"type": "string", "endpoint": "entity/fields/:entity_type"}}', 'WidgetRandomEntities');
 
 create table widgets
 (
