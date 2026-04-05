@@ -836,101 +836,21 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	var profiles []Entities.CharacterProfile = []Entities.CharacterProfile{}
+	profiles := []Entities.CharacterProfile{}
 
-	switch topicType {
-	case Entities.CharacterSheetTopic:
-		// Array is always empty for character sheet topics
-		c.JSON(http.StatusOK, profiles)
-		return
-
-	case Entities.EpisodeTopic:
-		// Check if episode is open to everyone
-		var openToEveryone bool
-		_ = db.QueryRow("SELECT open_to_everyone FROM episode_base WHERE topic_id = ?", topicID).Scan(&openToEveryone)
-
-		var query string
-		var rows *sql.Rows
-		if openToEveryone {
-			// Return all active user's character profiles
-			query = `
-				SELECT cp.id, cp.character_id, cb.name, cp.avatar
-				FROM character_profile_base cp
-				JOIN character_base cb ON cp.character_id = cb.id
-				WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask IS NOT TRUE
-			`
-			rows, err = db.Query(query, userID)
-		} else {
-			// Return only characters who participate in this episode
-			query = `
-				SELECT cp.id, cp.character_id, cb.name, cp.avatar
-				FROM character_profile_base cp
-				JOIN character_base cb ON cp.character_id = cb.id
-				JOIN episode_character ec ON cb.id = ec.character_id
-				JOIN episode_base e ON ec.episode_id = e.id
-				WHERE cb.user_id = ? AND e.topic_id = ? AND cp.is_mask is null
-			`
-			rows, err = db.Query(query, userID, topicID)
-		}
-		if err != nil {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get episode characters: " + err.Error()})
-			c.Abort()
-			return
-		}
+	scanCharacterRows := func(rows *sql.Rows) {
 		defer rows.Close()
-
 		for rows.Next() {
-			var id int
-			var characterId int
+			var id, characterId int
 			var name string
 			var avatar *string
 			if err := rows.Scan(&id, &characterId, &name, &avatar); err != nil {
 				continue
 			}
-
 			entity, err := Services.GetEntity(int64(id), "character_profile", db)
 			if err != nil {
 				continue
 			}
-
-			if profile, ok := entity.(*Entities.CharacterProfile); ok {
-				profile.CharacterId = &characterId
-				profile.CharacterName = name
-				profile.Avatar = avatar
-				profiles = append(profiles, *profile)
-			}
-		}
-
-	case Entities.GeneralTopic:
-		// Return all active user's character profiles
-		query := `
-			SELECT cp.id, cp.character_id, cb.name, cp.avatar
-			FROM character_profile_base cp
-			JOIN character_base cb ON cp.character_id = cb.id
-			WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask IS NOT TRUE
-		`
-		rows, err := db.Query(query, userID)
-		if err != nil {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character profiles: " + err.Error()})
-			c.Abort()
-			return
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var id int
-			var characterId int
-			var name string
-			var avatar *string
-			if err := rows.Scan(&id, &characterId, &name, &avatar); err != nil {
-				continue
-			}
-
-			entity, err := Services.GetEntity(int64(id), "character_profile", db)
-			if err != nil {
-				continue
-			}
-
 			if profile, ok := entity.(*Entities.CharacterProfile); ok {
 				profile.CharacterId = &characterId
 				profile.CharacterName = name
@@ -940,13 +860,11 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 		}
 	}
 
-	// Append user's masks for all non-CharacterSheet topics
-	maskRows, err := db.Query("SELECT id FROM character_profile_base WHERE user_id = ? AND is_mask = true", userID)
-	if err == nil {
-		defer maskRows.Close()
-		for maskRows.Next() {
+	appendMaskRows := func(rows *sql.Rows) {
+		defer rows.Close()
+		for rows.Next() {
 			var id int
-			if err := maskRows.Scan(&id); err != nil {
+			if err := rows.Scan(&id); err != nil {
 				continue
 			}
 			entity, err := Services.GetEntity(int64(id), "character_profile", db)
@@ -955,6 +873,80 @@ func GetCharacterProfilesByUserAndTopic(c *gin.Context, db *sql.DB) {
 			}
 			if profile, ok := entity.(*Entities.CharacterProfile); ok {
 				profiles = append(profiles, *profile)
+			}
+		}
+	}
+
+	switch topicType {
+	case Entities.CharacterSheetTopic, Entities.WantedCharacterTopic:
+		// Only user profile — return empty character profiles list
+
+	case Entities.GeneralTopic:
+		// All user's active characters, no masks
+		rows, err := db.Query(`
+			SELECT cp.id, cp.character_id, cb.name, cp.avatar
+			FROM character_profile_base cp
+			JOIN character_base cb ON cp.character_id = cb.id
+			WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask IS NOT TRUE
+		`, userID)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character profiles: " + err.Error()})
+			c.Abort()
+			return
+		}
+		scanCharacterRows(rows)
+
+	case Entities.EpisodeTopic:
+		var openToEveryone bool
+		_ = db.QueryRow("SELECT open_to_everyone FROM episode_base WHERE topic_id = ?", topicID).Scan(&openToEveryone)
+
+		if openToEveryone {
+			// All user's characters + all user's masks
+			rows, err := db.Query(`
+				SELECT cp.id, cp.character_id, cb.name, cp.avatar
+				FROM character_profile_base cp
+				JOIN character_base cb ON cp.character_id = cb.id
+				WHERE cb.user_id = ? AND cb.character_status = 0 AND cp.is_mask IS NOT TRUE
+			`, userID)
+			if err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get episode characters: " + err.Error()})
+				c.Abort()
+				return
+			}
+			scanCharacterRows(rows)
+
+			maskRows, err := db.Query(`
+				SELECT id FROM character_profile_base WHERE user_id = ? AND is_mask = true
+			`, userID)
+			if err == nil {
+				appendMaskRows(maskRows)
+			}
+		} else {
+			// Only characters and masks associated with this episode
+			rows, err := db.Query(`
+				SELECT cp.id, cp.character_id, cb.name, cp.avatar
+				FROM character_profile_base cp
+				JOIN character_base cb ON cp.character_id = cb.id
+				JOIN episode_character ec ON cb.id = ec.character_id
+				JOIN episode_base e ON ec.episode_id = e.id
+				WHERE cb.user_id = ? AND e.topic_id = ? AND cp.is_mask IS NOT TRUE
+			`, userID, topicID)
+			if err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get episode characters: " + err.Error()})
+				c.Abort()
+				return
+			}
+			scanCharacterRows(rows)
+
+			maskRows, err := db.Query(`
+				SELECT cpb.id
+				FROM character_profile_base cpb
+				JOIN episode_mask em ON cpb.id = em.mask_id
+				JOIN episode_base e ON em.episode_id = e.id
+				WHERE cpb.user_id = ? AND e.topic_id = ? AND cpb.is_mask = true
+			`, userID, topicID)
+			if err == nil {
+				appendMaskRows(maskRows)
 			}
 		}
 	}
