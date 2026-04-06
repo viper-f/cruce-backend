@@ -670,11 +670,12 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 			`, req.TopicID).Scan(&openToEveryone)
 
 			if err == nil && !openToEveryone {
-				var characterID int
+				var characterID *int
+				var isMask sql.NullBool
 				if err := tx.QueryRow(
-					"SELECT character_id FROM character_profile_base WHERE id = ?",
+					"SELECT character_id, is_mask FROM character_profile_base WHERE id = ?",
 					*req.CharacterProfileID,
-				).Scan(&characterID); err != nil {
+				).Scan(&characterID, &isMask); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve character profile"})
 					return
 				}
@@ -689,10 +690,19 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 				}
 
 				var memberCount int
-				_ = tx.QueryRow(
-					"SELECT COUNT(*) FROM episode_character WHERE episode_id = ? AND character_id = ?",
-					episodeID, characterID,
-				).Scan(&memberCount)
+				if isMask.Valid && isMask.Bool {
+					// Masks are checked against episode_mask
+					_ = tx.QueryRow(
+						"SELECT COUNT(*) FROM episode_mask WHERE episode_id = ? AND mask_id = ?",
+						episodeID, *req.CharacterProfileID,
+					).Scan(&memberCount)
+				} else if characterID != nil {
+					// Regular character profiles are checked against episode_character
+					_ = tx.QueryRow(
+						"SELECT COUNT(*) FROM episode_character WHERE episode_id = ? AND character_id = ?",
+						episodeID, *characterID,
+					).Scan(&memberCount)
+				}
 
 				if memberCount == 0 {
 					c.JSON(http.StatusForbidden, gin.H{"error": "This character is not a participant in this episode"})
