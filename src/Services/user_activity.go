@@ -13,6 +13,7 @@ type UserActivity struct {
 	CurrentPageType string    `json:"current_page_type"`
 	CurrentPageId   string    `json:"current_page_id"`
 	LastActive      time.Time `json:"last_active"`
+	connections     int
 }
 
 type UserActivityStorage struct {
@@ -30,20 +31,34 @@ func (s *UserActivityStorage) AddUser(userID int, username string) {
 
 	if _, exists := s.users[userID]; !exists {
 		s.users[userID] = &UserActivity{
-			UserID:     userID,
-			Username:   username,
-			LastActive: time.Now(),
+			UserID:      userID,
+			Username:    username,
+			LastActive:  time.Now(),
+			connections: 1,
 		}
 	} else {
-		// Update existing user's last active time
 		s.users[userID].LastActive = time.Now()
+		s.users[userID].connections++
 	}
 }
 
-func (s *UserActivityStorage) RemoveUser(userID int) {
+// RemoveUser decrements the connection count for the user and only removes
+// them from active storage when their last connection is closed.
+// Returns true if the user was fully removed (no more open tabs).
+func (s *UserActivityStorage) RemoveUser(userID int) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.users, userID)
+
+	user, exists := s.users[userID]
+	if !exists {
+		return false
+	}
+	user.connections--
+	if user.connections <= 0 {
+		delete(s.users, userID)
+		return true
+	}
+	return false
 }
 
 func (s *UserActivityStorage) UpdateUserLocation(db *sql.DB, userID int, pageType string, pageId string) {

@@ -63,16 +63,18 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 	// Read loop to keep connection alive and detect disconnects
 	go func() {
 		defer func() {
-			Services.ActivityStorage.RemoveUser(userID)
-			broadcastActiveUsersToHome()
+			removed := Services.ActivityStorage.RemoveUser(userID)
+			if removed {
+				broadcastActiveUsersToHome()
+			}
 			Websockets.MainHub.Unregister(client)
 			conn.Close()
 		}()
 
 		// Set up Ping/Pong handlers to keep connection alive
 		conn.SetReadLimit(512)
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		conn.SetPongHandler(func(string) error { conn.SetReadDeadline(time.Now().Add(60 * time.Second)); return nil })
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		conn.SetPongHandler(func(string) error { conn.SetReadDeadline(time.Now().Add(30 * time.Second)); return nil })
 
 		for {
 			_, p, err := conn.ReadMessage()

@@ -16,12 +16,12 @@ type Client struct {
 
 func (c *Client) writePump() {
 	defer func() {
-		// When the write pump exits, it's crucial to unregister the client
-		// to signal that this client is gone. The readPump's defer will
-		// handle the actual connection closing.
+		// Close the connection so the read goroutine's ReadMessage returns
+		// an error and its cleanup defer runs (RemoveUser, broadcast, etc.).
+		c.Conn.Close()
 		c.Hub.unregister <- c
 	}()
-	ticker := time.NewTicker(54 * time.Second)
+	ticker := time.NewTicker(20 * time.Second)
 	defer ticker.Stop()
 
 	for {
