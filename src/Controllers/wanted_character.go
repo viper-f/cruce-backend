@@ -452,3 +452,96 @@ func UpdateWantedCharacter(c *gin.Context, db *sql.DB) {
 
 	c.JSON(http.StatusOK, updatedEntity)
 }
+
+func DeactivateWantedCharacter(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid wanted character ID"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec("UPDATE wanted_character_base SET wanted_character_status = ? WHERE id = ?", Entities.InactiveWantedCharacter, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to deactivate wanted character: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Wanted character not found"})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec("UPDATE topics SET status = ? WHERE id = (SELECT topic_id FROM wanted_character_base WHERE id = ?)", Entities.InactiveTopic, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to deactivate wanted character topic: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Wanted character deactivated"})
+}
+
+func ActivateWantedCharacter(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid wanted character ID"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec("UPDATE wanted_character_base SET wanted_character_status = ? WHERE id = ?", Entities.ActiveWantedCharacter, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to activate wanted character: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Wanted character not found"})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec(
+		"UPDATE topics SET status = ? WHERE id = (SELECT topic_id FROM wanted_character_base WHERE id = ?) AND status = ?",
+		Entities.ActiveTopic, id, Entities.InactiveTopic,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to activate wanted character topic: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Wanted character activated"})
+}

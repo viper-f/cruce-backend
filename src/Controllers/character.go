@@ -1340,7 +1340,15 @@ func DeactivateCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	result, err := db.Exec("UPDATE character_base SET character_status = ? WHERE id = ?", Entities.InactiveCharacter, id)
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec("UPDATE character_base SET character_status = ? WHERE id = ?", Entities.InactiveCharacter, id)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to deactivate character: " + err.Error()})
 		c.Abort()
@@ -1349,6 +1357,26 @@ func DeactivateCharacter(c *gin.Context, db *sql.DB) {
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character not found"})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec("UPDATE topics SET status = ? WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", Entities.InactiveTopic, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to deactivate character topic: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec("UPDATE character_profile_base SET is_archived = true WHERE character_id = ?", id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to archive character profiles: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
 		c.Abort()
 		return
 	}
@@ -1364,7 +1392,15 @@ func ActivateCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	result, err := db.Exec("UPDATE character_base SET character_status = ? WHERE id = ?", Entities.ActiveCharacter, id)
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec("UPDATE character_base SET character_status = ? WHERE id = ?", Entities.ActiveCharacter, id)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to activate character: " + err.Error()})
 		c.Abort()
@@ -1373,6 +1409,30 @@ func ActivateCharacter(c *gin.Context, db *sql.DB) {
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character not found"})
+		c.Abort()
+		return
+	}
+
+	// Only restore the topic to active if it is currently inactive — never override FullTopic
+	_, err = tx.Exec(
+		"UPDATE topics SET status = ? WHERE id = (SELECT topic_id FROM character_base WHERE id = ?) AND status = ?",
+		Entities.ActiveTopic, id, Entities.InactiveTopic,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to activate character topic: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec("UPDATE character_profile_base SET is_archived = false WHERE character_id = ?", id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to unarchive character profiles: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
 		c.Abort()
 		return
 	}

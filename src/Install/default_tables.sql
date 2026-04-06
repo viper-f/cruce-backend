@@ -205,6 +205,7 @@ create table episode_base
 		topic_id          bigint unsigned null,
 		name              varchar(255)    null,
 		open_to_everyone  boolean         default false not null,
+		episode_status    int             default 0 not null,
 		constraint episode_base_topics_id_fk
 		foreign key (topic_id) references topics (id)
 		);
@@ -456,8 +457,9 @@ create table wanted_character_base
     author_user_id     int          not null,
     date_created       datetime     default current_timestamp,
     character_claim_id int             null,
-    is_deleted         boolean         null,
-    topic_id           bigint unsigned null,
+    is_deleted              boolean         null,
+    topic_id                bigint unsigned null,
+    wanted_character_status int             default 0 not null,
     constraint fk_wanted_character_author foreign key (author_user_id) references users (id) on delete cascade,
     constraint fk_wanted_character_claim  foreign key (character_claim_id) references character_claim (id) on delete set null,
     constraint fk_wanted_character_topic  foreign key (topic_id) references topics (id) on delete set null

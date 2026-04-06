@@ -1,5 +1,12 @@
 package Entities
 
+type EpisodeStatus int
+
+const (
+	ActiveEpisode   EpisodeStatus = 0
+	InactiveEpisode EpisodeStatus = 1
+)
+
 type Episode struct {
 	Id             int               `json:"id" db:"id"`
 	Topic_Id       int               `json:"topic_id" db:"topic_id"`

@@ -533,3 +533,96 @@ func UpdateEpisode(c *gin.Context, db *sql.DB) {
 
 	c.JSON(http.StatusOK, updatedEpisode)
 }
+
+func DeactivateEpisode(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid episode ID"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec("UPDATE episode_base SET episode_status = ? WHERE id = ?", Entities.InactiveEpisode, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to deactivate episode: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Episode not found"})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec("UPDATE topics SET status = ? WHERE id = (SELECT topic_id FROM episode_base WHERE id = ?)", Entities.InactiveTopic, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to deactivate episode topic: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Episode deactivated"})
+}
+
+func ActivateEpisode(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid episode ID"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec("UPDATE episode_base SET episode_status = ? WHERE id = ?", Entities.ActiveEpisode, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to activate episode: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Episode not found"})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec(
+		"UPDATE topics SET status = ? WHERE id = (SELECT topic_id FROM episode_base WHERE id = ?) AND status = ?",
+		Entities.ActiveTopic, id, Entities.InactiveTopic,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to activate episode topic: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Episode activated"})
+}

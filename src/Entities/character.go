@@ -53,6 +53,13 @@ type CharacterClaim struct {
 	LastClaimDate *time.Time `json:"last_claim_date"`
 }
 
+type WantedCharacterStatus int
+
+const (
+	ActiveWantedCharacter   WantedCharacterStatus = 0
+	InactiveWantedCharacter WantedCharacterStatus = 1
+)
+
 type WantedCharacter struct {
 	Id               int               `json:"id"`
 	Name             string            `json:"name"`
