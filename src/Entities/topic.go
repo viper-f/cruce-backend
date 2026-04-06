@@ -16,7 +16,10 @@ type TopicStatus int
 const (
 	ActiveTopic   TopicStatus = 0
 	InactiveTopic TopicStatus = 1
+	FullTopic     TopicStatus = 2
 )
+
+const TopicPostCap = 1000
 
 type Topic struct {
 	Id                    int                  `json:"id"`

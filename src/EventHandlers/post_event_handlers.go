@@ -62,9 +62,15 @@ func RegisterPostEventHandlers() {
 			}
 		}
 
-		// 2. Update Topic Stats
-		_, err = db.Exec("UPDATE topics SET post_number = post_number + 1, date_last_post = NOW(), last_post_author_user_id = ? WHERE id = ?",
-			event.Post.AuthorUserId, event.TopicID)
+		// 2. Update Topic Stats — also set status to Full when the post cap is reached
+		_, err = db.Exec(`
+			UPDATE topics
+			SET post_number = post_number + 1,
+			    date_last_post = NOW(),
+			    last_post_author_user_id = ?,
+			    status = CASE WHEN post_number + 1 >= ? THEN ? ELSE status END
+			WHERE id = ?`,
+			event.Post.AuthorUserId, Entities.TopicPostCap, Entities.FullTopic, event.TopicID)
 		if err != nil {
 			fmt.Printf("Error updating topic stats: %v\n", err)
 		}

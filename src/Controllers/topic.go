@@ -635,6 +635,21 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 	}
 	defer tx.Rollback()
 
+	// Check topic status — reject if full or inactive
+	var topicStatus Entities.TopicStatus
+	if err := tx.QueryRow("SELECT status FROM topics WHERE id = ?", req.TopicID).Scan(&topicStatus); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Topic not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check topic status"})
+		}
+		return
+	}
+	if topicStatus == Entities.FullTopic {
+		c.JSON(http.StatusForbidden, gin.H{"error": "This topic has reached its post limit and is no longer accepting posts"})
+		return
+	}
+
 	var guestName *string
 	if userID == 0 {
 		guestName = req.GuestName
@@ -1005,6 +1020,16 @@ func UpdateTopic(c *gin.Context, db *sql.DB) {
 		}
 		c.Abort()
 		return
+	}
+
+	// Verify topic is not full — this status is system-managed and cannot be overridden
+	var currentStatus Entities.TopicStatus
+	if err := db.QueryRow("SELECT status FROM topics WHERE id = ?", topicID).Scan(&currentStatus); err == nil {
+		if currentStatus == Entities.FullTopic {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "Cannot update a full topic"})
+			c.Abort()
+			return
+		}
 	}
 
 	// Verify topic type is general
