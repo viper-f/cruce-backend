@@ -61,20 +61,21 @@ const (
 )
 
 type WantedCharacter struct {
-	Id               int               `json:"id"`
-	Name             string            `json:"name"`
-	IsClaimed        bool              `json:"is_claimed"`
-	AuthorUserId     int               `json:"author_user_id"`
-	DateCreated      time.Time         `json:"date_created"`
-	CharacterClaimId *int              `json:"character_claim_id"`
-	IsDeleted        *bool             `json:"is_deleted"`
-	TopicId          int               `json:"topic_id"`
-	CustomFields     CustomFieldEntity `json:"custom_fields" db:"-"`
-	Factions         []Faction         `json:"factions" db:"-"`
+	Id                    int                   `json:"id"`
+	Name                  string                `json:"name"`
+	IsClaimed             bool                  `json:"is_claimed"`
+	AuthorUserId          int                   `json:"author_user_id"`
+	DateCreated           time.Time             `json:"date_created"`
+	CharacterClaimId      *int                  `json:"character_claim_id"`
+	IsDeleted             *bool                 `json:"is_deleted"`
+	TopicId               int                   `json:"topic_id"`
+	WantedCharacterStatus WantedCharacterStatus `json:"wanted_character_status"`
+	CustomFields          CustomFieldEntity     `json:"custom_fields" db:"-"`
+	Factions              []Faction             `json:"factions" db:"-"`
 }
 
 func (w *WantedCharacter) GetBaseFields() []string {
-	return []string{"name", "is_claimed", "author_user_id", "date_created", "character_claim_id", "is_deleted", "topic_id"}
+	return []string{"name", "is_claimed", "author_user_id", "date_created", "character_claim_id", "is_deleted", "topic_id", "wanted_character_status"}
 }
 
 type CharacterListItem struct {

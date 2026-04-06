@@ -12,6 +12,7 @@ type Episode struct {
 	Topic_Id       int               `json:"topic_id" db:"topic_id"`
 	Name           string            `json:"name" db:"name"`
 	OpenToEveryone bool              `json:"open_to_everyone" db:"open_to_everyone"`
+	EpisodeStatus  EpisodeStatus     `json:"episode_status" db:"episode_status"`
 	Characters     []*ShortCharacter `json:"characters" db:"-"`
 	Masks          []ShortMask       `json:"masks" db:"-"`
 	CustomFields   CustomFieldEntity `json:"custom_fields" db:"-"`
@@ -19,5 +20,5 @@ type Episode struct {
 }
 
 func (e *Episode) GetBaseFields() []string {
-	return []string{"topic_id", "name", "open_to_everyone"}
+	return []string{"topic_id", "name", "open_to_everyone", "episode_status"}
 }
