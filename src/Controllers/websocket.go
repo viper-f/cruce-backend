@@ -88,6 +88,7 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 				PostId              *int64      `json:"post_id"`
 				ChatId              *int        `json:"chat_id"`
 				LastViewedMessageId *int        `json:"last_viewed_message_id"`
+				PanelName           string      `json:"panel_name"`
 			}
 			if err := json.Unmarshal(p, &msg); err == nil {
 				if msg.Type == "page_change" {
@@ -119,6 +120,11 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 					if topicID > 0 {
 						_ = Services.ActivityStorage.UpdateTopicView(db, userID, topicID, msg.PostId)
 					}
+				} else if msg.Type == "panel_reload" && msg.PanelName != "" {
+					Websockets.MainHub.Broadcast(map[string]interface{}{
+						"type":       "panel_reload",
+						"panel_name": msg.PanelName,
+					})
 				} else if msg.Type == "direct_message_viewed" && msg.ChatId != nil && msg.LastViewedMessageId != nil {
 					_, _ = db.Exec(
 						"UPDATE direct_chat_users SET last_read_message_id = ? WHERE direct_chat_id = ? AND user_id = ?",

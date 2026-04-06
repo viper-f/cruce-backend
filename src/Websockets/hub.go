@@ -102,6 +102,22 @@ func (h *Hub) Unregister(client *Client) {
 	h.unregister <- client
 }
 
+func (h *Hub) Broadcast(message interface{}) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, userClients := range h.clients {
+		for client := range userClients {
+			func() {
+				defer func() { recover() }()
+				select {
+				case client.Send <- message:
+				default:
+				}
+			}()
+		}
+	}
+}
+
 func (h *Hub) SendNotification(userID int, message interface{}) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
