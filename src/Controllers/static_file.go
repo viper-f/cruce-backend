@@ -69,7 +69,8 @@ func UploadFile(c *gin.Context, db *sql.DB) {
 	}
 	defer file.Close()
 
-	fileName := header.Filename
+	_ = header
+	fileName := fileType
 	publicDir := "./public"
 
 	var existingCreatedDate time.Time

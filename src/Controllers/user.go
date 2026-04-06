@@ -50,12 +50,13 @@ type CharacterProfileListItem struct {
 }
 
 type UpdateSettingsRequest struct {
-	Avatar       *string  `json:"avatar"`
-	Timezone     *string  `json:"interface_timezone"`
-	Language     *string  `json:"interface_language"`
-	FontSize     *float64 `json:"interface_font_size"`
-	Password     *string  `json:"password"`
-	DisableSound *bool    `json:"disable_sound"`
+	Avatar          *string        `json:"avatar"`
+	Timezone        *string        `json:"interface_timezone"`
+	Language        *string        `json:"interface_language"`
+	FontSize        *float64       `json:"interface_font_size"`
+	Password        *string        `json:"password"`
+	DisableSound    *bool          `json:"disable_sound"`
+	InterfaceDesign NullableString `json:"interface_design"`
 }
 
 type UserListItem struct {
@@ -137,8 +138,8 @@ func Login(c *gin.Context, db *sql.DB) {
 	}
 
 	var user Entities.User
-	query := "SELECT id, username, avatar, password, interface_language, interface_timezone, interface_font_size, user_status FROM users WHERE username = ?"
-	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus)
+	query := "SELECT id, username, avatar, password, interface_language, interface_timezone, interface_font_size, user_status, interface_design FROM users WHERE username = ?"
+	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.InterfaceDesign)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
@@ -260,8 +261,8 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 
 	// Fetch user details
 	var user Entities.User
-	query := "SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, disable_sound FROM users WHERE id = ?"
-	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.DisableSound)
+	query := "SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, disable_sound, interface_design FROM users WHERE id = ?"
+	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.DisableSound, &user.InterfaceDesign)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch user details"})
 		c.Abort()
@@ -460,6 +461,10 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		updates = append(updates, "disable_sound = ?")
 		args = append(args, *req.DisableSound)
 	}
+	if req.InterfaceDesign.IsSet {
+		updates = append(updates, "interface_design = ?")
+		args = append(args, req.InterfaceDesign.Value)
+	}
 	if req.Password != nil {
 		// Hash the password before updating
 		dummyUser := Entities.User{}
@@ -489,7 +494,7 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 
 	// Fetch updated user details
 	var user Entities.User
-	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, disable_sound FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.DisableSound)
+	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, disable_sound, interface_design FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.DisableSound, &user.InterfaceDesign)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated user details"})
 		c.Abort()

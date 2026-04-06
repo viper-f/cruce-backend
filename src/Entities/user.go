@@ -16,6 +16,7 @@ type User struct {
 	TotalPosts        int        `json:"total_posts"`
 	TotalGeneralPosts int        `json:"total_general_posts"`
 	DisableSound      bool       `json:"disable_sound"`
+	InterfaceDesign   *string    `json:"interface_design"`
 	Roles             []Role     `json:"roles"`
 }
 
