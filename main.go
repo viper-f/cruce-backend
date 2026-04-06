@@ -377,6 +377,24 @@ func main() {
 	protectedRouter.POST("/panel/preview", "Preview rendered panel content", func(c *gin.Context) {
 		Controllers.PanelPreview(c, Services.DB)
 	})
+	protectedRouter.POST("/static-file/upload", "Upload a static file", func(c *gin.Context) {
+		Controllers.UploadFile(c, Services.DB)
+	})
+	protectedRouter.GET("/static-file/list/:file_type", "Get last 3 static files by type", func(c *gin.Context) {
+		Controllers.GetStaticFileList(c, Services.DB)
+	})
+	protectedRouter.POST("/design-variation/create", "Create a new design variation", func(c *gin.Context) {
+		Controllers.CreateDesignVariation(c, Services.DB)
+	})
+	protectedRouter.GET("/design-variation/delete/:id", "Delete design variation by ID", func(c *gin.Context) {
+		Controllers.DeleteDesignVariation(c, Services.DB)
+	})
+	protectedRouter.GET("/design-variation/list", "Get list of all design variations", func(c *gin.Context) {
+		Controllers.GetDesignVariationList(c, Services.DB)
+	})
+	protectedRouter.POST("/design-variation/update/:id", "Update design variation by ID", func(c *gin.Context) {
+		Controllers.UpdateDesignVariation(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")

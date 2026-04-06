@@ -20,6 +20,7 @@ const (
 	UserRegistered         EventType = "UserRegistered"
 	DirectMessageCreated   EventType = "DirectMessageCreated"
 	WantedCharacterCreated EventType = "WantedCharacterCreated"
+	StaticFileUploaded     EventType = "StaticFileUploaded"
 )
 
 type EventData interface{}
@@ -94,6 +95,10 @@ type DirectMessageCreatedEvent struct {
 	KeyAuthor   string
 	KeyReceiver string
 	DateSend    time.Time
+}
+
+type StaticFileUploadedEvent struct {
+	FileType string
 }
 
 type EventHandler func(db *sql.DB, data EventData)

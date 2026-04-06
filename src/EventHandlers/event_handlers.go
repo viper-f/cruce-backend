@@ -13,4 +13,5 @@ func RegisterEventHandlers(db *sql.DB) {
 	RegisterUserEventHandlers()
 	RegisterDirectChatEventHandlers()
 	RegisterWantedCharacterEventHandlers()
+	RegisterStaticFileEventHandlers()
 }

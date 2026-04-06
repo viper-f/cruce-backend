@@ -518,3 +518,21 @@ create table widget_panels
 );
 
 INSERT INTO widget_panels (`key`, content, is_hidden) VALUES ('header', NULL, false);
+
+CREATE TABLE static_files
+(
+    file_name         varchar(255) not null primary key,
+    file_created_date datetime     not null,
+    file_type         varchar(255) null
+);
+
+INSERT INTO static_files (file_name, file_created_date, file_type) VALUES ('favicon.ico', '2026-03-01 00:00:00', 'favicon.ico');
+INSERT INTO static_files (file_name, file_created_date, file_type) VALUES ('custom_style.css', '2026-03-31 00:00:00', 'custom_style.css');
+INSERT INTO static_files (file_name, file_created_date, file_type) VALUES ('main_style.css', '2026-03-01 00:00:00', 'main_style.css');
+
+CREATE TABLE design_variations
+(
+    id         int auto_increment primary key,
+    class_name varchar(255) null,
+    name       varchar(255) null
+);
