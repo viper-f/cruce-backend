@@ -166,6 +166,9 @@ func main() {
 	optionalAuthRouter.GET("/post/:id", "Get post by ID", func(c *gin.Context) {
 		Controllers.GetPostById(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/additional-navlink/list", "Get additional navlinks visible to the current user", func(c *gin.Context) {
+		Controllers.GetAdditionalNavlinkListByUser(c, Services.DB)
+	})
 
 	// Protected routes
 	protectedGroup := r.Group("/")
@@ -409,6 +412,18 @@ func main() {
 	})
 	protectedRouter.POST("/design-variation/update/:id", "Update design variation by ID", func(c *gin.Context) {
 		Controllers.UpdateDesignVariation(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/additional-navlink/create", "Create a new additional navlink", func(c *gin.Context) {
+		Controllers.CreateAdditionalNavlink(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/additional-navlink/update/:id", "Update additional navlink by ID", func(c *gin.Context) {
+		Controllers.UpdateAdditionalNavlink(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/additional-navlink/list", "Get admin list of all additional navlinks", func(c *gin.Context) {
+		Controllers.GetAdditionalNavlinkList(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/role/list", "Get list of all roles", func(c *gin.Context) {
+		Controllers.GetRoleList(c, Services.DB)
 	})
 
 	// WebSocket route with special authentication

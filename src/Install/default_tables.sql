@@ -539,3 +539,18 @@ CREATE TABLE design_variations
     class_name varchar(255) null,
     name       varchar(255) null
 );
+CREATE TABLE additional_navlinks
+(
+    id     int auto_increment primary key,
+    title  varchar(255) not null,
+    type   int          not null default 0,
+    config      json         null,
+    is_inactive boolean      not null default false
+);
+
+CREATE TABLE role_navlink
+(
+    role_id    int not null,
+    navlink_id int not null,
+    primary key (role_id, navlink_id)
+);
