@@ -59,6 +59,11 @@ type UpdateSettingsRequest struct {
 	InterfaceDesign NullableString `json:"interface_design"`
 }
 
+type CreateUserRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
 type UserListItem struct {
 	Id         int                       `json:"id"`
 	Username   string                    `json:"username"`
@@ -127,6 +132,62 @@ func Register(c *gin.Context, db *sql.DB) {
 	})
 
 	c.JSON(http.StatusCreated, gin.H{"user": user})
+}
+
+func CreateUser(c *gin.Context, db *sql.DB) {
+	var req CreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var user Entities.User
+	user.Username = req.Username
+	user.Password = req.Password
+	if err := user.HashPassword(user.Password); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to hash password: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	defaultLang := "en-US"
+	defaultTZ := "Europe/London"
+
+	res, err := db.Exec("INSERT INTO users (username, password, date_registered, interface_language, interface_timezone) VALUES (?, ?, ?, ?, ?)",
+		user.Username, user.Password, time.Now(), defaultLang, defaultTZ)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create user: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user ID: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var defaultRoleID int
+	err = db.QueryRow("SELECT id FROM roles WHERE name = ?", "user").Scan(&defaultRoleID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get default role: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	_, err = db.Exec("INSERT INTO user_role (user_id, role_id) VALUES (?, ?)", id, defaultRoleID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to assign role to user: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"id":       id,
+		"username": user.Username,
+	})
 }
 
 func Login(c *gin.Context, db *sql.DB) {

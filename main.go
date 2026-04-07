@@ -292,6 +292,9 @@ func main() {
 	protectedRouter.GET("/admin/user-list", "Get full user list for admin panel", func(c *gin.Context) {
 		Controllers.GetAdminUserList(c, Services.DB)
 	})
+	protectedRouter.POST("/admin/user/create", "Create a new user account (admin)", func(c *gin.Context) {
+		Controllers.CreateUser(c, Services.DB)
+	})
 	protectedRouter.POST("/mask/create", "Create a new mask", func(c *gin.Context) {
 		Controllers.CreateMask(c, Services.DB)
 	})
