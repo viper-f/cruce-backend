@@ -59,6 +59,18 @@ func GetBBCompiler() bbcode.Compiler {
 		return out, true
 	})
 
+	compiler.SetTag("align", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
+		out := bbcode.NewHTMLTag("")
+		out.Name = "div"
+
+		value := node.GetOpeningTag().Value
+		if value == "left" || value == "center" || value == "right" {
+			out.Attrs["style"] = fmt.Sprintf("text-align: %s;", value)
+		}
+
+		return out, true
+	})
+
 	compiler.SetTag("div", func(node *bbcode.BBCodeNode) (*bbcode.HTMLTag, bool) {
 		out := bbcode.NewHTMLTag("")
 		out.Name = "div"
