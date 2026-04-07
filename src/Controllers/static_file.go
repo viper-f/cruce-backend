@@ -71,7 +71,7 @@ func UploadFile(c *gin.Context, db *sql.DB) {
 
 	_ = header
 	fileName := fileType
-	publicDir := "./public"
+	publicDir := "./../frontend"
 
 	var existingCreatedDate time.Time
 	err = db.QueryRow("SELECT file_created_date FROM static_files WHERE file_name = ?", fileName).Scan(&existingCreatedDate)
@@ -173,7 +173,7 @@ func RevertToFile(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	publicDir := "./public"
+	publicDir := "./../frontend"
 
 	// Fetch the target file's type and date
 	var target StaticFile
