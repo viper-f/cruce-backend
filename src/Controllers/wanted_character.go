@@ -32,7 +32,7 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 	rows, err := db.Query(`
 		SELECT id, name, is_claimed, author_user_id, date_created, character_claim_id, is_deleted, topic_id
 		FROM wanted_character_base
-		WHERE is_claimed = false AND (is_deleted IS NULL OR is_deleted = false)
+		WHERE is_claimed = false AND (is_deleted IS NULL OR is_deleted = false) AND wanted_character_status = 0
 	`)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted characters: " + err.Error()})
@@ -104,6 +104,7 @@ func GetWantedCharacterTreeList(c *gin.Context, db *sql.DB) {
 		WHERE r.rn = 1
 		  AND wc.is_claimed = false
 		  AND (wc.is_deleted IS NULL OR wc.is_deleted = false)
+		  AND wc.wanted_character_status = 0
 	`)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted characters: " + err.Error()})
@@ -161,6 +162,7 @@ func GetWantedCharacterTreeList(c *gin.Context, db *sql.DB) {
 		WHERE cc.is_claimed IS NOT TRUE
 		AND wc.is_claimed = false
 		AND (wc.is_deleted IS NULL OR wc.is_deleted = false)
+		AND wc.wanted_character_status = 0
 		AND cc.id NOT IN (SELECT character_claim_id FROM character_claim_faction)
 	`)
 	if err == nil {
