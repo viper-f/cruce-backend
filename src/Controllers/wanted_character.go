@@ -495,7 +495,13 @@ func DeactivateWantedCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Wanted character deactivated"})
+	var topicStatus Entities.TopicStatus
+	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM wanted_character_base WHERE id = ?)", id).Scan(&topicStatus)
+
+	c.JSON(http.StatusOK, gin.H{
+		"wanted_character_status": Entities.InactiveWantedCharacter,
+		"topic_status":            topicStatus,
+	})
 }
 
 func ActivateWantedCharacter(c *gin.Context, db *sql.DB) {
@@ -543,5 +549,11 @@ func ActivateWantedCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Wanted character activated"})
+	var topicStatus Entities.TopicStatus
+	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM wanted_character_base WHERE id = ?)", id).Scan(&topicStatus)
+
+	c.JSON(http.StatusOK, gin.H{
+		"wanted_character_status": Entities.ActiveWantedCharacter,
+		"topic_status":            topicStatus,
+	})
 }

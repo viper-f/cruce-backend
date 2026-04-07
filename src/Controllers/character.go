@@ -1381,7 +1381,13 @@ func DeactivateCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Character deactivated"})
+	var topicStatus Entities.TopicStatus
+	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", id).Scan(&topicStatus)
+
+	c.JSON(http.StatusOK, gin.H{
+		"character_status": Entities.InactiveCharacter,
+		"topic_status":     topicStatus,
+	})
 }
 
 func ActivateCharacter(c *gin.Context, db *sql.DB) {
@@ -1437,7 +1443,13 @@ func ActivateCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Character activated"})
+	var topicStatus Entities.TopicStatus
+	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", id).Scan(&topicStatus)
+
+	c.JSON(http.StatusOK, gin.H{
+		"character_status": Entities.ActiveCharacter,
+		"topic_status":     topicStatus,
+	})
 }
 
 func CustomFieldList(c *gin.Context, db *sql.DB) {

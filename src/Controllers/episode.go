@@ -576,7 +576,13 @@ func DeactivateEpisode(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Episode deactivated"})
+	var topicStatus Entities.TopicStatus
+	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM episode_base WHERE id = ?)", id).Scan(&topicStatus)
+
+	c.JSON(http.StatusOK, gin.H{
+		"episode_status": Entities.InactiveEpisode,
+		"topic_status":   topicStatus,
+	})
 }
 
 func ActivateEpisode(c *gin.Context, db *sql.DB) {
@@ -624,5 +630,11 @@ func ActivateEpisode(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Episode activated"})
+	var topicStatus Entities.TopicStatus
+	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM episode_base WHERE id = ?)", id).Scan(&topicStatus)
+
+	c.JSON(http.StatusOK, gin.H{
+		"episode_status": Entities.ActiveEpisode,
+		"topic_status":   topicStatus,
+	})
 }
