@@ -276,21 +276,21 @@ func RevertToFile(c *gin.Context, db *sql.DB) {
 }
 
 func changeToWwwData(filePath string) error {
-	// 1. Look up the www-data user to get its IDs
-	usr, err := user.Lookup("www-data")
+	// Look up the group by name
+	grp, err := user.LookupGroup("www-data")
 	if err != nil {
 		return err
 	}
 
-	// 2. Convert string IDs to integers
-	uid, _ := strconv.Atoi(usr.Uid)
-	gid, _ := strconv.Atoi(usr.Gid)
+	// Convert Gid string to int
+	gid, _ := strconv.Atoi(grp.Gid)
 
-	// 3. Apply the ownership change
-	err = os.Chown(filePath, uid, gid)
+	// -1 means "keep current owner", gid is our target group
+	err = os.Chown(filePath, -1, gid)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	// Set permissions so the group can actually write/read (0664)
+	return os.Chmod(filePath, 0664)
 }
