@@ -284,23 +284,36 @@ func GetAdditionalNavlinkList(c *gin.Context, db *sql.DB) {
 }
 
 func GetAdditionalNavlinkListByUser(c *gin.Context, db *sql.DB) {
-	userID := 0
-	if userIDVal, exists := c.Get("user_id"); exists {
-		if id, ok := userIDVal.(int); ok {
-			userID = id
-		}
-	}
+	var rows *sql.Rows
+	var err error
 
-	rows, err := db.Query(
-		navlinkSelectQuery+`
-		WHERE n.id IN (
-			SELECT rn2.navlink_id FROM role_navlink rn2
-			JOIN user_role ur ON ur.role_id = rn2.role_id
-			WHERE ur.user_id = ?
+	userIDVal, exists := c.Get("user_id")
+	if exists {
+		userID, ok := userIDVal.(int)
+		if !ok {
+			userID = 0
+		}
+		rows, err = db.Query(
+			navlinkSelectQuery+`
+			WHERE n.id IN (
+				SELECT rn2.navlink_id FROM role_navlink rn2
+				JOIN user_role ur ON ur.role_id = rn2.role_id
+				WHERE ur.user_id = ?
+			)
+			GROUP BY n.id`,
+			userID,
 		)
-		GROUP BY n.id`,
-		userID,
-	)
+	} else {
+		rows, err = db.Query(
+			navlinkSelectQuery + `
+			WHERE n.id IN (
+				SELECT rn2.navlink_id FROM role_navlink rn2
+				JOIN roles r2 ON r2.id = rn2.role_id
+				WHERE r2.name = 'guest'
+			)
+			GROUP BY n.id`,
+		)
+	}
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get navlinks: " + err.Error()})
 		c.Abort()
