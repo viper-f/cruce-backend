@@ -401,6 +401,9 @@ func main() {
 	protectedRouter.GET("/static-file/list/:file_type", "Get last 3 static files by type", func(c *gin.Context) {
 		Controllers.GetStaticFileList(c, Services.DB)
 	})
+	protectedRouter.POST("/static-file/revert", "Revert to a specific static file version", func(c *gin.Context) {
+		Controllers.RevertToFile(c, Services.DB)
+	})
 	protectedRouter.POST("/design-variation/create", "Create a new design variation", func(c *gin.Context) {
 		Controllers.CreateDesignVariation(c, Services.DB)
 	})

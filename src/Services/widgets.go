@@ -150,13 +150,15 @@ func WidgetRandomEntities(config map[string]interface{}, db *sql.DB) (string, er
 		selectFields += fmt.Sprintf(", f.%s", field2)
 	}
 
+	statusColumn := entityType + "_status"
 	query := fmt.Sprintf(`
 		SELECT b.id, b.topic_id, b.name, %s
 		FROM %s_base b
 		JOIN %s_flattened f ON b.id = f.entity_id
+		WHERE b.%s = 0
 		ORDER BY RAND()
 		LIMIT ?`,
-		selectFields, entityType, entityType,
+		selectFields, entityType, entityType, statusColumn,
 	)
 
 	rows, err := db.Query(query, number)

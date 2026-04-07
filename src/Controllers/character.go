@@ -507,6 +507,7 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		FROM RankedFactions r
 		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = r.id
 		WHERE r.rn = 1
+		  AND (wc.id IS NULL OR wc.wanted_character_status = 0)
 	`
 	claimRows, err := db.Query(claimQuery)
 	if err != nil {
@@ -556,6 +557,7 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = cc.id
 		WHERE cc.is_claimed IS NOT TRUE
 		AND cc.id NOT IN (SELECT character_claim_id FROM character_claim_faction)
+		AND (wc.id IS NULL OR wc.wanted_character_status = 0)
 	`)
 	if err == nil {
 		defer noFactionClaimRows.Close()
