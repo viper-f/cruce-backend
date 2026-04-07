@@ -56,7 +56,8 @@ type UpdatePostRequest struct {
 }
 
 type UpdateTopicRequest struct {
-	Name string `json:"name" binding:"required"`
+	Name   *string               `json:"name"`
+	Status *Entities.TopicStatus `json:"status"`
 }
 
 type PostRow struct {
@@ -1071,8 +1072,33 @@ func UpdateTopic(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// 3. Update topic name
-	_, err = db.Exec("UPDATE topics SET name = ? WHERE id = ?", req.Name, topicID)
+	// 3. Validate requested status — FullTopic is system-managed and cannot be set manually
+	if req.Status != nil && *req.Status == Entities.FullTopic {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "FullTopic status cannot be set manually"})
+		c.Abort()
+		return
+	}
+
+	// 4. Build and execute update
+	var setClauses []string
+	var args []interface{}
+
+	if req.Name != nil {
+		setClauses = append(setClauses, "name = ?")
+		args = append(args, *req.Name)
+	}
+	if req.Status != nil {
+		setClauses = append(setClauses, "status = ?")
+		args = append(args, *req.Status)
+	}
+
+	if len(setClauses) == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "Topic updated successfully"})
+		return
+	}
+
+	args = append(args, topicID)
+	_, err = db.Exec("UPDATE topics SET "+strings.Join(setClauses, ", ")+" WHERE id = ?", args...)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update topic: " + err.Error()})
 		c.Abort()
