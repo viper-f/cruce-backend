@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -121,6 +123,13 @@ func UploadFile(c *gin.Context, db *sql.DB) {
 
 	if _, err := io.Copy(dst, file); err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to write file: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	err = changeToWwwData(filepath.Join(publicDir, fileName))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Permission error: " + err.Error()})
 		c.Abort()
 		return
 	}
@@ -264,4 +273,24 @@ func RevertToFile(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"files": files})
+}
+
+func changeToWwwData(filePath string) error {
+	// 1. Look up the www-data user to get its IDs
+	usr, err := user.Lookup("www-data")
+	if err != nil {
+		return err
+	}
+
+	// 2. Convert string IDs to integers
+	uid, _ := strconv.Atoi(usr.Uid)
+	gid, _ := strconv.Atoi(usr.Gid)
+
+	// 3. Apply the ownership change
+	err = os.Chown(filePath, uid, gid)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
