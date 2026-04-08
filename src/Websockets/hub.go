@@ -1,11 +1,24 @@
 package Websockets
 
 import (
+	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+var globalMsgID int64
+
+const bufferWindow = 30 * time.Second
+
+// BufferedMessage holds a sent message with its ID and timestamp for replay.
+type BufferedMessage struct {
+	ID        int64
+	Timestamp time.Time
+	Payload   map[string]interface{}
+}
 
 type Client struct {
 	Hub    *Hub
@@ -54,6 +67,9 @@ type Hub struct {
 	register   chan *Client
 	unregister chan *Client
 	mu         sync.RWMutex
+
+	bufferMu   sync.Mutex
+	userBuffer map[int][]*BufferedMessage
 }
 
 var MainHub = NewHub()
@@ -63,10 +79,14 @@ func NewHub() *Hub {
 		clients:    make(map[int]map[*Client]bool),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		userBuffer: make(map[int][]*BufferedMessage),
 	}
 }
 
 func (h *Hub) Run() {
+	cleanupTicker := time.NewTicker(10 * time.Second)
+	defer cleanupTicker.Stop()
+
 	for {
 		select {
 		case client := <-h.register:
@@ -90,8 +110,71 @@ func (h *Hub) Run() {
 				}
 			}
 			h.mu.Unlock()
+
+		case <-cleanupTicker.C:
+			h.cleanupBuffer()
 		}
 	}
+}
+
+// cleanupBuffer removes messages older than bufferWindow from all user buffers.
+func (h *Hub) cleanupBuffer() {
+	cutoff := time.Now().Add(-bufferWindow)
+	h.bufferMu.Lock()
+	defer h.bufferMu.Unlock()
+	for userID, msgs := range h.userBuffer {
+		i := 0
+		for i < len(msgs) && !msgs[i].Timestamp.After(cutoff) {
+			i++
+		}
+		if i == len(msgs) {
+			delete(h.userBuffer, userID)
+		} else {
+			h.userBuffer[userID] = msgs[i:]
+		}
+	}
+}
+
+// enrichMessage assigns a msg_id to the message and returns it as a map.
+func enrichMessage(msg interface{}, msgID int64) map[string]interface{} {
+	var enriched map[string]interface{}
+	if m, ok := msg.(map[string]interface{}); ok {
+		enriched = make(map[string]interface{}, len(m)+1)
+		for k, v := range m {
+			enriched[k] = v
+		}
+	} else {
+		b, _ := json.Marshal(msg)
+		json.Unmarshal(b, &enriched)
+		if enriched == nil {
+			enriched = make(map[string]interface{})
+		}
+	}
+	enriched["msg_id"] = msgID
+	return enriched
+}
+
+func (h *Hub) addToBuffer(userID int, msgID int64, payload map[string]interface{}) {
+	h.bufferMu.Lock()
+	h.userBuffer[userID] = append(h.userBuffer[userID], &BufferedMessage{
+		ID:        msgID,
+		Timestamp: time.Now(),
+		Payload:   payload,
+	})
+	h.bufferMu.Unlock()
+}
+
+// GetMissedMessages returns all buffered messages for userID with ID > afterID, in order.
+func (h *Hub) GetMissedMessages(userID int, afterID int64) []map[string]interface{} {
+	h.bufferMu.Lock()
+	defer h.bufferMu.Unlock()
+	var result []map[string]interface{}
+	for _, msg := range h.userBuffer[userID] {
+		if msg.ID > afterID {
+			result = append(result, msg.Payload)
+		}
+	}
+	return result
 }
 
 func (h *Hub) Register(client *Client) {
@@ -103,41 +186,54 @@ func (h *Hub) Unregister(client *Client) {
 }
 
 func (h *Hub) Broadcast(message interface{}) {
+	msgID := atomic.AddInt64(&globalMsgID, 1)
+	payload := enrichMessage(message, msgID)
+
+	// Snapshot connected users without holding mu while buffering.
 	h.mu.RLock()
-	defer h.mu.RUnlock()
-	for _, userClients := range h.clients {
+	type clientEntry struct {
+		userID int
+		client *Client
+	}
+	entries := make([]clientEntry, 0)
+	for userID, userClients := range h.clients {
 		for client := range userClients {
-			func() {
-				defer func() { recover() }()
-				select {
-				case client.Send <- message:
-				default:
-				}
-			}()
+			entries = append(entries, clientEntry{userID, client})
 		}
+	}
+	h.mu.RUnlock()
+
+	seen := make(map[int]bool)
+	for _, e := range entries {
+		if !seen[e.userID] {
+			seen[e.userID] = true
+			h.addToBuffer(e.userID, msgID, payload)
+		}
+		func() {
+			defer func() { recover() }()
+			select {
+			case e.client.Send <- payload:
+			default:
+			}
+		}()
 	}
 }
 
 func (h *Hub) SendNotification(userID int, message interface{}) {
+	msgID := atomic.AddInt64(&globalMsgID, 1)
+	payload := enrichMessage(message, msgID)
+
+	h.addToBuffer(userID, msgID, payload)
+
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	if userClients, ok := h.clients[userID]; ok {
 		for client := range userClients {
-			// Use a closure and a recover to prevent a panic from a "send on closed channel"
-			// race condition. This can happen if a client disconnects and is unregistered
-			// at the same time a message is being sent to them.
 			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						// The panic is recovered. The client is already being cleaned up,
-						// so we don't need to do anything else.
-					}
-				}()
+				defer func() { recover() }()
 				select {
-				case client.Send <- message:
-					// Message sent successfully.
+				case client.Send <- payload:
 				default:
-					// Client's send buffer is full. Drop the message.
 				}
 			}()
 		}

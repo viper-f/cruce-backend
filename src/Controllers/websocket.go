@@ -60,6 +60,18 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 	Services.ActivityStorage.AddUser(userID, username)
 	broadcastActiveUsersToHome()
 
+	// Replay missed messages if the client provides last_message_id as a query param.
+	if lastMsgIDStr := c.Query("last_message_id"); lastMsgIDStr != "" {
+		if lastMsgID, parseErr := strconv.ParseInt(lastMsgIDStr, 10, 64); parseErr == nil {
+			for _, m := range Websockets.MainHub.GetMissedMessages(userID, lastMsgID) {
+				select {
+				case client.Send <- m:
+				default:
+				}
+			}
+		}
+	}
+
 	// Read loop to keep connection alive and detect disconnects
 	go func() {
 		defer func() {
@@ -90,6 +102,7 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 				PostId              *int64      `json:"post_id"`
 				ChatId              *int        `json:"chat_id"`
 				LastViewedMessageId *int        `json:"last_viewed_message_id"`
+				LastMessageId       *int64      `json:"last_message_id"`
 				PanelName           string      `json:"panel_name"`
 			}
 			if err := json.Unmarshal(p, &msg); err == nil {
@@ -132,6 +145,13 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 						"UPDATE direct_chat_users SET last_read_message_id = ? WHERE direct_chat_id = ? AND user_id = ?",
 						msg.LastViewedMessageId, msg.ChatId, userID,
 					)
+				} else if msg.Type == "replay" && msg.LastMessageId != nil {
+					for _, m := range Websockets.MainHub.GetMissedMessages(userID, *msg.LastMessageId) {
+						select {
+						case client.Send <- m:
+						default:
+						}
+					}
 				}
 			}
 		}
