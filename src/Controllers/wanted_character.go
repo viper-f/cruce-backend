@@ -9,10 +9,16 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+type GetWantedCharacterListRequest struct {
+	FactionIDs []int `json:"faction_ids"`
+	Page       int   `json:"page"`
+}
 
 type UpdateWantedCharacterRequest struct {
 	Name         string                 `json:"name" binding:"required"`
@@ -29,11 +35,39 @@ type CreateWantedCharacterRequest struct {
 }
 
 func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
-	rows, err := db.Query(`
+	var req GetWantedCharacterListRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	query := `
 		SELECT id, name, is_claimed, author_user_id, date_created, character_claim_id, is_deleted, topic_id
 		FROM wanted_character_base
-		WHERE is_claimed = false AND (is_deleted IS NULL OR is_deleted = false) AND wanted_character_status = 0
-	`)
+		WHERE is_claimed = false AND (is_deleted IS NULL OR is_deleted = false) AND wanted_character_status = 0`
+
+	var args []interface{}
+	if len(req.FactionIDs) > 0 {
+		placeholders := make([]string, len(req.FactionIDs))
+		for i, id := range req.FactionIDs {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		query += " AND character_claim_id IN (SELECT character_claim_id FROM character_claim_faction WHERE faction_id IN (" + strings.Join(placeholders, ",") + "))"
+	}
+
+	limit := 20
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	query += " ORDER BY date_created DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted characters: " + err.Error()})
 		c.Abort()
