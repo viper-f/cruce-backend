@@ -42,8 +42,7 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	query := `
-		SELECT id, name, is_claimed, author_user_id, date_created, character_claim_id, is_deleted, topic_id
+	baseWhere := `
 		FROM wanted_character_base
 		WHERE is_claimed = false AND (is_deleted IS NULL OR is_deleted = false) AND wanted_character_status = 0`
 
@@ -54,7 +53,14 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 			placeholders[i] = "?"
 			args = append(args, id)
 		}
-		query += " AND character_claim_id IN (SELECT character_claim_id FROM character_claim_faction WHERE faction_id IN (" + strings.Join(placeholders, ",") + "))"
+		baseWhere += " AND character_claim_id IN (SELECT character_claim_id FROM character_claim_faction WHERE faction_id IN (" + strings.Join(placeholders, ",") + "))"
+	}
+
+	var totalCount int
+	if err := db.QueryRow("SELECT COUNT(*) "+baseWhere, args...).Scan(&totalCount); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to count wanted characters: " + err.Error()})
+		c.Abort()
+		return
 	}
 
 	limit := 20
@@ -63,8 +69,10 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 		page = 1
 	}
 	offset := (page - 1) * limit
+	totalPages := (totalCount + limit - 1) / limit
 
-	query += " ORDER BY date_created DESC LIMIT ? OFFSET ?"
+	query := "SELECT id, name, is_claimed, author_user_id, date_created, character_claim_id, is_deleted, topic_id" +
+		baseWhere + " ORDER BY date_created DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
 	rows, err := db.Query(query, args...)
@@ -103,7 +111,10 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 		list = []*Entities.WantedCharacter{}
 	}
 
-	c.JSON(http.StatusOK, list)
+	c.JSON(http.StatusOK, gin.H{
+		"items":       list,
+		"total_pages": totalPages,
+	})
 }
 
 func GetWantedCharacterTreeList(c *gin.Context, db *sql.DB) {
