@@ -133,6 +133,9 @@ func main() {
 	optionalAuthRouter.GET("/factions/get", "Get faction tree", func(c *gin.Context) {
 		Controllers.GetActiveFactionTree(c, Services.DB)
 	})
+	publicRouter.GET("/faction-children/:parent_id/get", "Get child factions by parent ID", func(c *gin.Context) {
+		Controllers.GetFactionChildren(c, Services.DB)
+	})
 	optionalAuthRouter.POST("/episodes/get", "Get episode list", func(c *gin.Context) {
 		Controllers.GetEpisodes(c, Services.DB)
 	})
@@ -193,9 +196,6 @@ func main() {
 	})
 	protectedRouter.GET("/user/character-profiles", "Get current user's character profiles", func(c *gin.Context) {
 		Controllers.GetCharacterProfilesByUser(c, Services.DB)
-	})
-	protectedRouter.GET("/faction-children/:parent_id/get", "Get child factions by parent ID", func(c *gin.Context) {
-		Controllers.GetFactionChildren(c, Services.DB)
 	})
 	protectedRouter.GET("/faction-tree", "Get faction tree by ID", func(c *gin.Context) {
 		Controllers.GetFactionTree(c, Services.DB)
