@@ -28,10 +28,27 @@ func RegisterPostEventHandlers() {
 		topicIDStr := strconv.FormatInt(event.TopicID, 10)
 		users := Services.ActivityStorage.GetUsersOnPage("topic", topicIDStr)
 
-		// Send to each user on the page with their localized date
+		// Send to each user on the page with their localized date and per-user CanEdit
 		for _, u := range users {
 			userPost := event.Post
 			userPost.DateCreatedLocalized = Services.LocalizeTime(userPost.DateCreated, Services.GetUserTimezone(u.UserID, db))
+
+			canEdit := false
+			if u.UserID != 0 {
+				if u.UserID == userPost.AuthorUserId {
+					perm := fmt.Sprintf("subforum_edit_own_post:%d", event.SubforumID)
+					if hasPerm, err := Services.HasPermission(u.UserID, perm, db); err == nil && hasPerm {
+						canEdit = true
+					}
+				} else {
+					perm := fmt.Sprintf("subforum_edit_others_post:%d", event.SubforumID)
+					if hasPerm, err := Services.HasPermission(u.UserID, perm, db); err == nil && hasPerm {
+						canEdit = true
+					}
+				}
+			}
+			userPost.CanEdit = &canEdit
+
 			Websockets.MainHub.SendNotification(u.UserID, map[string]interface{}{
 				"type": msgType,
 				"data": userPost,
