@@ -100,6 +100,9 @@ func main() {
 	optionalAuthRouter.GET("/categories/home", "Get home page categories", func(c *gin.Context) {
 		Controllers.GetHomeCategories(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/active-users", "Get currently active users", func(c *gin.Context) {
+		Controllers.GetActiveUsers(c)
+	})
 	optionalAuthRouter.GET("/ping", "Health check endpoint", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "pong",

@@ -158,6 +158,15 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 	}()
 }
 
+func GetActiveUsers(c *gin.Context) {
+	activeUsers := Services.ActivityStorage.GetActiveUsers()
+	shortUsers := make([]Entities.ShortUser, 0, len(activeUsers))
+	for _, u := range activeUsers {
+		shortUsers = append(shortUsers, Entities.ShortUser{Id: u.UserID, Username: u.Username})
+	}
+	c.JSON(http.StatusOK, shortUsers)
+}
+
 func broadcastActiveUsersToHome() {
 	activeUsers := Services.ActivityStorage.GetActiveUsers()
 	shortUsers := make([]Entities.ShortUser, 0, len(activeUsers))
