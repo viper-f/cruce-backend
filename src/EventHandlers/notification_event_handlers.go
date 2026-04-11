@@ -26,8 +26,11 @@ func RegisterNotificationEventHandlers() {
 		}
 
 		title := "New Notification"
-		if event.Type == "mention" {
+		switch event.Type {
+		case "mention":
 			title = "You were mentioned"
+		case "account_update":
+			title = "Account Update"
 		}
 
 		res, err := db.Exec("INSERT INTO notifications (user_id, type, title, message, data, date_created, is_read) VALUES (?, ?, ?, ?, ?, NOW(), FALSE)",
@@ -39,8 +42,7 @@ func RegisterNotificationEventHandlers() {
 
 		notificationID, _ := res.LastInsertId()
 
-		// Construct Notification entity for WebSocket
-		notification := Entities.Notification{
+		base := Entities.NotificationBase{
 			Id:          int(notificationID),
 			UserId:      event.UserID,
 			Type:        event.Type,
@@ -50,32 +52,35 @@ func RegisterNotificationEventHandlers() {
 			IsRead:      false,
 		}
 
-		// Unmarshal data into the entity based on type
-		if len(dataJSON) > 0 {
-			switch event.Type {
-			case "mention":
-				var mention Entities.NotificationMention
-				if err := json.Unmarshal(dataJSON, &mention); err == nil {
-					notification.Mention = &mention
-				}
-			case "game":
-				var game Entities.NotificationGame
-				if err := json.Unmarshal(dataJSON, &game); err == nil {
-					notification.Game = &game
-				}
-			case "system":
-				var system Entities.NotificationSystem
-				if err := json.Unmarshal(dataJSON, &system); err == nil {
-					notification.System = &system
-				}
-			}
+		var notification interface{}
+		switch event.Type {
+		case "mention":
+			n := Entities.MentionNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		case "game":
+			n := Entities.GameNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		case "system":
+			n := Entities.SystemNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		case "account_update":
+			n := Entities.AccountUpdateNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		case "direct_message":
+			n := Entities.DirectMessageNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		default:
+			notification = base
 		}
 
-		// Send live notification via WebSocket in the standard format
-		wsMessage := map[string]interface{}{
+		Websockets.MainHub.SendNotification(event.UserID, map[string]interface{}{
 			"type": "notification",
 			"data": notification,
-		}
-		Websockets.MainHub.SendNotification(event.UserID, wsMessage)
+		})
 	})
 }

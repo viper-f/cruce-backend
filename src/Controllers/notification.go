@@ -28,43 +28,52 @@ func GetUnreadNotifications(c *gin.Context, db *sql.DB) {
 	}
 	defer rows.Close()
 
-	result := map[string][]Entities.Notification{
-		"system":  {},
-		"game":    {},
-		"mention": {},
+	result := map[string][]interface{}{
+		"system":         {},
+		"game":           {},
+		"mention":        {},
+		"account_update": {},
+		"direct_message": {},
 	}
 
 	for rows.Next() {
-		var n Entities.Notification
+		var base Entities.NotificationBase
 		var dataJSON []byte
-		if err := rows.Scan(&n.Id, &n.Type, &n.Title, &n.Message, &dataJSON, &n.DateCreated, &n.IsRead); err != nil {
+		if err := rows.Scan(&base.Id, &base.Type, &base.Title, &base.Message, &dataJSON, &base.DateCreated, &base.IsRead); err != nil {
 			continue
 		}
+		base.UserId = userID
 
-		n.UserId = userID
-
-		// Unmarshal data based on type
-		if len(dataJSON) > 0 {
-			switch n.Type {
-			case "mention":
-				var mention Entities.NotificationMention
-				if err := json.Unmarshal(dataJSON, &mention); err == nil {
-					n.Mention = &mention
-				}
-			case "game":
-				var game Entities.NotificationGame
-				if err := json.Unmarshal(dataJSON, &game); err == nil {
-					n.Game = &game
-				}
-			}
+		var notification interface{}
+		switch base.Type {
+		case "mention":
+			n := Entities.MentionNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		case "game":
+			n := Entities.GameNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		case "system":
+			n := Entities.SystemNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		case "account_update":
+			n := Entities.AccountUpdateNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		case "direct_message":
+			n := Entities.DirectMessageNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		default:
+			notification = base
 		}
 
-		// Categorize notification
-		if _, ok := result[n.Type]; ok {
-			result[n.Type] = append(result[n.Type], n)
+		if _, ok := result[base.Type]; ok {
+			result[base.Type] = append(result[base.Type], notification)
 		} else {
-			// Fallback to system if type is unknown
-			result["system"] = append(result["system"], n)
+			result["system"] = append(result["system"], notification)
 		}
 	}
 

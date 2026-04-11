@@ -2,17 +2,39 @@ package Entities
 
 import "time"
 
-type Notification struct {
-	Id          int                  `json:"id"`
-	UserId      int                  `json:"user_id"`
-	Type        string               `json:"type"`
-	Title       string               `json:"title"`
-	Message     string               `json:"message"`
-	DateCreated time.Time            `json:"date_created"`
-	IsRead      bool                 `json:"is_read"`
-	Mention     *NotificationMention `json:"mention"`
-	Game        *NotificationGame    `json:"game"`
-	System      *NotificationSystem  `json:"system"`
+type NotificationBase struct {
+	Id          int       `json:"id"`
+	UserId      int       `json:"user_id"`
+	Type        string    `json:"type"`
+	Title       string    `json:"title"`
+	Message     string    `json:"message"`
+	DateCreated time.Time `json:"date_created"`
+	IsRead      bool      `json:"is_read"`
+}
+
+type MentionNotification struct {
+	NotificationBase
+	Data NotificationMention `json:"data"`
+}
+
+type GameNotification struct {
+	NotificationBase
+	Data NotificationGame `json:"data"`
+}
+
+type SystemNotification struct {
+	NotificationBase
+	Data NotificationSystem `json:"data"`
+}
+
+type AccountUpdateNotification struct {
+	NotificationBase
+	Data NotificationAccountUpdate `json:"data"`
+}
+
+type DirectMessageNotification struct {
+	NotificationBase
+	Data NotificationDirectMessage `json:"data"`
 }
 
 type NotificationMention struct {
@@ -38,4 +60,17 @@ type NotificationGame struct {
 
 type NotificationSystem struct {
 	TopicId int `json:"topic_id"`
+}
+
+type NotificationAccountUpdate struct {
+	IncomeTypeKey string `json:"income_type_key"`
+	Amount        int    `json:"amount"`
+	NewTotal      int    `json:"new_total"`
+	PostId        int    `json:"post_id"`
+}
+
+type NotificationDirectMessage struct {
+	ChatId   int     `json:"chat_id"`
+	Username string  `json:"username"`
+	Avatar   *string `json:"avatar"`
 }

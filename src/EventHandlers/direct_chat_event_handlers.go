@@ -94,12 +94,12 @@ func RegisterDirectChatEventHandlers() {
 	})
 }
 
-func saveDirectMessageNotification(db *sql.DB, receiverID int, chatID int, senderUsername string, senderAvatar *string) *Entities.Notification {
+func saveDirectMessageNotification(db *sql.DB, receiverID int, chatID int, senderUsername string, senderAvatar *string) *Entities.DirectMessageNotification {
 	message := fmt.Sprintf("New message from %s", senderUsername)
-	dataJSON, err := json.Marshal(map[string]interface{}{
-		"chat_id":  chatID,
-		"username": senderUsername,
-		"avatar":   senderAvatar,
+	dataJSON, err := json.Marshal(Entities.NotificationDirectMessage{
+		ChatId:   chatID,
+		Username: senderUsername,
+		Avatar:   senderAvatar,
 	})
 	if err != nil {
 		fmt.Printf("Error marshaling direct message notification data: %v\n", err)
@@ -116,13 +116,20 @@ func saveDirectMessageNotification(db *sql.DB, receiverID int, chatID int, sende
 	}
 
 	notificationID, _ := res.LastInsertId()
-	return &Entities.Notification{
-		Id:          int(notificationID),
-		UserId:      receiverID,
-		Type:        "direct_message",
-		Title:       "New direct message",
-		Message:     message,
-		DateCreated: time.Now(),
-		IsRead:      false,
+	return &Entities.DirectMessageNotification{
+		NotificationBase: Entities.NotificationBase{
+			Id:          int(notificationID),
+			UserId:      receiverID,
+			Type:        "direct_message",
+			Title:       "New direct message",
+			Message:     message,
+			DateCreated: time.Now(),
+			IsRead:      false,
+		},
+		Data: Entities.NotificationDirectMessage{
+			ChatId:   chatID,
+			Username: senderUsername,
+			Avatar:   senderAvatar,
+		},
 	}
 }

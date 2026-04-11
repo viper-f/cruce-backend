@@ -588,10 +588,11 @@ CREATE TABLE currency_user_account
 
 CREATE TABLE currency_user_transactions
 (
-    id       int          not null auto_increment primary key,
-    user_id  int          not null,
-    type     tinyint      not null,
-    amount   int          not null,
-    datetime datetime     not null,
-    status   int          not null default 0
+    id              int          not null auto_increment primary key,
+    user_id         int          not null,
+    type            tinyint      not null,
+    amount          int          not null,
+    datetime        datetime     not null,
+    status          int          not null default 0,
+    income_type_key varchar(255) null
 );

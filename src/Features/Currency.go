@@ -30,6 +30,21 @@ type Currency struct {
 	Name string
 }
 
+type CurrencyTransactionType int
+
+const (
+	CurrencyTransactionIncome CurrencyTransactionType = 1
+	CurrencyTransactionSpend  CurrencyTransactionType = -1
+)
+
+type CurrencyTransactionStatus int
+
+const (
+	CurrencyTransactionPending  CurrencyTransactionStatus = 0
+	CurrencyTransactionApproved CurrencyTransactionStatus = 1
+	CurrencyTransactionRejected CurrencyTransactionStatus = 2
+)
+
 type CurrencyIncomeType struct {
 	Key         string `json:"key"`
 	Name        string `json:"name"`
