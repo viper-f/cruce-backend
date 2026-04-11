@@ -295,8 +295,9 @@ func RegisterPostEventHandlers() {
 			Data: Entities.NotificationAccountUpdate{
 				IncomeTypeKey: "currency_income_game_post",
 				Amount:        amount,
-				NewTotal:      newTotal,
+				TotalAmount:   newTotal,
 				PostId:        event.Post.Id,
+				TopicId:       int(event.TopicID),
 			},
 		})
 	})
