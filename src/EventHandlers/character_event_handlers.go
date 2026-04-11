@@ -2,6 +2,7 @@ package EventHandlers
 
 import (
 	"cuento-backend/src/Events"
+	"cuento-backend/src/Features"
 	"cuento-backend/src/Services"
 	"cuento-backend/src/Websockets"
 	"database/sql"
@@ -75,7 +76,7 @@ func RegisterCharacterEventHandlers() {
 		users := Services.ActivityStorage.GetUsersOnPage("topic", topicIDStr)
 
 		// Fetch full post data for WebSocket
-		fullPost, err := Services.GetPostById(int(postID), db)
+		fullPost, err := Services.GetPostById(int(postID), db, Features.IsCurrencyActive(db))
 		if err == nil {
 			notification := map[string]interface{}{
 				"type": "post_created",

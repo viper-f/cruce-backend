@@ -31,6 +31,7 @@ type UserProfile struct {
 	Avatar            string `json:"avatar"`
 	TotalPosts        int    `json:"total_posts"`
 	TotalGeneralPosts int    `json:"total_general_posts"`
+	CurrencyAmount    *int   `json:"currency_amount,omitempty"`
 }
 
 type UserStatus int

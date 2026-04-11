@@ -205,6 +205,9 @@ func main() {
 	protectedRouter.POST("/currency/income-types/update", "Update currency income types", func(c *gin.Context) {
 		Features.UpdateCurrencyIncomeTypesHandler(c, Services.DB)
 	})
+	protectedRouter.GET("/currency/user/amount", "Get current user's currency amount", func(c *gin.Context) {
+		Features.GetUserCurrencyAmountHandler(c, Services.DB)
+	})
 	protectedRouter.POST("/character/create", "Create a new character", func(c *gin.Context) {
 		Controllers.CreateCharacter(c, Services.DB)
 	})

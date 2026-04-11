@@ -35,6 +35,14 @@ func GetUserTimezone(userID int, db *sql.DB) *string {
 	return &tz.String
 }
 
+// IsFeatureEnabled checks whether a named feature flag is active in the Gin context,
+// as populated by FeatureFlagsMiddleware.
+func IsFeatureEnabled(flagName string, c *gin.Context) bool {
+	flagMap, _ := c.Get("features")
+	flags, _ := flagMap.(map[string]bool)
+	return flags[flagName]
+}
+
 // GetUserIdFromContext safely retrieves the user ID from the Gin context.
 // It returns the user ID if it exists and is a valid integer.
 // It returns 0 if the user ID does not exist or is not a valid type,

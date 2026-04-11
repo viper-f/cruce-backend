@@ -274,6 +274,8 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	currencyActive := Services.IsFeatureEnabled("currency", c)
+
 	var flattenedCols []string
 	for _, field := range customConfig {
 		flattenedCols = append(flattenedCols, "cpf."+field.MachineFieldName)
@@ -282,6 +284,12 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 	colsSelect := ""
 	if len(flattenedCols) > 0 {
 		colsSelect = ", " + strings.Join(flattenedCols, ", ")
+	}
+
+	currencyJoin := ""
+	if currencyActive {
+		colsSelect += ", COALESCE(cua.amount, 0) as currency_amount"
+		currencyJoin = "LEFT JOIN currency_user_account cua ON p.author_user_id = cua.user_id"
 	}
 
 	// 2. Construct the main query
@@ -298,10 +306,11 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		LEFT JOIN character_profile_base cp ON p.character_profile_id = cp.id
 		LEFT JOIN character_base cb ON cp.character_id = cb.id
 		LEFT JOIN character_profile_flattened cpf ON cp.id = cpf.entity_id
+		%s
 		WHERE p.topic_id = ? AND (p.is_deleted IS NULL OR p.is_deleted <> 1)
 		ORDER BY p.date_created ASC
 		LIMIT ? OFFSET ?
-	`, colsSelect)
+	`, colsSelect, currencyJoin)
 
 	rows, err := db.Query(query, topicID, postsPerPage, offset)
 	if err != nil {
@@ -450,6 +459,10 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 			}
 			if v, ok := rowMap["total_general_posts"]; ok {
 				userProfile.TotalGeneralPosts, _ = strconv.Atoi(v.(string))
+			}
+			if v, ok := rowMap["currency_amount"]; ok {
+				amount, _ := strconv.Atoi(v.(string))
+				userProfile.CurrencyAmount = &amount
 			}
 			post.UserProfile = &userProfile
 		}
@@ -812,7 +825,7 @@ func CreatePost(c *gin.Context, db *sql.DB) {
 	err = db.QueryRow("SELECT subforum_id, name FROM topics WHERE id = ?", req.TopicID).Scan(&subforumID, &topicName)
 	if err == nil {
 		// Fetch full post data
-		fullPost, postErr := Services.GetPostById(int(postID), db)
+		fullPost, postErr := Services.GetPostById(int(postID), db, Services.IsFeatureEnabled("currency", c))
 		if postErr != nil {
 			fmt.Printf("Error getting post details for event publishing: %v\n", postErr)
 		} else {
@@ -888,12 +901,30 @@ func PreviewPost(c *gin.Context, db *sql.DB) {
 		if userID != 0 {
 			var username, avatar string
 			var totalPosts, totalGeneralPosts int
-			if err := db.QueryRow("SELECT username, avatar, total_posts, total_general_posts FROM users WHERE id = ?", userID).Scan(&username, &avatar, &totalPosts, &totalGeneralPosts); err == nil {
-				userProfile.UserName = username
-				userProfile.Avatar = avatar
-				userProfile.TotalPosts = totalPosts
-				userProfile.TotalGeneralPosts = totalGeneralPosts
-				post.AuthorUserName = username
+			var currencyAmount sql.NullInt64
+			createPostCurrencyActive := Services.IsFeatureEnabled("currency", c)
+			if createPostCurrencyActive {
+				if err := db.QueryRow(`
+					SELECT u.username, u.avatar, u.total_posts, u.total_general_posts, COALESCE(cua.amount, 0)
+					FROM users u
+					LEFT JOIN currency_user_account cua ON u.id = cua.user_id
+					WHERE u.id = ?`, userID).Scan(&username, &avatar, &totalPosts, &totalGeneralPosts, &currencyAmount); err == nil {
+					userProfile.UserName = username
+					userProfile.Avatar = avatar
+					userProfile.TotalPosts = totalPosts
+					userProfile.TotalGeneralPosts = totalGeneralPosts
+					post.AuthorUserName = username
+					amount := int(currencyAmount.Int64)
+					userProfile.CurrencyAmount = &amount
+				}
+			} else {
+				if err := db.QueryRow("SELECT username, avatar, total_posts, total_general_posts FROM users WHERE id = ?", userID).Scan(&username, &avatar, &totalPosts, &totalGeneralPosts); err == nil {
+					userProfile.UserName = username
+					userProfile.Avatar = avatar
+					userProfile.TotalPosts = totalPosts
+					userProfile.TotalGeneralPosts = totalGeneralPosts
+					post.AuthorUserName = username
+				}
 			}
 		} else if req.GuestName != nil {
 			userProfile.UserName = *req.GuestName
@@ -977,7 +1008,7 @@ func UpdatePost(c *gin.Context, db *sql.DB) {
 	}
 
 	// 4. Fetch updated post and emit event
-	updatedPost, err := Services.GetPostById(postID, db)
+	updatedPost, err := Services.GetPostById(postID, db, Services.IsFeatureEnabled("currency", c))
 	if err == nil {
 		// We need topicID and subforumID for the event
 		var topicID int64
@@ -1397,7 +1428,7 @@ func GetPostById(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	post, err := Services.GetPostById(postID, db)
+	post, err := Services.GetPostById(postID, db, Services.IsFeatureEnabled("currency", c))
 	if err == sql.ErrNoRows {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Post not found"})
 		c.Abort()

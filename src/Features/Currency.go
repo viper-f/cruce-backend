@@ -31,11 +31,11 @@ type Currency struct {
 }
 
 type CurrencyIncomeType struct {
-	Name        string
-	Description string
-	IsActive    bool
-	Amount      int
-	Key         string
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Amount      int    `json:"amount"`
+	IsActive    bool   `json:"is_active"`
 }
 
 var currencyIncomeTypeMeta = map[string]struct{ Name, Description string }{
@@ -65,6 +65,14 @@ func (CurrencyIncomeType) GetIncomeTypes(db *sql.DB) []CurrencyIncomeType {
 	return result
 }
 
+func IsCurrencyActive(db *sql.DB) bool {
+	var isActive bool
+	if err := db.QueryRow("SELECT is_active FROM features WHERE `key` = 'currency'").Scan(&isActive); err != nil {
+		return false
+	}
+	return isActive
+}
+
 func GetCurrencyIncomeTypesHandler(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, CurrencyIncomeType{}.GetIncomeTypes(db))
 }
@@ -91,6 +99,21 @@ func UpdateCurrencyNameHandler(c *gin.Context, db *sql.DB) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"currency_name": req.CurrencyName})
+}
+
+func GetUserCurrencyAmountHandler(c *gin.Context, db *sql.DB) {
+	userID, _ := c.Get("user_id")
+	var amount int
+	err := db.QueryRow("SELECT amount FROM currency_user_account WHERE user_id = ?", userID).Scan(&amount)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusOK, gin.H{"amount": 0})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get currency amount"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"amount": amount})
 }
 
 func UpdateCurrencyIncomeTypesHandler(c *gin.Context, db *sql.DB) {

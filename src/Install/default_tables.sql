@@ -579,3 +579,19 @@ CREATE TABLE currency_settings
 );
 
 INSERT INTO currency_settings (currency_name) VALUES ('');
+
+CREATE TABLE currency_user_account
+(
+    user_id int not null primary key,
+    amount  int not null default 0
+);
+
+CREATE TABLE currency_user_transactions
+(
+    id       int          not null auto_increment primary key,
+    user_id  int          not null,
+    type     tinyint      not null,
+    amount   int          not null,
+    datetime datetime     not null,
+    status   int          not null default 0
+);

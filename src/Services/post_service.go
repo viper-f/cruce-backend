@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
+func GetPostById(id int, db *sql.DB, currencyActive bool) (*Entities.Post, error) {
 	// 1. Get custom field columns from the config table
 	var configJSON string
 	err := db.QueryRow("SELECT config FROM custom_field_config WHERE entity_type = 'character_profile'").Scan(&configJSON)
@@ -35,6 +35,12 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 		colsSelect = ", " + strings.Join(flattenedCols, ", ")
 	}
 
+	currencyJoin := ""
+	if currencyActive {
+		colsSelect += ", COALESCE(cua.amount, 0) as currency_amount"
+		currencyJoin = "LEFT JOIN currency_user_account cua ON p.author_user_id = cua.user_id"
+	}
+
 	// 2. Construct the main query
 	query := fmt.Sprintf(`
 		SELECT
@@ -47,8 +53,9 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 		LEFT JOIN character_profile_base cp ON p.character_profile_id = cp.id
 		LEFT JOIN character_base cb ON cp.character_id = cb.id
 		LEFT JOIN character_profile_flattened cpf ON cp.id = cpf.entity_id
+		%s
 		WHERE p.id = ?
-	`, colsSelect)
+	`, colsSelect, currencyJoin)
 
 	// 3. Scan and process results
 	rows, err := db.Query(query, id)
@@ -173,6 +180,10 @@ func GetPostById(id int, db *sql.DB) (*Entities.Post, error) {
 		}
 		if v, ok := rowMap["total_general_posts"]; ok {
 			userProfile.TotalGeneralPosts, _ = strconv.Atoi(v.(string))
+		}
+		if v, ok := rowMap["currency_amount"]; ok {
+			amount, _ := strconv.Atoi(v.(string))
+			userProfile.CurrencyAmount = &amount
 		}
 		post.UserProfile = &userProfile
 	}
