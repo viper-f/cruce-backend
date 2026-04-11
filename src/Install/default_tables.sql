@@ -575,10 +575,11 @@ INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_i
 
 CREATE TABLE currency_settings
 (
-    currency_name varchar(255) not null
+    currency_name varchar(255) null,
+    icon_url      varchar(255) null
 );
 
-INSERT INTO currency_settings (currency_name) VALUES ('');
+INSERT INTO currency_settings (currency_name, icon_url) VALUES (null, null);
 
 CREATE TABLE currency_user_account
 (

@@ -92,28 +92,43 @@ func GetCurrencyIncomeTypesHandler(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, CurrencyIncomeType{}.GetIncomeTypes(db))
 }
 
-func GetCurrencyNameHandler(c *gin.Context, db *sql.DB) {
-	var name string
-	if err := db.QueryRow("SELECT currency_name FROM currency_settings LIMIT 1").Scan(&name); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get currency name"})
+func GetCurrencySettingsHandler(c *gin.Context, db *sql.DB) {
+	var name *string
+	var iconURL *string
+	err := db.QueryRow("SELECT currency_name, icon_url FROM currency_settings LIMIT 1").Scan(&name, &iconURL)
+	if err != nil && err != sql.ErrNoRows {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get currency settings"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"currency_name": name})
+	c.JSON(http.StatusOK, gin.H{"currency_name": name, "icon_url": iconURL})
 }
 
-func UpdateCurrencyNameHandler(c *gin.Context, db *sql.DB) {
+func UpdateCurrencySettingsHandler(c *gin.Context, db *sql.DB) {
 	var req struct {
-		CurrencyName string `json:"currency_name" binding:"required"`
+		CurrencyName *string `json:"currency_name"`
+		IconURL      *string `json:"icon_url"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
 		return
 	}
-	if _, err := db.Exec("UPDATE currency_settings SET currency_name = ?", req.CurrencyName); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update currency name"})
+	if req.CurrencyName == nil && req.IconURL == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one field must be provided"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"currency_name": req.CurrencyName})
+	if req.CurrencyName != nil {
+		if _, err := db.Exec("UPDATE currency_settings SET currency_name = ?", *req.CurrencyName); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update currency name"})
+			return
+		}
+	}
+	if req.IconURL != nil {
+		if _, err := db.Exec("UPDATE currency_settings SET icon_url = ?", *req.IconURL); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update currency icon"})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Currency settings updated"})
 }
 
 func GetUserCurrencyAmountHandler(c *gin.Context, db *sql.DB) {

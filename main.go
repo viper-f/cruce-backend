@@ -196,11 +196,11 @@ func main() {
 	protectedRouter.GET("/currency/income-types", "Get list of currency income types", func(c *gin.Context) {
 		Features.GetCurrencyIncomeTypesHandler(c, Services.DB)
 	})
-	protectedRouter.GET("/currency/name", "Get currency name", func(c *gin.Context) {
-		Features.GetCurrencyNameHandler(c, Services.DB)
+	protectedRouter.GET("/currency/settings", "Get currency settings", func(c *gin.Context) {
+		Features.GetCurrencySettingsHandler(c, Services.DB)
 	})
-	protectedRouter.POST("/currency/name/update", "Update currency name", func(c *gin.Context) {
-		Features.UpdateCurrencyNameHandler(c, Services.DB)
+	protectedRouter.POST("/currency/settings/update", "Update currency settings", func(c *gin.Context) {
+		Features.UpdateCurrencySettingsHandler(c, Services.DB)
 	})
 	protectedRouter.POST("/currency/income-types/update", "Update currency income types", func(c *gin.Context) {
 		Features.UpdateCurrencyIncomeTypesHandler(c, Services.DB)
