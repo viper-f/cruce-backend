@@ -208,6 +208,9 @@ func main() {
 	protectedRouter.GET("/currency/user/amount", "Get current user's currency amount", func(c *gin.Context) {
 		Features.GetUserCurrencyAmountHandler(c, Services.DB)
 	})
+	protectedRouter.GET("/currency/user/:user_id/transactions", "Get user's currency transactions", func(c *gin.Context) {
+		Features.GetUserCurrencyTransactionsHandler(c, Services.DB)
+	})
 	protectedRouter.POST("/character/create", "Create a new character", func(c *gin.Context) {
 		Controllers.CreateCharacter(c, Services.DB)
 	})

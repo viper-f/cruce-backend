@@ -7,6 +7,7 @@ import (
 	"cuento-backend/src/Services"
 	"cuento-backend/src/Websockets"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strconv"
 )
@@ -271,10 +272,14 @@ func RegisterPostEventHandlers() {
 			return
 		}
 
+		metadataJSON, _ := json.Marshal(map[string]int{
+			"topic_id": int(event.TopicID),
+			"post_id":  event.Post.Id,
+		})
 		_, err = tx.Exec(`
-			INSERT INTO currency_user_transactions (user_id, type, amount, datetime, status, income_type_key)
-			VALUES (?, ?, ?, NOW(), ?, ?)
-		`, event.Post.AuthorUserId, Features.CurrencyTransactionIncome, amount, Features.CurrencyTransactionApproved, "currency_income_game_post")
+			INSERT INTO currency_user_transactions (user_id, type, amount, datetime, status, income_type_key, metadata)
+			VALUES (?, ?, ?, NOW(), ?, ?, ?)
+		`, event.Post.AuthorUserId, Features.CurrencyTransactionIncome, amount, Features.CurrencyTransactionApproved, "currency_income_game_post", metadataJSON)
 		if err != nil {
 			fmt.Printf("Error writing currency transaction record: %v\n", err)
 			return

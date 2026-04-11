@@ -3,6 +3,7 @@ package Controllers
 import (
 	"cuento-backend/src/Entities"
 	"cuento-backend/src/Events"
+	"cuento-backend/src/Features"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
@@ -38,6 +39,7 @@ type UserProfileResponse struct {
 	TotalPosts                int                        `json:"total_posts"`
 	TotalGeneralPosts         int                        `json:"total_general_posts"`
 	Characters                []CharacterProfileListItem `json:"characters"`
+	CurrencyAmount            *int                       `json:"currency_amount"`
 }
 
 type CharacterProfileListItem struct {
@@ -479,6 +481,17 @@ func GetUserProfile(c *gin.Context, db *sql.DB) {
 
 	if profile.Characters == nil {
 		profile.Characters = []CharacterProfileListItem{}
+	}
+
+	if Features.IsCurrencyActive(db) {
+		var amount int
+		err := db.QueryRow("SELECT amount FROM currency_user_account WHERE user_id = ?", userID).Scan(&amount)
+		if err == nil {
+			profile.CurrencyAmount = &amount
+		} else if err == sql.ErrNoRows {
+			zero := 0
+			profile.CurrencyAmount = &zero
+		}
 	}
 
 	c.JSON(http.StatusOK, profile)

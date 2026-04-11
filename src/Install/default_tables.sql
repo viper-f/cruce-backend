@@ -595,5 +595,6 @@ CREATE TABLE currency_user_transactions
     amount          int          not null,
     datetime        datetime     not null,
     status          int          not null default 0,
-    income_type_key varchar(255) null
+    income_type_key varchar(255) null,
+    metadata        json         null
 );

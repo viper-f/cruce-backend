@@ -1,8 +1,12 @@
 package Features
 
 import (
+	"cuento-backend/src/Services"
 	"database/sql"
+	"encoding/json"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -129,6 +133,66 @@ func UpdateCurrencySettingsHandler(c *gin.Context, db *sql.DB) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Currency settings updated"})
+}
+
+type CurrencyTransaction struct {
+	Id                int                       `json:"id"`
+	UserID            int                       `json:"user_id"`
+	Type              CurrencyTransactionType   `json:"type"`
+	Amount            int                       `json:"amount"`
+	Datetime          time.Time                 `json:"datetime"`
+	DatetimeLocalized string                    `json:"datetime_localized"`
+	Status            CurrencyTransactionStatus `json:"status"`
+	IncomeTypeKey     *string                   `json:"income_type_key"`
+	Metadata          *json.RawMessage          `json:"metadata"`
+}
+
+func GetUserCurrencyTransactionsHandler(c *gin.Context, db *sql.DB) {
+	userIDStr := c.Param("user_id")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id"})
+		return
+	}
+
+	pageStr := c.DefaultQuery("page", "1")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	const perPage = 20
+	offset := (page - 1) * perPage
+
+	var total int
+	if err := db.QueryRow("SELECT COUNT(*) FROM currency_user_transactions WHERE user_id = ?", userID).Scan(&total); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count transactions"})
+		return
+	}
+	totalPages := (total + perPage - 1) / perPage
+
+	rows, err := db.Query(
+		"SELECT id, user_id, type, amount, datetime, status, income_type_key, metadata FROM currency_user_transactions WHERE user_id = ? ORDER BY datetime DESC LIMIT ? OFFSET ?",
+		userID, perPage, offset,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch transactions"})
+		return
+	}
+	defer rows.Close()
+
+	tz := Services.GetUserTimezone(userID, db)
+
+	items := []CurrencyTransaction{}
+	for rows.Next() {
+		var t CurrencyTransaction
+		if err := rows.Scan(&t.Id, &t.UserID, &t.Type, &t.Amount, &t.Datetime, &t.Status, &t.IncomeTypeKey, &t.Metadata); err != nil {
+			continue
+		}
+		t.DatetimeLocalized = Services.LocalizeTime(t.Datetime, tz)
+		items = append(items, t)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": items, "total_pages": totalPages})
 }
 
 func GetUserCurrencyAmountHandler(c *gin.Context, db *sql.DB) {
