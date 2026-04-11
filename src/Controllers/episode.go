@@ -216,6 +216,35 @@ func GetEpisodes(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	userID := Services.GetUserIdFromContext(c)
+
+	visibleSubforumIDs, err := Services.GetVisibleSubforums(userID, "subforum_read", db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to determine visible subforums: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// If the request specifies subforums, intersect with visible ones; otherwise use all visible.
+	allowedSubforumIDs := visibleSubforumIDs
+	if len(req.SubforumIDs) > 0 {
+		visibleMap := make(map[int]bool, len(visibleSubforumIDs))
+		for _, id := range visibleSubforumIDs {
+			visibleMap[id] = true
+		}
+		allowedSubforumIDs = allowedSubforumIDs[:0]
+		for _, id := range req.SubforumIDs {
+			if visibleMap[id] {
+				allowedSubforumIDs = append(allowedSubforumIDs, id)
+			}
+		}
+	}
+
+	if len(allowedSubforumIDs) == 0 {
+		c.JSON(http.StatusOK, []EpisodeListItem{})
+		return
+	}
+
 	query := `SELECT e.id, e.name, e.topic_id, t.subforum_id, s.name, t.status, t.date_last_post
 		FROM episode_base e
 		JOIN topics t ON e.topic_id = t.id
@@ -223,14 +252,12 @@ func GetEpisodes(c *gin.Context, db *sql.DB) {
 		WHERE 1=1`
 	var args []interface{}
 
-	if len(req.SubforumIDs) > 0 {
-		placeholders := make([]string, len(req.SubforumIDs))
-		for i, id := range req.SubforumIDs {
-			placeholders[i] = "?"
-			args = append(args, id)
-		}
-		query += " AND t.subforum_id IN (" + strings.Join(placeholders, ",") + ")"
+	placeholders := make([]string, len(allowedSubforumIDs))
+	for i, id := range allowedSubforumIDs {
+		placeholders[i] = "?"
+		args = append(args, id)
 	}
+	query += " AND t.subforum_id IN (" + strings.Join(placeholders, ",") + ")"
 
 	if len(req.CharacterIDs) > 0 {
 		placeholders := make([]string, len(req.CharacterIDs))

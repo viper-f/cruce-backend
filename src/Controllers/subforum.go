@@ -122,21 +122,46 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 }
 
 func GetShortSubforumList(c *gin.Context, db *sql.DB) {
-	rows, err := db.Query("SELECT id, name FROM subforums ORDER BY position")
+	userID := Services.GetUserIdFromContext(c)
+
+	visibleIDs, err := Services.GetVisibleSubforums(userID, "subforum_read", db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to determine visible subforums: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if len(visibleIDs) == 0 {
+		c.JSON(http.StatusOK, []Entities.ShortSubform{})
+		return
+	}
+
+	placeholders := strings.Repeat("?,", len(visibleIDs)-1) + "?"
+	query := fmt.Sprintf("SELECT id, name FROM subforums WHERE id IN (%s) ORDER BY position", placeholders)
+	args := make([]interface{}, len(visibleIDs))
+	for i, id := range visibleIDs {
+		args[i] = id
+	}
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get subforums: " + err.Error()})
 		c.Abort()
 		return
 	}
 	defer rows.Close()
-	var subforums []Entities.ShortSubform
+
+	subforums := []Entities.ShortSubform{}
 	for rows.Next() {
-		var tempSubforum Entities.ShortSubform
-		if err := rows.Scan(&tempSubforum.Id, &tempSubforum.Name); err != nil {
+		var s Entities.ShortSubform
+		if err := rows.Scan(&s.Id, &s.Name); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan subforums: " + err.Error()})
+			c.Abort()
+			return
 		}
-		subforums = append(subforums, tempSubforum)
+		subforums = append(subforums, s)
 	}
+
 	c.JSON(http.StatusOK, subforums)
 }
 
