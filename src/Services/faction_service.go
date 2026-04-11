@@ -77,6 +77,57 @@ func GetActiveFactionTree(db *sql.DB) ([]Entities.Faction, error) {
 	return getFactionTree(db, &[]Entities.FactionStatus{Entities.FactionActive})
 }
 
+func GetWantedFactionTree(db *sql.DB) ([]Entities.Faction, error) {
+	all, err := getFactionTree(db, &[]Entities.FactionStatus{Entities.FactionActive})
+	if err != nil {
+		return nil, err
+	}
+
+	// Build parent lookup from the flat list.
+	parentOf := make(map[int]*int, len(all))
+	for _, f := range all {
+		parentOf[f.Id] = f.ParentId
+	}
+
+	// Collect faction IDs that directly have active wanted characters.
+	rows, err := db.Query(`
+		SELECT DISTINCT ccf.faction_id
+		FROM character_claim_faction ccf
+		JOIN wanted_character_base wc ON wc.character_claim_id = ccf.character_claim_id
+		WHERE wc.is_claimed = false
+		  AND (wc.is_deleted IS NULL OR wc.is_deleted = false)
+		  AND wc.wanted_character_status = 0
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	keep := make(map[int]bool)
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		// Mark this faction and all its ancestors.
+		for cur := &id; cur != nil; {
+			if keep[*cur] {
+				break
+			}
+			keep[*cur] = true
+			cur = parentOf[*cur]
+		}
+	}
+
+	result := make([]Entities.Faction, 0)
+	for _, f := range all {
+		if keep[f.Id] {
+			result = append(result, f)
+		}
+	}
+	return result, nil
+}
+
 func GetFactionTree(db *sql.DB) ([]Entities.Faction, error) {
 	return getFactionTree(db, &[]Entities.FactionStatus{Entities.FactionActive, Entities.FactionInactive})
 }

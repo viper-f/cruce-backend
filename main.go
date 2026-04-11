@@ -89,6 +89,9 @@ func main() {
 	publicRouter.GET("/wanted-character/get/:id", "Get wanted character details by ID", func(c *gin.Context) {
 		Controllers.GetWantedCharacter(c, Services.DB)
 	})
+	publicRouter.GET("/factions/get/wanted", "Get faction tree filtered to factions with active wanted characters", func(c *gin.Context) {
+		Controllers.GetWantedFactionTree(c, Services.DB)
+	})
 
 	// Optional Auth routes (Context populated if token present, otherwise Guest)
 	optionalAuthGroup := r.Group("/")

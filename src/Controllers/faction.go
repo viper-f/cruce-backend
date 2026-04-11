@@ -85,6 +85,16 @@ func GetActiveFactionTree(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, factions)
 }
 
+func GetWantedFactionTree(c *gin.Context, db *sql.DB) {
+	factions, err := Services.GetWantedFactionTree(db)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted faction tree: " + err.Error()})
+		c.Abort()
+		return
+	}
+	c.JSON(http.StatusOK, factions)
+}
+
 func UpdateFactionById(c *gin.Context, db *sql.DB) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
