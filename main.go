@@ -199,10 +199,10 @@ func main() {
 	protectedRouter.GET("/currency/name", "Get currency name", func(c *gin.Context) {
 		Features.GetCurrencyNameHandler(c, Services.DB)
 	})
-	protectedRouter.POST("/currency/name", "Update currency name", func(c *gin.Context) {
+	protectedRouter.POST("/currency/name/update", "Update currency name", func(c *gin.Context) {
 		Features.UpdateCurrencyNameHandler(c, Services.DB)
 	})
-	protectedRouter.POST("/currency/income-types", "Update currency income types", func(c *gin.Context) {
+	protectedRouter.POST("/currency/income-types/update", "Update currency income types", func(c *gin.Context) {
 		Features.UpdateCurrencyIncomeTypesHandler(c, Services.DB)
 	})
 	protectedRouter.POST("/character/create", "Create a new character", func(c *gin.Context) {

@@ -557,21 +557,21 @@ CREATE TABLE role_navlink
 
 CREATE TABLE features
 (
-    key       varchar(255) not null primary key,
+    `key`       varchar(255) not null primary key,
     is_active boolean      not null default false
 );
 
-INSERT INTO features (key, is_active) VALUES ('currency', false);
+INSERT INTO features (`key`, is_active) VALUES ('currency', false);
 
 CREATE TABLE currency_income_types
 (
-    key       varchar(255) not null primary key,
+    `key`       varchar(255) not null primary key,
     amount    int          not null default 0,
     is_active boolean      not null default false
 );
 
-INSERT INTO currency_income_types (key, amount, is_active) VALUES ('currency_income_game_post', 1, false);
-INSERT INTO currency_income_types (key, amount, is_active) VALUES ('currency_income_wanted_character', 1, false);
+INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_game_post', 1, false);
+INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_wanted_character', 1, false);
 
 CREATE TABLE currency_settings
 (

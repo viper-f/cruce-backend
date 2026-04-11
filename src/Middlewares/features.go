@@ -8,7 +8,7 @@ import (
 
 func FeatureFlagsMiddleware(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rows, err := db.Query("SELECT key, is_active FROM features")
+		rows, err := db.Query("SELECT `key`, is_active FROM features")
 		if err != nil {
 			c.Set("features", map[string]bool{})
 			c.Next()

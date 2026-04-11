@@ -44,7 +44,7 @@ var currencyIncomeTypeMeta = map[string]struct{ Name, Description string }{
 }
 
 func (CurrencyIncomeType) GetIncomeTypes(db *sql.DB) []CurrencyIncomeType {
-	rows, err := db.Query("SELECT key, amount, is_active FROM currency_income_types")
+	rows, err := db.Query("SELECT `key`, amount, is_active FROM currency_income_types")
 	if err != nil {
 		return []CurrencyIncomeType{}
 	}
