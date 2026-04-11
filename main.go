@@ -3,6 +3,7 @@ package main
 import (
 	"cuento-backend/src/Controllers"
 	"cuento-backend/src/EventHandlers"
+	"cuento-backend/src/Features"
 	"cuento-backend/src/Install"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Router"
@@ -30,6 +31,7 @@ func main() {
 
 	// Apply error middleware globally
 	r.Use(Middlewares.ErrorMiddleware())
+	r.Use(Middlewares.FeatureFlagsMiddleware(Services.DB))
 
 	// Public routes
 	publicRouter := Router.NewCustomRouter(r.Group("/"))
@@ -185,6 +187,24 @@ func main() {
 	protectedGroup.Use(Middlewares.PermissionsMiddleware(Services.DB))
 	protectedRouter := Router.NewProtectedCustomRouter(protectedGroup)
 
+	protectedRouter.GET("/features", "Get list of all feature flags", func(c *gin.Context) {
+		Features.GetFeaturesHandler(c)
+	})
+	protectedRouter.POST("/features/:key/toggle", "Toggle a feature flag on or off", func(c *gin.Context) {
+		Features.ToggleFeatureHandler(c, Services.DB)
+	})
+	protectedRouter.GET("/currency/income-types", "Get list of currency income types", func(c *gin.Context) {
+		Features.GetCurrencyIncomeTypesHandler(c, Services.DB)
+	})
+	protectedRouter.GET("/currency/name", "Get currency name", func(c *gin.Context) {
+		Features.GetCurrencyNameHandler(c, Services.DB)
+	})
+	protectedRouter.POST("/currency/name", "Update currency name", func(c *gin.Context) {
+		Features.UpdateCurrencyNameHandler(c, Services.DB)
+	})
+	protectedRouter.POST("/currency/income-types", "Update currency income types", func(c *gin.Context) {
+		Features.UpdateCurrencyIncomeTypesHandler(c, Services.DB)
+	})
 	protectedRouter.POST("/character/create", "Create a new character", func(c *gin.Context) {
 		Controllers.CreateCharacter(c, Services.DB)
 	})
