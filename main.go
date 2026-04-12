@@ -211,6 +211,9 @@ func main() {
 	protectedRouter.GET("/currency/user/:user_id/transactions", "Get user's currency transactions", func(c *gin.Context) {
 		Features.GetUserCurrencyTransactionsHandler(c, Services.DB)
 	})
+	protectedRouter.POST("/currency/user/:user_id/transactions/add", "Add a currency transaction for a user", func(c *gin.Context) {
+		Features.AddUserCurrencyTransactionHandler(c, Services.DB)
+	})
 	protectedRouter.POST("/character/create", "Create a new character", func(c *gin.Context) {
 		Controllers.CreateCharacter(c, Services.DB)
 	})

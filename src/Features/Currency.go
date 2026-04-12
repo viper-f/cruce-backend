@@ -4,6 +4,7 @@ import (
 	"cuento-backend/src/Services"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -40,6 +41,27 @@ const (
 	CurrencyTransactionIncome CurrencyTransactionType = 1
 	CurrencyTransactionSpend  CurrencyTransactionType = -1
 )
+
+func (t *CurrencyTransactionType) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		switch s {
+		case "income":
+			*t = CurrencyTransactionIncome
+		case "spend":
+			*t = CurrencyTransactionSpend
+		default:
+			return fmt.Errorf("unknown transaction type: %s", s)
+		}
+		return nil
+	}
+	var n int
+	if err := json.Unmarshal(data, &n); err != nil {
+		return err
+	}
+	*t = CurrencyTransactionType(n)
+	return nil
+}
 
 type CurrencyTransactionStatus int
 
@@ -192,7 +214,62 @@ func GetUserCurrencyTransactionsHandler(c *gin.Context, db *sql.DB) {
 		items = append(items, t)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"items": items, "total_pages": totalPages})
+	currentUserID := Services.GetUserIdFromContext(c)
+	canAdd, _ := Services.HasPermission(currentUserID, "/currency/user/:user_id/transactions/add", db)
+
+	c.JSON(http.StatusOK, gin.H{"items": items, "total_pages": totalPages, "can_add": canAdd})
+}
+
+func AddUserCurrencyTransactionHandler(c *gin.Context, db *sql.DB) {
+	userIDStr := c.Param("user_id")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id"})
+		return
+	}
+
+	var req struct {
+		Type          CurrencyTransactionType `json:"type" binding:"required"`
+		Amount        int                     `json:"amount" binding:"required"`
+		IncomeTypeKey *string                 `json:"income_type_key"`
+		Metadata      *json.RawMessage        `json:"metadata"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		"INSERT INTO currency_user_account (user_id, amount) VALUES (?, ?) ON DUPLICATE KEY UPDATE amount = amount + ?",
+		userID, req.Amount, req.Amount,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update currency account"})
+		return
+	}
+
+	_, err = tx.Exec(
+		"INSERT INTO currency_user_transactions (user_id, type, amount, datetime, status, income_type_key, metadata) VALUES (?, ?, ?, NOW(), ?, ?, ?)",
+		userID, req.Type, req.Amount, CurrencyTransactionApproved, req.IncomeTypeKey, req.Metadata,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert transaction"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Transaction added"})
 }
 
 func GetUserCurrencyAmountHandler(c *gin.Context, db *sql.DB) {
