@@ -246,9 +246,10 @@ func AddUserCurrencyTransactionHandler(c *gin.Context, db *sql.DB) {
 	}
 	defer tx.Rollback()
 
+	delta := req.Amount * int(req.Type)
 	_, err = tx.Exec(
 		"INSERT INTO currency_user_account (user_id, amount) VALUES (?, ?) ON DUPLICATE KEY UPDATE amount = amount + ?",
-		userID, req.Amount, req.Amount,
+		userID, delta, delta,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update currency account"})
