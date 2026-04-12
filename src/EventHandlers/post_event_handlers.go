@@ -166,6 +166,111 @@ func RegisterPostEventHandlers() {
 		}
 	})
 
+	// Subscriber: Award currency for post milestones (100/500/1000)
+	Events.Subscribe(Events.PostCreated, func(db *sql.DB, data Events.EventData) {
+		event, ok := data.(Events.PostCreatedEvent)
+		if !ok || event.Type == "post_updated" || event.Post.AuthorUserId == 0 {
+			return
+		}
+
+		if !Features.IsCurrencyActive(db) {
+			return
+		}
+
+		var topicType Entities.TopicType
+		if err := db.QueryRow("SELECT type FROM topics WHERE id = ?", event.TopicID).Scan(&topicType); err != nil {
+			return
+		}
+
+		type milestone struct {
+			threshold int
+			key       string
+		}
+
+		var postCount int
+		var milestones []milestone
+
+		if topicType == Entities.EpisodeTopic {
+			if err := db.QueryRow("SELECT total_posts FROM users WHERE id = ?", event.Post.AuthorUserId).Scan(&postCount); err != nil {
+				return
+			}
+			milestones = []milestone{
+				{1000, "currency_income_1000_game_posts"},
+				{500, "currency_income_500_game_posts"},
+				{100, "currency_income_100_game_posts"},
+			}
+		} else {
+			if err := db.QueryRow("SELECT total_general_posts FROM users WHERE id = ?", event.Post.AuthorUserId).Scan(&postCount); err != nil {
+				return
+			}
+			milestones = []milestone{
+				{1000, "currency_income_1000_general_posts"},
+				{500, "currency_income_500_general_posts"},
+				{100, "currency_income_100_general_posts"},
+			}
+		}
+
+		for _, m := range milestones {
+			if postCount%m.threshold != 0 {
+				continue
+			}
+			var amount int
+			var isActive bool
+			err := db.QueryRow("SELECT amount, is_active FROM currency_income_types WHERE `key` = ?", m.key).Scan(&amount, &isActive)
+			if err != nil || !isActive {
+				continue
+			}
+
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Printf("Error starting milestone transaction: %v\n", err)
+				return
+			}
+			defer tx.Rollback()
+
+			_, err = tx.Exec(
+				"INSERT INTO currency_user_account (user_id, amount) VALUES (?, ?) ON DUPLICATE KEY UPDATE amount = amount + ?",
+				event.Post.AuthorUserId, amount, amount,
+			)
+			if err != nil {
+				fmt.Printf("Error awarding milestone currency: %v\n", err)
+				return
+			}
+
+			metadataJSON, _ := json.Marshal(map[string]int{"post_count": postCount})
+			_, err = tx.Exec(
+				"INSERT INTO currency_user_transactions (user_id, type, amount, datetime, status, income_type_key, metadata) VALUES (?, ?, ?, NOW(), ?, ?, ?)",
+				event.Post.AuthorUserId, Features.CurrencyTransactionIncome, amount, Features.CurrencyTransactionApproved, m.key, metadataJSON,
+			)
+			if err != nil {
+				fmt.Printf("Error writing milestone transaction: %v\n", err)
+				return
+			}
+
+			if err := tx.Commit(); err != nil {
+				fmt.Printf("Error committing milestone transaction: %v\n", err)
+				return
+			}
+
+			var newTotal int
+			_ = db.QueryRow("SELECT amount FROM currency_user_account WHERE user_id = ?", event.Post.AuthorUserId).Scan(&newTotal)
+
+			Events.Publish(db, Events.NotificationCreated, Events.NotificationEvent{
+				UserID:  event.Post.AuthorUserId,
+				Type:    "account_update",
+				Message: fmt.Sprintf("You earned %d currency for reaching %d posts", amount, m.threshold),
+				Data: Entities.NotificationAccountUpdate{
+					IncomeTypeKey: m.key,
+					Amount:        amount,
+					TotalAmount:   newTotal,
+					PostId:        event.Post.Id,
+					TopicId:       int(event.TopicID),
+				},
+			})
+			break // Only award the highest applicable milestone
+		}
+	})
+
 	// Subscriber 11: Send Game Notifications for Episode Posts
 	Events.Subscribe(Events.PostCreated, func(db *sql.DB, data Events.EventData) {
 		event, ok := data.(Events.PostCreatedEvent)

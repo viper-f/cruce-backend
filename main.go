@@ -18,6 +18,9 @@ import (
 
 func main() {
 	Services.InitDB()
+	if err := Services.InitI18n("locales"); err != nil {
+		panic("failed to load i18n bundles: " + err.Error())
+	}
 	EventHandlers.RegisterEventHandlers(Services.DB)
 
 	// Start WebSocket Hub

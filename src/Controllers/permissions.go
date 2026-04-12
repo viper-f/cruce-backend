@@ -15,14 +15,17 @@ type UpdatePermissionsRequest struct {
 }
 
 func GetPermissionMatrix(c *gin.Context, db *sql.DB) {
-	endpointMatrix, err := Services.GetEndpointPermissionMatrix(db)
+	userID := Services.GetUserIdFromContext(c)
+	lang := Services.GetUserLanguage(userID, db)
+
+	endpointMatrix, err := Services.GetEndpointPermissionMatrix(db, lang)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get endpoint permissions: " + err.Error()})
 		c.Abort()
 		return
 	}
 
-	subforumMatrix, err := Services.GetSubforumPermissionMatrix(db)
+	subforumMatrix, err := Services.GetSubforumPermissionMatrix(db, lang)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get subforum permissions: " + err.Error()})
 		c.Abort()

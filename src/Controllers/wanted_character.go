@@ -362,6 +362,7 @@ func CreateWantedCharacter(c *gin.Context, db *sql.DB) {
 		SubforumID:        req.SubforumID,
 		TopicID:           topicID,
 		TopicName:         req.Name,
+		AuthorUserID:      userID,
 	})
 
 	c.JSON(http.StatusCreated, gin.H{"wanted_character_id": wantedCharacterID, "topic_id": topicID})

@@ -1,6 +1,6 @@
 module cuento-backend
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
@@ -31,7 +31,7 @@ require (
 	golang.org/x/crypto v0.47.0
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
@@ -54,6 +54,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
+	github.com/nicksnyder/go-i18n/v2 v2.6.1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/grpc v1.66.2 // indirect

@@ -572,6 +572,13 @@ CREATE TABLE currency_income_types
 
 INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_game_post', 1, false);
 INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_wanted_character', 1, false);
+INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_new_character', 1, false);
+INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_100_general_posts', 1, false);
+INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_500_general_posts', 1, false);
+INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_1000_general_posts', 1, false);
+INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_100_game_posts', 1, false);
+INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_500_game_posts', 1, false);
+INSERT INTO currency_income_types (`key`, amount, is_active) VALUES ('currency_income_1000_game_posts', 1, false);
 
 CREATE TABLE currency_settings
 (

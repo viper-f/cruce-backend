@@ -80,16 +80,25 @@ type CurrencyIncomeType struct {
 }
 
 var currencyIncomeTypeMeta = map[string]struct{ Name, Description string }{
-	"currency_income_game_post":        {Name: "Game post", Description: "Currency for every game post"},
-	"currency_income_wanted_character": {Name: "Wanted character", Description: "Currency for wanted character"},
+	"currency_income_game_post":          {Name: "currency_income_game_post.name", Description: "currency_income_game_post.description"},
+	"currency_income_wanted_character":   {Name: "currency_income_wanted_character.name", Description: "currency_income_wanted_character.description"},
+	"currency_income_new_character":      {Name: "currency_income_new_character.name", Description: "currency_income_new_character.description"},
+	"currency_income_100_general_posts":  {Name: "currency_income_100_general_posts.name", Description: "currency_income_100_general_posts.description"},
+	"currency_income_500_general_posts":  {Name: "currency_income_500_general_posts.name", Description: "currency_income_500_general_posts.description"},
+	"currency_income_1000_general_posts": {Name: "currency_income_1000_general_posts.name", Description: "currency_income_1000_general_posts.description"},
+	"currency_income_100_game_posts":     {Name: "currency_income_100_game_posts.name", Description: "currency_income_100_game_posts.description"},
+	"currency_income_500_game_posts":     {Name: "currency_income_500_game_posts.name", Description: "currency_income_500_game_posts.description"},
+	"currency_income_1000_game_posts":    {Name: "currency_income_1000_game_posts.name", Description: "currency_income_1000_game_posts.description"},
 }
 
-func (CurrencyIncomeType) GetIncomeTypes(db *sql.DB) []CurrencyIncomeType {
+func (CurrencyIncomeType) GetIncomeTypes(db *sql.DB, lang string) []CurrencyIncomeType {
 	rows, err := db.Query("SELECT `key`, amount, is_active FROM currency_income_types")
 	if err != nil {
 		return []CurrencyIncomeType{}
 	}
 	defer rows.Close()
+
+	localizer := Services.NewLocalizer(lang)
 
 	var result []CurrencyIncomeType
 	for rows.Next() {
@@ -98,8 +107,8 @@ func (CurrencyIncomeType) GetIncomeTypes(db *sql.DB) []CurrencyIncomeType {
 			continue
 		}
 		if meta, ok := currencyIncomeTypeMeta[t.Key]; ok {
-			t.Name = meta.Name
-			t.Description = meta.Description
+			t.Name = Services.T(localizer, meta.Name)
+			t.Description = Services.T(localizer, meta.Description)
 		}
 		result = append(result, t)
 	}
@@ -115,7 +124,9 @@ func IsCurrencyActive(db *sql.DB) bool {
 }
 
 func GetCurrencyIncomeTypesHandler(c *gin.Context, db *sql.DB) {
-	c.JSON(http.StatusOK, CurrencyIncomeType{}.GetIncomeTypes(db))
+	userID := Services.GetUserIdFromContext(c)
+	lang := Services.GetUserLanguage(userID, db)
+	c.JSON(http.StatusOK, CurrencyIncomeType{}.GetIncomeTypes(db, lang))
 }
 
 func GetCurrencySettingsHandler(c *gin.Context, db *sql.DB) {

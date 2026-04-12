@@ -84,6 +84,7 @@ type WantedCharacterCreatedEvent struct {
 	SubforumID        int
 	TopicID           int64
 	TopicName         string
+	AuthorUserID      int
 }
 
 type DirectMessageCreatedEvent struct {

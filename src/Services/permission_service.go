@@ -17,18 +17,18 @@ const (
 )
 
 var SubforumPermissions = map[string]string{
-	"subforum_read":                          "View subforum",
-	"subforum_create_general_topic":          "Create general topic",
-	"subforum_create_episode_topic":          "Create episode topic",
-	"subforum_create_character_topic":        "Create character topic",
-	"subforum_create_wanted_character_topic": "Create wanted character topic",
-	"subforum_post":                          "Post in subforum",
-	"subforum_delete_topic":                  "Delete own topic",
-	"subforum_delete_others_topic":           "Delete others' topic",
-	"subforum_edit_others_post":              "Edit others' post",
-	"subforum_edit_own_post":                 "Edit own post",
-	"subforum_edit_others_topic":             "Edit others' topic",
-	"subforum_edit_own_topic":                "Edit own topic",
+	"subforum_read":                          "permission.subforum_read",
+	"subforum_create_general_topic":          "permission.subforum_create_general_topic",
+	"subforum_create_episode_topic":          "permission.subforum_create_episode_topic",
+	"subforum_create_character_topic":        "permission.subforum_create_character_topic",
+	"subforum_create_wanted_character_topic": "permission.subforum_create_wanted_character_topic",
+	"subforum_post":                          "permission.subforum_post",
+	"subforum_delete_topic":                  "permission.subforum_delete_topic",
+	"subforum_delete_others_topic":           "permission.subforum_delete_others_topic",
+	"subforum_edit_others_post":              "permission.subforum_edit_others_post",
+	"subforum_edit_own_post":                 "permission.subforum_edit_own_post",
+	"subforum_edit_others_topic":             "permission.subforum_edit_others_topic",
+	"subforum_edit_own_topic":                "permission.subforum_edit_own_topic",
 }
 
 type PermissionMatrixObject struct {
@@ -38,7 +38,7 @@ type PermissionMatrixObject struct {
 	PermissionOrder []string                `json:"permission_order"`
 }
 
-func GetEndpointPermissionMatrix(db *sql.DB) (PermissionMatrixObject, error) {
+func GetEndpointPermissionMatrix(db *sql.DB, lang string) (PermissionMatrixObject, error) {
 	// 1. Fetch all roles
 	roleRows, err := db.Query("SELECT id, name FROM roles")
 	if err != nil {
@@ -82,10 +82,11 @@ func GetEndpointPermissionMatrix(db *sql.DB) (PermissionMatrixObject, error) {
 	permissionsMap := make(map[string]string)
 	permissionOrder := make([]string, len(Router.ProtectedRoutes))
 
+	localizer := NewLocalizer(lang)
 	for i, route := range Router.ProtectedRoutes {
 		permission := route.Path
 		permissionOrder[i] = permission
-		permissionsMap[permission] = route.Definition
+		permissionsMap[permission] = T(localizer, route.Definition)
 		permissionMatrix[permission] = make(map[int]bool)
 		for roleID := range roleMap {
 			if rolesWithPerm, ok := existingPerms[permission]; ok {
@@ -104,7 +105,7 @@ func GetEndpointPermissionMatrix(db *sql.DB) (PermissionMatrixObject, error) {
 	}, nil
 }
 
-func GetSubforumPermissionMatrix(db *sql.DB) (PermissionMatrixObject, error) {
+func GetSubforumPermissionMatrix(db *sql.DB, lang string) (PermissionMatrixObject, error) {
 	// 1. Fetch all roles
 	roleRows, err := db.Query("SELECT id, name FROM roles")
 	if err != nil {
@@ -168,10 +169,11 @@ func GetSubforumPermissionMatrix(db *sql.DB) (PermissionMatrixObject, error) {
 	allPossiblePerms := make(map[string]string)
 	permissionOrder := make([]string, 0)
 
+	localizer := NewLocalizer(lang)
 	for _, sub := range subforums {
 		for permKey, permDef := range SubforumPermissions {
 			permissionString := fmt.Sprintf("%s:%d", permKey, sub.ID)
-			humanReadableDef := fmt.Sprintf("Subforum '%s' (ID %d): %s", sub.Name, sub.ID, permDef)
+			humanReadableDef := fmt.Sprintf("Subforum '%s' (ID %d): %s", sub.Name, sub.ID, T(localizer, permDef))
 
 			permissionOrder = append(permissionOrder, permissionString)
 			allPossiblePerms[permissionString] = humanReadableDef
