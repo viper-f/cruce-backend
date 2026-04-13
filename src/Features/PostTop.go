@@ -34,7 +34,117 @@ func (PostTopFeature) IsActive() bool {
 	return false
 }
 
-func WidgetPostTop(_ map[string]interface{}, _ *sql.DB) (string, error) {
+type PostTopResult struct {
+	Name      string         `json:"name"`
+	Days      *int           `json:"days"`
+	IsMonthly bool           `json:"is_monthly"`
+	Items     []PostTopEntry `json:"items"`
+	StartDate string         `json:"start_date"`
+	EndDate   string         `json:"end_date"`
+}
+
+func renderPostTop(id int, startDateOverride *string, db *sql.DB) (*PostTopResult, error) {
+	var name string
+	var userCount int
+	var days *int
+	var isMonthly bool
+	var dbStartDate *string
+	err := db.QueryRow(
+		"SELECT name, user_count, days, is_monthly, start_date FROM post_tops WHERE id = ?", id,
+	).Scan(&name, &userCount, &days, &isMonthly, &dbStartDate)
+	if err != nil {
+		return nil, err
+	}
+
+	var startDate time.Time
+	now := time.Now().Truncate(24 * time.Hour)
+
+	if startDateOverride != nil && *startDateOverride != "" {
+		startDate, err = time.Parse("2006-01-02", *startDateOverride)
+		if err != nil {
+			return nil, err
+		}
+	} else if isMonthly && dbStartDate != nil {
+		dbStart, err := time.Parse("2006-01-02", *dbStartDate)
+		if err == nil {
+			startDate = time.Date(now.Year(), now.Month(), dbStart.Day(), 0, 0, 0, 0, time.UTC)
+			if startDate.After(now) {
+				startDate = startDate.AddDate(0, -1, 0)
+			}
+		}
+	} else if days != nil && *days > 0 && dbStartDate != nil {
+		dbStart, err := time.Parse("2006-01-02", *dbStartDate)
+		if err == nil {
+			daysSinceStart := int(now.Sub(dbStart).Hours() / 24)
+			startDate = now.AddDate(0, 0, -(daysSinceStart % *days))
+		}
+	} else if dbStartDate != nil {
+		startDate, _ = time.Parse("2006-01-02", *dbStartDate)
+	} else {
+		startDate = now
+	}
+
+	var endDate time.Time
+	if isMonthly {
+		endDate = startDate.AddDate(0, 1, 0)
+	} else if days != nil {
+		endDate = startDate.AddDate(0, 0, *days)
+	} else {
+		endDate = now
+	}
+
+	rows, err := db.Query(`
+		SELECT u.id, u.username, u.avatar, COUNT(p.id) AS post_count,
+		       COUNT(DISTINCT p.character_profile_id) AS character_count
+		FROM posts p
+		JOIN topics t ON p.topic_id = t.id
+		JOIN users u ON p.author_user_id = u.id
+		WHERE t.type = ?
+		  AND p.date_created >= ?
+		  AND p.date_created < ?
+		  AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+		GROUP BY u.id, u.username, u.avatar
+		ORDER BY post_count DESC
+		LIMIT ?
+	`, Entities.EpisodeTopic, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), userCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	entries := []PostTopEntry{}
+	for rows.Next() {
+		var e PostTopEntry
+		if err := rows.Scan(&e.UserID, &e.Username, &e.Avatar, &e.PostCount, &e.CharacterCount); err != nil {
+			continue
+		}
+		entries = append(entries, e)
+	}
+
+	return &PostTopResult{
+		Name:      name,
+		Days:      days,
+		IsMonthly: isMonthly,
+		Items:     entries,
+		StartDate: startDate.Format("2006-01-02"),
+		EndDate:   endDate.Format("2006-01-02"),
+	}, nil
+}
+
+func WidgetPostTop(config map[string]interface{}, db *sql.DB) (string, error) {
+	idRaw, ok := config["post_top_id"]
+	if !ok {
+		return "", nil
+	}
+	id, ok := idRaw.(float64)
+	if !ok {
+		return "", nil
+	}
+	result, err := renderPostTop(int(id), nil, db)
+	if err != nil {
+		return "", err
+	}
+	_ = result
 	return "Mock", nil
 }
 
@@ -133,95 +243,21 @@ func GetPostTopHandler(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	var userCount int
-	var days *int
-	var isMonthly bool
-	var dbStartDate *string
-	err = db.QueryRow(
-		"SELECT user_count, days, is_monthly, start_date FROM post_tops WHERE id = ?", id,
-	).Scan(&userCount, &days, &isMonthly, &dbStartDate)
+	startDateParam := c.Query("start_date")
+	var startDateOverride *string
+	if startDateParam != "" {
+		startDateOverride = &startDateParam
+	}
+
+	result, err := renderPostTop(id, startDateOverride, db)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Post top not found"})
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load post top"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	var startDate time.Time
-	startDateParam := c.Query("start_date")
-
-	if startDateParam != "" {
-		startDate, err = time.Parse("2006-01-02", startDateParam)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_date, expected YYYY-MM-DD"})
-			return
-		}
-	} else {
-		now := time.Now().Truncate(24 * time.Hour)
-		if isMonthly && dbStartDate != nil {
-			dbStart, err := time.Parse("2006-01-02", *dbStartDate)
-			if err == nil {
-				startDate = time.Date(now.Year(), now.Month(), dbStart.Day(), 0, 0, 0, 0, time.UTC)
-				if startDate.After(now) {
-					startDate = startDate.AddDate(0, -1, 0)
-				}
-			}
-		} else if days != nil && *days > 0 && dbStartDate != nil {
-			dbStart, err := time.Parse("2006-01-02", *dbStartDate)
-			if err == nil {
-				daysSinceStart := int(now.Sub(dbStart).Hours() / 24)
-				startDate = now.AddDate(0, 0, -(daysSinceStart % *days))
-			}
-		} else if dbStartDate != nil {
-			startDate, _ = time.Parse("2006-01-02", *dbStartDate)
-		} else {
-			startDate = now
-		}
-	}
-
-	var endDate time.Time
-	if isMonthly {
-		endDate = startDate.AddDate(0, 1, 0)
-	} else if days != nil {
-		endDate = startDate.AddDate(0, 0, *days)
-	} else {
-		endDate = time.Now()
-	}
-
-	rows, err := db.Query(`
-		SELECT u.id, u.username, u.avatar, COUNT(p.id) AS post_count,
-		       COUNT(DISTINCT p.character_profile_id) AS character_count
-		FROM posts p
-		JOIN topics t ON p.topic_id = t.id
-		JOIN users u ON p.author_user_id = u.id
-		WHERE t.type = ?
-		  AND p.date_created >= ?
-		  AND p.date_created < ?
-		  AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-		GROUP BY u.id, u.username, u.avatar
-		ORDER BY post_count DESC
-		LIMIT ?
-	`, Entities.EpisodeTopic, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), userCount)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query post top"})
-		return
-	}
-	defer rows.Close()
-
-	entries := []PostTopEntry{}
-	for rows.Next() {
-		var e PostTopEntry
-		if err := rows.Scan(&e.UserID, &e.Username, &e.Avatar, &e.PostCount, &e.CharacterCount); err != nil {
-			continue
-		}
-		entries = append(entries, e)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"items":      entries,
-		"start_date": startDate.Format("2006-01-02"),
-		"end_date":   endDate.Format("2006-01-02"),
-	})
+	c.JSON(http.StatusOK, result)
 }
