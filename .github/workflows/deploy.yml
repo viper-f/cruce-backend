@@ -28,7 +28,7 @@ jobs:
           host: ${{ secrets.DROPLET_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "cuento-backend"
+          source: "cuento-backend,locales/"
           target: "/var/www/backend"
 
       - name: Restart Service via SSH
