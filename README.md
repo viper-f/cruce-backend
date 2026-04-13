@@ -1,4 +1,4 @@
-# Cuento Backend
+# Cuento Backend 
 
 Cuento Backend is a high-performance, feature-rich backend for a roleplaying forum platform, built using Go (Golang) and the Gin web framework. It supports dynamic entity management, real-time notifications, and a structured forum system.
 
