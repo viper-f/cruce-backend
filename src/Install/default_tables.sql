@@ -562,6 +562,7 @@ CREATE TABLE features
 );
 
 INSERT INTO features (`key`, is_active) VALUES ('currency', false);
+INSERT INTO features (`key`, is_active) VALUES ('post_top', false);
 
 CREATE TABLE currency_income_types
 (
@@ -604,4 +605,15 @@ CREATE TABLE currency_user_transactions
     status          int          not null default 0,
     income_type_key varchar(255) null,
     metadata        json         null
+);
+
+CREATE TABLE post_tops
+(
+    id         int          not null auto_increment primary key,
+    name       varchar(255) not null,
+    user_count int          not null default 0,
+    days       int          null,
+    is_monthly tinyint(1)   not null default 0,
+    is_open    tinyint(1)   not null default 0,
+    start_date date         null
 );

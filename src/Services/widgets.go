@@ -9,10 +9,40 @@ import (
 	"strings"
 )
 
-// widgetRegistry maps the func column value to the actual Go function.
-var widgetRegistry = map[string]func(map[string]interface{}, *sql.DB) (string, error){
-	"WidgetLastPost":       WidgetLastPost,
-	"WidgetRandomEntities": WidgetRandomEntities,
+type WidgetProvider struct {
+	Name string
+	Fn   func(map[string]interface{}, *sql.DB) (string, error)
+}
+
+type conditionalWidget struct {
+	WidgetProvider
+	featureKey string
+}
+
+var builtinWidgets = []WidgetProvider{
+	{"WidgetLastPost", WidgetLastPost},
+	{"WidgetRandomEntities", WidgetRandomEntities},
+}
+
+var featureWidgets []conditionalWidget
+
+func RegisterFeatureWidget(featureKey string, name string, fn func(map[string]interface{}, *sql.DB) (string, error)) {
+	featureWidgets = append(featureWidgets, conditionalWidget{
+		WidgetProvider: WidgetProvider{name, fn},
+		featureKey:     featureKey,
+	})
+}
+
+func GetWidgets(db *sql.DB) []WidgetProvider {
+	result := make([]WidgetProvider, len(builtinWidgets))
+	copy(result, builtinWidgets)
+	for _, w := range featureWidgets {
+		var isActive bool
+		if err := db.QueryRow("SELECT is_active FROM features WHERE `key` = ?", w.featureKey).Scan(&isActive); err == nil && isActive {
+			result = append(result, w.WidgetProvider)
+		}
+	}
+	return result
 }
 
 func WidgetLastPost(config map[string]interface{}, db *sql.DB) (string, error) {
@@ -52,8 +82,14 @@ func RenderWidget(id int, db *sql.DB) (string, error) {
 		return "", fmt.Errorf("widget type %d not found: %w", templateID, err)
 	}
 
-	fn, ok := widgetRegistry[funcName]
-	if !ok {
+	var fn func(map[string]interface{}, *sql.DB) (string, error)
+	for _, w := range GetWidgets(db) {
+		if w.Name == funcName {
+			fn = w.Fn
+			break
+		}
+	}
+	if fn == nil {
 		return "", fmt.Errorf("unknown widget function: %s", funcName)
 	}
 
