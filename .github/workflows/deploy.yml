@@ -38,5 +38,7 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            chmod +x /var/www/backend/cuento-backend
+            chown cuento:cuento /var/www/backend/cuento-backend
+            chown cuento:cuento /var/www/backend
+            chmod 755 /var/www/backend/cuento-backend
             systemctl restart cuento-backend
