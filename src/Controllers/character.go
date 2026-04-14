@@ -20,6 +20,8 @@ type CreateCharacterRequest struct {
 	Avatar       *string                `json:"avatar"`
 	CustomFields map[string]interface{} `json:"custom_fields"`
 	FactionIDs   []Entities.Faction     `json:"factions"`
+	ClaimId      *int                   `json:"claim_id"`
+	ClaimType    string                 `json:"claim_type"`
 }
 
 type UpdateCharacterRequest struct {
@@ -27,6 +29,8 @@ type UpdateCharacterRequest struct {
 	Avatar       *string                `json:"avatar"`
 	CustomFields map[string]interface{} `json:"custom_fields"`
 	FactionIDs   []Entities.Faction     `json:"factions"`
+	ClaimId      *int                   `json:"claim_id"`
+	ClaimType    string                 `json:"claim_type"`
 }
 
 func GetCharacter(c *gin.Context, db *sql.DB) {
@@ -120,6 +124,18 @@ func GetCharacter(c *gin.Context, db *sql.DB) {
 		}
 		character.CanEdit = &canEdit
 
+		var cr Entities.ClaimRecord
+		err = db.QueryRow(`
+			SELECT id, claim_id, user_id, guest_hash, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet
+			FROM claim_record
+			WHERE character_id = ?
+			ORDER BY claim_date DESC
+			LIMIT 1
+		`, character.Id).Scan(&cr.Id, &cr.ClaimId, &cr.UserId, &cr.GuestHash, &cr.IsGuest, &cr.ClaimDate, &cr.ClaimExpirationDate, &cr.CharacterId, &cr.ClaimCreatedWithCharacterSheet)
+		if err == nil {
+			character.ClaimRecord = &cr
+		}
+
 		c.JSON(http.StatusOK, character)
 		return
 	}
@@ -209,6 +225,43 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 		// Add faction to character
 		if err := Services.AddFactionCharacter(factionID, int(characterID), tx); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to add faction to character: " + err.Error()})
+			c.Abort()
+			return
+		}
+	}
+
+	if req.ClaimId != nil && req.ClaimType != "" {
+		claimId := *req.ClaimId
+
+		if req.ClaimType == "wanted_character" {
+			var characterClaimId *int
+			if err := tx.QueryRow("SELECT character_claim_id FROM wanted_character_base WHERE id = ?", claimId).Scan(&characterClaimId); err != nil || characterClaimId == nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Failed to resolve wanted character claim"})
+				c.Abort()
+				return
+			}
+			claimId = *characterClaimId
+		}
+
+		var existingRecordId int
+		err := tx.QueryRow("SELECT id FROM claim_record WHERE claim_id = ? AND user_id = ?", claimId, userID).Scan(&existingRecordId)
+		if err == nil {
+			if _, err := tx.Exec("UPDATE claim_record SET character_id = ? WHERE id = ?", characterID, existingRecordId); err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update claim record: " + err.Error()})
+				c.Abort()
+				return
+			}
+		} else if err == sql.ErrNoRows {
+			if _, err := tx.Exec(
+				"INSERT INTO claim_record (claim_id, user_id, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet) VALUES (?, ?, false, NOW(), NOW(), ?, true)",
+				claimId, userID, characterID,
+			); err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
+				c.Abort()
+				return
+			}
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to check claim record: " + err.Error()})
 			c.Abort()
 			return
 		}
@@ -389,6 +442,56 @@ func UpdateCharacter(c *gin.Context, db *sql.DB) {
 
 		if err := Services.AddFactionCharacter(factionID, characterID, tx); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to add faction to character: " + err.Error()})
+			c.Abort()
+			return
+		}
+	}
+
+	if req.ClaimId != nil {
+		newClaimId := *req.ClaimId
+
+		if newClaimId != -1 && req.ClaimType == "wanted_character" {
+			var characterClaimId *int
+			if err := tx.QueryRow("SELECT character_claim_id FROM wanted_character_base WHERE id = ?", newClaimId).Scan(&characterClaimId); err != nil || characterClaimId == nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Failed to resolve wanted character claim"})
+				c.Abort()
+				return
+			}
+			newClaimId = *characterClaimId
+		}
+
+		var existingRecordId int
+		var existingClaimId int
+		err := tx.QueryRow("SELECT id, claim_id FROM claim_record WHERE character_id = ? AND user_id = ?", characterID, userID).Scan(&existingRecordId, &existingClaimId)
+		if err == nil {
+			if newClaimId == -1 || existingClaimId != newClaimId {
+				if _, err := tx.Exec("UPDATE claim_record SET claim_expiration_date = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE id = ?", existingRecordId); err != nil {
+					_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to expire claim record: " + err.Error()})
+					c.Abort()
+					return
+				}
+				if newClaimId != -1 {
+					if _, err := tx.Exec(
+						"INSERT INTO claim_record (claim_id, user_id, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet) VALUES (?, ?, false, NOW(), DATE_ADD(NOW(), INTERVAL 5 DAY), ?, true)",
+						newClaimId, userID, characterID,
+					); err != nil {
+						_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
+						c.Abort()
+						return
+					}
+				}
+			}
+		} else if err == sql.ErrNoRows && newClaimId != -1 {
+			if _, err := tx.Exec(
+				"INSERT INTO claim_record (claim_id, user_id, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet) VALUES (?, ?, false, NOW(), DATE_ADD(NOW(), INTERVAL 5 DAY), ?, true)",
+				newClaimId, userID, characterID,
+			); err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
+				c.Abort()
+				return
+			}
+		} else if err != nil && err != sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to check claim record: " + err.Error()})
 			c.Abort()
 			return
 		}
@@ -1005,6 +1108,21 @@ func AcceptCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	var claimRecordId int
+	var claimId int
+	if err := tx.QueryRow("SELECT id, claim_id FROM claim_record WHERE character_id = ? ORDER BY claim_date DESC LIMIT 1", id).Scan(&claimRecordId, &claimId); err == nil {
+		if _, err := tx.Exec("UPDATE character_claim SET is_claimed = true, claim_record_id = ? WHERE id = ?", claimRecordId, claimId); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update character claim: " + err.Error()})
+			c.Abort()
+			return
+		}
+		if _, err := tx.Exec("UPDATE wanted_character_base SET is_claimed = true WHERE character_claim_id = ?", claimId); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update wanted character: " + err.Error()})
+			c.Abort()
+			return
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
 		c.Abort()
@@ -1240,17 +1358,14 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 				cc.name,
 				cc.description,
 				cc.is_claimed,
-				cc.user_id,
-				cc.guest_hash,
 				cc.can_change_name,
-				cc.last_claim_date,
 				f.id AS faction_id,
 				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
 			FROM character_claim cc
 			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
 			JOIN factions f ON ccf.faction_id = f.id
 		)
-		SELECT id, name, description, is_claimed, user_id, guest_hash, can_change_name, last_claim_date, faction_id
+		SELECT id, name, description, is_claimed, can_change_name, faction_id
 		FROM RankedFactions
 		WHERE rn = 1
 	`
@@ -1265,7 +1380,7 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 	for claimRows.Next() {
 		var claim Entities.CharacterClaim
 		var factionID int
-		if err := claimRows.Scan(&claim.Id, &claim.Name, &claim.Description, &claim.IsClaimed, &claim.UserId, &claim.GuestHash, &claim.CanChangeName, &claim.LastClaimDate, &factionID); err != nil {
+		if err := claimRows.Scan(&claim.Id, &claim.Name, &claim.Description, &claim.IsClaimed, &claim.CanChangeName, &factionID); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
 			c.Abort()
 			return
@@ -1300,8 +1415,8 @@ func CreateCharacterClaim(c *gin.Context, db *sql.DB) {
 	defer tx.Rollback()
 
 	res, err := tx.Exec(
-		"INSERT INTO character_claim (name, description, is_claimed, user_id, guest_hash, can_change_name, last_claim_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		req.Claim.Name, req.Claim.Description, req.Claim.IsClaimed, req.Claim.UserId, req.Claim.GuestHash, req.Claim.CanChangeName, req.Claim.LastClaimDate,
+		"INSERT INTO character_claim (name, description, is_claimed, can_change_name) VALUES (?, ?, ?, ?)",
+		req.Claim.Name, req.Claim.Description, req.Claim.IsClaimed, req.Claim.CanChangeName,
 	)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to insert character claim: " + err.Error()})

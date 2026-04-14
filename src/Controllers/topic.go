@@ -606,6 +606,19 @@ func GetTopic(c *gin.Context, db *sql.DB) {
 			}
 			if character, ok := entity.(*Entities.Character); ok {
 				character.Factions, _ = Services.GetFactionTreeByCharacter(characterID, db)
+
+				var cr Entities.ClaimRecord
+				err := db.QueryRow(`
+					SELECT id, claim_id, user_id, guest_hash, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet
+					FROM claim_record
+					WHERE character_id = ?
+					ORDER BY claim_date DESC
+					LIMIT 1
+				`, characterID).Scan(&cr.Id, &cr.ClaimId, &cr.UserId, &cr.GuestHash, &cr.IsGuest, &cr.ClaimDate, &cr.ClaimExpirationDate, &cr.CharacterId, &cr.ClaimCreatedWithCharacterSheet)
+				if err == nil {
+					character.ClaimRecord = &cr
+				}
+
 				topic.Character = character
 			}
 		}
@@ -624,6 +637,7 @@ func GetTopic(c *gin.Context, db *sql.DB) {
 			if wc, ok := entity.(*Entities.WantedCharacter); ok {
 				if wc.CharacterClaimId != nil {
 					wc.Factions, _ = Services.GetFactionTreeByCharacterClaim(*wc.CharacterClaimId, db)
+					wc.ClaimRecord = fetchActiveClaimRecord(*wc.CharacterClaimId, db)
 				}
 				topic.WantedCharacter = wc
 			}

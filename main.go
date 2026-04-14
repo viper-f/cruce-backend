@@ -138,6 +138,15 @@ func main() {
 	optionalAuthRouter.GET("/mask-autocomplete/:term", "Get list of masks matching search term", func(c *gin.Context) {
 		Controllers.GetMaskAutocomplete(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/wanted-character-autocomplete/:term", "Get list of wanted characters matching search term", func(c *gin.Context) {
+		Controllers.GetWantedCharacterAutocomplete(c, Services.DB)
+	})
+	optionalAuthRouter.GET("/claim-autocomplete/:term", "Get list of claims not linked to wanted characters matching search term", func(c *gin.Context) {
+		Controllers.GetClaimAutocomplete(c, Services.DB)
+	})
+	optionalAuthRouter.POST("/claim-record/create", "Create a new claim record for a wanted character or claim", func(c *gin.Context) {
+		Controllers.CreateClaimRecord(c, Services.DB)
+	})
 	optionalAuthRouter.GET("/factions/get", "Get faction tree", func(c *gin.Context) {
 		Controllers.GetActiveFactionTree(c, Services.DB)
 	})

@@ -432,11 +432,25 @@ create table character_claim
     name            varchar(255) not null,
     description     text         null,
     is_claimed      boolean      default false not null,
-    user_id         int          null,
-    guest_hash      varchar(255) null,
+    claim_record_id int          null,
     can_change_name boolean      default false not null,
-    last_claim_date datetime     null,
-    constraint fk_character_claim_user foreign key (user_id) references users (id) on delete set null
+    constraint fk_character_claim_record foreign key (claim_record_id) references claim_record (id) on delete set null
+);
+
+create table claim_record
+(
+    id                     int auto_increment primary key,
+    claim_id               int          not null,
+    user_id                int          null,
+    guest_hash             varchar(255) null,
+    is_guest               boolean      default false not null,
+    claim_date             datetime     not null,
+    claim_expiration_date  datetime     not null,
+    character_id                        int     null,
+    claim_created_with_character_sheet  boolean null,
+    constraint fk_claim_record_claim      foreign key (claim_id) references character_claim (id) on delete cascade,
+    constraint fk_claim_record_user       foreign key (user_id) references users (id) on delete set null,
+    constraint fk_claim_record_character  foreign key (character_id) references character_base (id) on delete set null
 );
 
 create table character_claim_faction
