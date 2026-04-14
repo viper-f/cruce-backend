@@ -28,7 +28,7 @@ jobs:
           host: ${{ secrets.DROPLET_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "cuento-backend"
+          source: "cuento-backend,locales/"
           target: "/var/www/backend"
 
       - name: Restart Service via SSH
@@ -38,5 +38,7 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            chmod +x /var/www/backend/cuento-backend
+            chown cuento:cuento /var/www/backend/cuento-backend
+            chown cuento:cuento /var/www/backend
+            chmod 755 /var/www/backend/cuento-backend
             systemctl restart cuento-backend
