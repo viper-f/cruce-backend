@@ -1,12 +1,14 @@
 package Controllers
 
 import (
+	"crypto/rand"
 	"cuento-backend/src/Entities"
 	"cuento-backend/src/Events"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -102,6 +104,7 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 		}
 		if wc.CharacterClaimId != nil {
 			wc.Factions, _ = Services.GetFactionTreeByCharacterClaim(*wc.CharacterClaimId, db)
+			wc.ClaimRecord = fetchActiveClaimRecord(*wc.CharacterClaimId, db)
 		} else {
 			wc.Factions = []Entities.Faction{}
 		}
@@ -250,6 +253,7 @@ func GetWantedCharacter(c *gin.Context, db *sql.DB) {
 	if wc, ok := entity.(*Entities.WantedCharacter); ok {
 		if wc.CharacterClaimId != nil {
 			wc.Factions, _ = Services.GetFactionTreeByCharacterClaim(*wc.CharacterClaimId, db)
+			wc.ClaimRecord = fetchActiveClaimRecord(*wc.CharacterClaimId, db)
 		} else {
 			wc.Factions = []Entities.Faction{}
 		}
@@ -321,20 +325,31 @@ func CreateWantedCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	claimRes, err := tx.Exec(
-		"INSERT INTO character_claim (name, description, is_claimed, user_id, guest_hash, can_change_name, last_claim_date) VALUES (?, NULL, false, NULL, '', false, NULL)",
-		req.Name,
-	)
-	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create character claim: " + err.Error()})
-		c.Abort()
-		return
-	}
-	claimID, err := claimRes.LastInsertId()
-	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character claim ID"})
-		c.Abort()
-		return
+	var claimID int64
+	if req.CharacterClaimId != nil {
+		claimID = int64(*req.CharacterClaimId)
+	} else {
+		claimRes, err := tx.Exec(
+			"INSERT INTO character_claim (name, description, is_claimed, can_change_name) VALUES (?, NULL, false, false)",
+			req.Name,
+		)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create character claim: " + err.Error()})
+			c.Abort()
+			return
+		}
+		claimID, err = claimRes.LastInsertId()
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character claim ID"})
+			c.Abort()
+			return
+		}
+
+		if _, err := tx.Exec("UPDATE wanted_character_base SET character_claim_id = ? WHERE id = ?", claimID, wantedCharacterID); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to link character claim to wanted character: " + err.Error()})
+			c.Abort()
+			return
+		}
 	}
 
 	for _, faction := range req.Factions {
@@ -343,12 +358,6 @@ func CreateWantedCharacter(c *gin.Context, db *sql.DB) {
 			c.Abort()
 			return
 		}
-	}
-
-	if _, err := tx.Exec("UPDATE wanted_character_base SET character_claim_id = ? WHERE id = ?", claimID, wantedCharacterID); err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to link character claim to wanted character: " + err.Error()})
-		c.Abort()
-		return
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -603,5 +612,161 @@ func ActivateWantedCharacter(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"wanted_character_status": Entities.ActiveWantedCharacter,
 		"topic_status":            topicStatus,
+	})
+}
+
+type ClaimAutocompleteItem struct {
+	Id                  int        `json:"id"`
+	Name                string     `json:"name"`
+	IsClaimed           *bool      `json:"is_claimed"`
+	ClaimExpirationDate *time.Time `json:"claim_expiration_date"`
+	UserId              *int       `json:"user_id"`
+	GuestHash           *string    `json:"guest_hash"`
+}
+
+func scanClaimAutocompleteRows(c *gin.Context, rows *sql.Rows, errMsg string) []ClaimAutocompleteItem {
+	var results []ClaimAutocompleteItem
+	for rows.Next() {
+		var guestHash *string
+		var claimDate *time.Time
+		item := ClaimAutocompleteItem{}
+		if err := rows.Scan(&item.Id, &item.Name, &item.UserId, &guestHash, &claimDate); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: errMsg + err.Error()})
+			continue
+		}
+		if claimDate != nil {
+			isClaimed := true
+			item.IsClaimed = &isClaimed
+			item.ClaimExpirationDate = claimDate
+			item.GuestHash = guestHash
+		}
+		results = append(results, item)
+	}
+	return results
+}
+
+func GetWantedCharacterAutocomplete(c *gin.Context, db *sql.DB) {
+	query := `
+		SELECT wcb.id, wcb.name, cr.user_id, cr.guest_hash, cr.claim_expiration_date
+		FROM wanted_character_base wcb
+		LEFT JOIN character_claim cc ON cc.id = wcb.character_claim_id
+		LEFT JOIN claim_record cr ON cr.claim_id = cc.id
+			AND cr.claim_expiration_date > NOW()
+			AND cr.id = (SELECT MAX(id) FROM claim_record WHERE claim_id = cc.id AND claim_expiration_date > NOW())
+		WHERE wcb.name LIKE ? AND (wcb.is_deleted IS NULL OR wcb.is_deleted = false) AND wcb.wanted_character_status = 0
+		ORDER BY wcb.name ASC LIMIT 10
+	`
+	rows, err := db.Query(query, "%"+c.Param("term")+"%")
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+	c.JSON(http.StatusOK, scanClaimAutocompleteRows(c, rows, "Failed to scan wanted character: "))
+}
+
+func GetClaimAutocomplete(c *gin.Context, db *sql.DB) {
+	query := `
+		SELECT cc.id, cc.name, cr.user_id, cr.guest_hash, cr.claim_expiration_date
+		FROM character_claim cc
+		LEFT JOIN wanted_character_base wcb ON wcb.character_claim_id = cc.id
+		LEFT JOIN claim_record cr ON cr.claim_id = cc.id
+			AND cr.claim_expiration_date > NOW()
+			AND cr.id = (SELECT MAX(id) FROM claim_record WHERE claim_id = cc.id AND claim_expiration_date > NOW())
+		WHERE cc.name LIKE ? AND wcb.id IS NULL
+		ORDER BY cc.name ASC LIMIT 10
+	`
+	rows, err := db.Query(query, "%"+c.Param("term")+"%")
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get claims: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+	c.JSON(http.StatusOK, scanClaimAutocompleteRows(c, rows, "Failed to scan claim: "))
+}
+
+func fetchActiveClaimRecord(characterClaimId int, db *sql.DB) *Entities.ClaimRecord {
+	var cr Entities.ClaimRecord
+	err := db.QueryRow(`
+		SELECT id, claim_id, user_id, guest_hash, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet
+		FROM claim_record
+		WHERE claim_id = ? AND claim_expiration_date > NOW()
+		ORDER BY claim_date DESC
+		LIMIT 1
+	`, characterClaimId).Scan(&cr.Id, &cr.ClaimId, &cr.UserId, &cr.GuestHash, &cr.IsGuest, &cr.ClaimDate, &cr.ClaimExpirationDate, &cr.CharacterId, &cr.ClaimCreatedWithCharacterSheet)
+	if err != nil {
+		return nil
+	}
+	return &cr
+}
+
+type CreateClaimRecordRequest struct {
+	ClaimType string `json:"claim_type" binding:"required"`
+	ClaimId   int    `json:"claim_id" binding:"required"`
+}
+
+func generateGuestHash() string {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	result := make([]byte, 6)
+	for i := range result {
+		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		result[i] = chars[n.Int64()]
+	}
+	return string(result)
+}
+
+func CreateClaimRecord(c *gin.Context, db *sql.DB) {
+	var req CreateClaimRecordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+
+	claimId := req.ClaimId
+	if req.ClaimType == "wanted_character" {
+		var characterClaimId *int
+		if err := db.QueryRow("SELECT character_claim_id FROM wanted_character_base WHERE id = ?", claimId).Scan(&characterClaimId); err != nil || characterClaimId == nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Failed to resolve wanted character claim"})
+			c.Abort()
+			return
+		}
+		claimId = *characterClaimId
+	}
+
+	isGuest := userID == 0
+	expirationDays := 5
+	if isGuest {
+		expirationDays = 3
+	}
+	expirationDate := time.Now().AddDate(0, 0, expirationDays)
+
+	var guestHash string
+	if isGuest {
+		guestHash = generateGuestHash()
+	}
+
+	var userIdParam *int
+	if !isGuest {
+		userIdParam = &userID
+	}
+
+	_, err := db.Exec(
+		"INSERT INTO claim_record (claim_id, user_id, guest_hash, is_guest, claim_date, claim_expiration_date) VALUES (?, ?, ?, ?, NOW(), ?)",
+		claimId, userIdParam, guestHash, isGuest, expirationDate,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"guest_hash":            guestHash,
+		"claim_expiration_date": expirationDate,
 	})
 }

@@ -14,6 +14,7 @@ type Character struct {
 	Factions        []Faction         `json:"factions" db:"-"`
 	Episodes        []EpisodeListItem `json:"episodes" db:"-"`
 	CanEdit         *bool             `json:"can_edit,omitempty" db:"-"`
+	ClaimRecord     *ClaimRecord      `json:"claim_record,omitempty" db:"-"`
 }
 
 type EpisodeListItem struct {
@@ -42,15 +43,25 @@ const (
 	PendingCharacter  CharacterStatus = 2
 )
 
+type ClaimRecord struct {
+	Id                             int       `json:"id"`
+	ClaimId                        int       `json:"claim_id"`
+	UserId                         *int      `json:"user_id"`
+	GuestHash                      *string   `json:"guest_hash"`
+	IsGuest                        bool      `json:"is_guest"`
+	ClaimDate                      time.Time `json:"claim_date"`
+	ClaimExpirationDate            time.Time `json:"claim_expiration_date"`
+	CharacterId                    *int      `json:"character_id"`
+	ClaimCreatedWithCharacterSheet *bool     `json:"claim_created_with_character_sheet"`
+}
+
 type CharacterClaim struct {
-	Id            int        `json:"id"`
-	Name          string     `json:"name"`
-	Description   *string    `json:"description"`
-	IsClaimed     bool       `json:"is_claimed"`
-	UserId        *int       `json:"user_id"`
-	GuestHash     string     `json:"guest_hash"`
-	CanChangeName bool       `json:"can_change_name"`
-	LastClaimDate *time.Time `json:"last_claim_date"`
+	Id            int     `json:"id"`
+	Name          string  `json:"name"`
+	Description   *string `json:"description"`
+	IsClaimed     bool    `json:"is_claimed"`
+	ClaimRecordId *int    `json:"claim_record_id"`
+	CanChangeName bool    `json:"can_change_name"`
 }
 
 type WantedCharacterStatus int
@@ -72,6 +83,7 @@ type WantedCharacter struct {
 	WantedCharacterStatus WantedCharacterStatus `json:"wanted_character_status"`
 	CustomFields          CustomFieldEntity     `json:"custom_fields" db:"-"`
 	Factions              []Faction             `json:"factions" db:"-"`
+	ClaimRecord           *ClaimRecord          `json:"claim_record,omitempty" db:"-"`
 }
 
 func (w *WantedCharacter) GetBaseFields() []string {
