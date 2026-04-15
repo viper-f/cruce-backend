@@ -446,7 +446,7 @@ create table claim_record
     is_guest               boolean      default false not null,
     claim_date             datetime     not null,
     claim_expiration_date  datetime     not null,
-    character_id                        int     null,
+    character_id                        bigint unsigned null,
     claim_created_with_character_sheet  boolean null,
     constraint fk_claim_record_claim      foreign key (claim_id) references character_claim (id) on delete cascade,
     constraint fk_claim_record_user       foreign key (user_id) references users (id) on delete set null,
