@@ -18,11 +18,10 @@ jobs:
           cache: true
 
       - name: Build Binary
-        # We cross-compile for Linux AMD64 since that's what your Droplet uses
         run: |
           GOOS=linux GOARCH=amd64 go build -o cuento-backend main.go
 
-      - name: Copy binary to Droplet
+      - name: Copy binary to Server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DROPLET_IP }}
