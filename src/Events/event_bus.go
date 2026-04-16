@@ -104,7 +104,7 @@ type StaticFileUploadedEvent struct {
 }
 
 type ReactionCreatedEvent struct {
-	TopicID    string `json:"topic_id"`
+	TopicID    int64  `json:"topic_id"`
 	PostID     int    `json:"post_id"`
 	ReactionID int    `json:"reaction_id"`
 	Url        string `json:"url"`

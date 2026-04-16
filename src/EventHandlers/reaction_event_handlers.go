@@ -5,6 +5,7 @@ import (
 	"cuento-backend/src/Services"
 	"cuento-backend/src/Websockets"
 	"database/sql"
+	"strconv"
 )
 
 func RegisterReactionEventHandlers() {
@@ -14,7 +15,7 @@ func RegisterReactionEventHandlers() {
 			return
 		}
 
-		users := Services.ActivityStorage.GetUsersOnPage("topic", event.TopicID)
+		users := Services.ActivityStorage.GetUsersOnPage("topic", strconv.FormatInt(event.TopicID, 10))
 
 		notification := map[string]interface{}{
 			"type": "reaction_created",
