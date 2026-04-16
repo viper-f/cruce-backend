@@ -14,7 +14,6 @@ create table users
     user_status        int default 0 not null,
     total_posts        int default 0 not null,
     total_general_posts int default 0 not null,
-    disable_sound      boolean default false not null,
     constraint users_pk_2
         unique (username)
 );

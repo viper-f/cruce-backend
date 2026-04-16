@@ -57,7 +57,6 @@ type UpdateSettingsRequest struct {
 	Language        *string        `json:"interface_language"`
 	FontSize        *float64       `json:"interface_font_size"`
 	Password        *string        `json:"password"`
-	DisableSound    *bool          `json:"disable_sound"`
 	InterfaceDesign NullableString `json:"interface_design"`
 }
 
@@ -339,8 +338,8 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 
 	// Fetch user details
 	var user Entities.User
-	query := "SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, disable_sound, interface_design FROM users WHERE id = ?"
-	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.DisableSound, &user.InterfaceDesign)
+	query := "SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, interface_design FROM users WHERE id = ?"
+	err = db.QueryRow(query, claims.UserID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.InterfaceDesign)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch user details"})
 		c.Abort()
@@ -546,10 +545,6 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 		updates = append(updates, "interface_font_size = ?")
 		args = append(args, *req.FontSize)
 	}
-	if req.DisableSound != nil {
-		updates = append(updates, "disable_sound = ?")
-		args = append(args, *req.DisableSound)
-	}
 	if req.InterfaceDesign.IsSet {
 		updates = append(updates, "interface_design = ?")
 		args = append(args, req.InterfaceDesign.Value)
@@ -583,7 +578,7 @@ func UpdateSettings(c *gin.Context, db *sql.DB) {
 
 	// Fetch updated user details
 	var user Entities.User
-	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, disable_sound, interface_design FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.DisableSound, &user.InterfaceDesign)
+	err = db.QueryRow("SELECT id, username, avatar, interface_language, interface_timezone, interface_font_size, user_status, total_posts, total_general_posts, interface_design FROM users WHERE id = ?", userID).Scan(&user.Id, &user.Username, &user.Avatar, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.TotalPosts, &user.TotalGeneralPosts, &user.InterfaceDesign)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated user details"})
 		c.Abort()
