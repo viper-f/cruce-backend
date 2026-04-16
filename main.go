@@ -11,6 +11,7 @@ import (
 	"cuento-backend/src/Websockets"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,17 @@ func main() {
 
 	// Start WebSocket Hub
 	go Websockets.MainHub.Run()
+
+	// Evict users inactive for more than 10 minutes
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			for _, userID := range Services.ActivityStorage.GetInactiveUserIDs(10 * time.Minute) {
+				Websockets.MainHub.CloseUserConnections(userID)
+			}
+		}
+	}()
 
 	r := gin.Default()
 	config := cors.DefaultConfig()

@@ -115,6 +115,21 @@ func (s *UserActivityStorage) GetUsersOnPage(pageType string, pageId string) []*
 	return usersOnPage
 }
 
+// GetInactiveUserIDs returns IDs of users whose LastActive is older than the given timeout.
+func (s *UserActivityStorage) GetInactiveUserIDs(timeout time.Duration) []int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	cutoff := time.Now().Add(-timeout)
+	ids := make([]int, 0)
+	for _, user := range s.users {
+		if user.LastActive.Before(cutoff) {
+			ids = append(ids, user.UserID)
+		}
+	}
+	return ids
+}
+
 // UpdateTopicView updates the database table tracking the user's last read position in a topic.
 func (s *UserActivityStorage) UpdateTopicView(db *sql.DB, userID int, topicID int64, postID *int64) error {
 	query := `

@@ -219,6 +219,21 @@ func (h *Hub) Broadcast(message interface{}) {
 	}
 }
 
+// CloseUserConnections forcefully closes all WebSocket connections for a user.
+// The read loop detects the error and runs its cleanup defer (RemoveUser, Unregister).
+func (h *Hub) CloseUserConnections(userID int) {
+	h.mu.RLock()
+	clients := make([]*Client, 0)
+	for c := range h.clients[userID] {
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
+
+	for _, c := range clients {
+		c.Conn.Close()
+	}
+}
+
 func (h *Hub) SendNotification(userID int, message interface{}) {
 	msgID := atomic.AddInt64(&globalMsgID, 1)
 	payload := enrichMessage(message, msgID)
