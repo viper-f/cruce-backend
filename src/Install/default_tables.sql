@@ -631,3 +631,22 @@ CREATE TABLE post_tops
     is_open    tinyint(1)   not null default 0,
     start_date date         null
 );
+
+create table reactions
+(
+    id        int          not null auto_increment primary key,
+    url       varchar(255) not null,
+    is_active boolean      not null default true
+);
+
+create table post_reaction
+(
+    post_id     bigint unsigned not null,
+    reaction_id int             not null,
+    user_id     int             not null,
+    date_sent   datetime        not null default current_timestamp,
+    primary key (post_id, reaction_id, user_id),
+    constraint fk_post_reaction_post     foreign key (post_id)     references posts (id)     on delete cascade,
+    constraint fk_post_reaction_reaction foreign key (reaction_id) references reactions (id) on delete cascade,
+    constraint fk_post_reaction_user     foreign key (user_id)     references users (id)     on delete cascade
+);

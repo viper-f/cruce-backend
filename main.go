@@ -454,6 +454,24 @@ func main() {
 	protectedRouter.POST("/static-file/upload", "Upload a static file", func(c *gin.Context) {
 		Controllers.UploadFile(c, Services.DB)
 	})
+	publicRouter.GET("/reaction/list", "Get list of all reactions", func(c *gin.Context) {
+		Controllers.GetReactionList(c, Services.DB)
+	})
+	protectedRouter.POST("/reaction/create", "Upload and create a new reaction", func(c *gin.Context) {
+		Controllers.CreateReaction(c, Services.DB)
+	})
+	protectedRouter.POST("/reaction/deactivate/:id", "Deactivate a reaction by ID", func(c *gin.Context) {
+		Controllers.DeactivateReaction(c, Services.DB)
+	})
+	protectedRouter.POST("/reaction/activate/:id", "Activate a reaction by ID", func(c *gin.Context) {
+		Controllers.ActivateReaction(c, Services.DB)
+	})
+	publicRouter.GET("/reaction/list/active", "Get list of active reactions", func(c *gin.Context) {
+		Controllers.GetActiveReactionList(c, Services.DB)
+	})
+	optionalAuthRouter.POST("/post-reaction/create", "React to a post", func(c *gin.Context) {
+		Controllers.ReactToPost(c, Services.DB)
+	})
 	protectedRouter.GET("/static-file/list/:file_type", "Get last 3 static files by type", func(c *gin.Context) {
 		Controllers.GetStaticFileList(c, Services.DB)
 	})

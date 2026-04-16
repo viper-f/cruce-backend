@@ -469,6 +469,59 @@ func GetPostsByTopic(c *gin.Context, db *sql.DB) {
 		posts = append(posts, post)
 	}
 
+	if len(posts) > 0 {
+		postIDs := make([]interface{}, len(posts))
+		placeholders := make([]string, len(posts))
+		for i, p := range posts {
+			postIDs[i] = p.Id
+			placeholders[i] = "?"
+		}
+		reactionQuery := fmt.Sprintf(`
+			SELECT pr.post_id, pr.reaction_id, r.url, pr.user_id, u.username
+			FROM post_reaction pr
+			JOIN reactions r ON r.id = pr.reaction_id
+			JOIN users u ON u.id = pr.user_id
+			WHERE pr.post_id IN (%s) AND r.is_active = true
+			ORDER BY pr.post_id, pr.reaction_id
+		`, strings.Join(placeholders, ","))
+
+		reactionRows, err := db.Query(reactionQuery, postIDs...)
+		if err == nil {
+			defer reactionRows.Close()
+
+			// postIndex maps post ID to its index in posts slice
+			postIndex := make(map[int]int, len(posts))
+			for i, p := range posts {
+				postIndex[p.Id] = i
+				posts[i].Reactions = []Entities.PostReaction{}
+			}
+			// reactionIndex maps (postId, reactionId) to index in that post's Reactions slice
+			type reactionKey struct{ postId, reactionId int }
+			reactionIndex := make(map[reactionKey]int)
+
+			for reactionRows.Next() {
+				var postId, reactionId, userId int
+				var url, username string
+				if err := reactionRows.Scan(&postId, &reactionId, &url, &userId, &username); err != nil {
+					continue
+				}
+				pi := postIndex[postId]
+				key := reactionKey{postId, reactionId}
+				if _, exists := reactionIndex[key]; !exists {
+					reactionIndex[key] = len(posts[pi].Reactions)
+					posts[pi].Reactions = append(posts[pi].Reactions, Entities.PostReaction{
+						ReactionId: reactionId,
+						Url:        url,
+						Users:      []Entities.PostReactionUser{},
+					})
+				}
+				ri := reactionIndex[key]
+				posts[pi].Reactions[ri].Users = append(posts[pi].Reactions[ri].Users, Entities.PostReactionUser{Id: userId, Name: username})
+				posts[pi].Reactions[ri].Number++
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"page":  page,
 		"posts": posts,

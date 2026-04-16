@@ -2,6 +2,18 @@ package Entities
 
 import "time"
 
+type PostReactionUser struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type PostReaction struct {
+	ReactionId int                `json:"reaction_id"`
+	Url        string             `json:"url"`
+	Number     int                `json:"number"`
+	Users      []PostReactionUser `json:"users"`
+}
+
 type Post struct {
 	Id                   int               `json:"id"`
 	TopicId              int               `json:"topic_id"`
@@ -17,4 +29,5 @@ type Post struct {
 	UserProfile          *UserProfile      `json:"user_profile"`
 	UseCharacterProfile  bool              `json:"use_character_profile"`
 	CanEdit              *bool             `json:"can_edit,omitempty" db:"-"`
+	Reactions            []PostReaction    `json:"reactions"`
 }
