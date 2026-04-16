@@ -116,7 +116,7 @@ func GetNotificationSettings(c *gin.Context, db *sql.DB) {
 	}
 	defer rows.Close()
 
-	settings := make([]Entities.UserNotificationSetting, 0)
+	saved := make(map[string]Entities.UserNotificationSetting)
 	for rows.Next() {
 		var s Entities.UserNotificationSetting
 		if err := rows.Scan(&s.NotificationType, &s.DisableToast, &s.DisableSound, &s.DisableAll); err != nil {
@@ -124,8 +124,19 @@ func GetNotificationSettings(c *gin.Context, db *sql.DB) {
 			c.Abort()
 			return
 		}
-		settings = append(settings, s)
+		saved[s.NotificationType] = s
 	}
+
+	allTypes := []string{"system", "game", "mention", "account_update", "direct_message", "reaction"}
+	settings := make([]Entities.UserNotificationSetting, 0, len(allTypes))
+	for _, t := range allTypes {
+		if s, ok := saved[t]; ok {
+			settings = append(settings, s)
+		} else {
+			settings = append(settings, Entities.UserNotificationSetting{NotificationType: t})
+		}
+	}
+
 	c.JSON(http.StatusOK, settings)
 }
 
