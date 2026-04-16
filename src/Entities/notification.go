@@ -75,3 +75,25 @@ type NotificationDirectMessage struct {
 	Username string  `json:"username"`
 	Avatar   *string `json:"avatar"`
 }
+
+type NotificationReaction struct {
+	PostId     int    `json:"post_id"`
+	TopicId    int64  `json:"topic_id"`
+	TopicName  string `json:"topic_name"`
+	ReactionId int    `json:"reaction_id"`
+	Url        string `json:"url"`
+	UserId     int    `json:"user_id"`
+	UserName   string `json:"user_name"`
+}
+
+type ReactionNotification struct {
+	NotificationBase
+	Data NotificationReaction `json:"data"`
+}
+
+type UserNotificationSetting struct {
+	NotificationType string `json:"notification_type"`
+	DisableToast     bool   `json:"disable_toast"`
+	DisableSound     bool   `json:"disable_sound"`
+	DisableAll       bool   `json:"disable_all"`
+}

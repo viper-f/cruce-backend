@@ -34,6 +34,7 @@ func GetUnreadNotifications(c *gin.Context, db *sql.DB) {
 		"mention":        {},
 		"account_update": {},
 		"direct_message": {},
+		"reaction":       {},
 	}
 
 	for rows.Next() {
@@ -66,6 +67,10 @@ func GetUnreadNotifications(c *gin.Context, db *sql.DB) {
 			n := Entities.DirectMessageNotification{NotificationBase: base}
 			json.Unmarshal(dataJSON, &n.Data)
 			notification = n
+		case "reaction":
+			n := Entities.ReactionNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
 		default:
 			notification = base
 		}
@@ -78,6 +83,92 @@ func GetUnreadNotifications(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func GetNotificationTypes(c *gin.Context) {
+	types := []string{
+		"system",
+		"game",
+		"mention",
+		"account_update",
+		"direct_message",
+		"reaction",
+	}
+	c.JSON(http.StatusOK, types)
+}
+
+func GetNotificationSettings(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	rows, err := db.Query(
+		"SELECT notification_type, disable_toast, disable_sound, disable_all FROM user_notification_setting WHERE user_id = ?",
+		userID,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch notification settings: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	settings := make([]Entities.UserNotificationSetting, 0)
+	for rows.Next() {
+		var s Entities.UserNotificationSetting
+		if err := rows.Scan(&s.NotificationType, &s.DisableToast, &s.DisableSound, &s.DisableAll); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan notification setting: " + err.Error()})
+			c.Abort()
+			return
+		}
+		settings = append(settings, s)
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+type UpdateNotificationSettingRequest struct {
+	NotificationType string `json:"notification_type" binding:"required"`
+	DisableToast     bool   `json:"disable_toast"`
+	DisableSound     bool   `json:"disable_sound"`
+	DisableAll       bool   `json:"disable_all"`
+}
+
+func UpdateNotificationSetting(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+	if userID == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Unauthorized"})
+		c.Abort()
+		return
+	}
+
+	var req UpdateNotificationSettingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO user_notification_setting (user_id, notification_type, disable_toast, disable_sound, disable_all)
+		VALUES (?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE disable_toast = VALUES(disable_toast), disable_sound = VALUES(disable_sound), disable_all = VALUES(disable_all)`,
+		userID, req.NotificationType, req.DisableToast, req.DisableSound, req.DisableAll,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update notification setting: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, Entities.UserNotificationSetting{
+		NotificationType: req.NotificationType,
+		DisableToast:     req.DisableToast,
+		DisableSound:     req.DisableSound,
+		DisableAll:       req.DisableAll,
+	})
 }
 
 func DismissNotification(c *gin.Context, db *sql.DB) {

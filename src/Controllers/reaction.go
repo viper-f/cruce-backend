@@ -214,13 +214,14 @@ func ReactToPost(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusCreated, gin.H{"post_id": req.PostId, "reaction_id": req.ReactionId, "user_id": userID})
 
 	var topicID int64
-	var userName, reactionUrl string
-	_ = db.QueryRow("SELECT topic_id FROM posts WHERE id = ?", req.PostId).Scan(&topicID)
+	var topicName, userName, reactionUrl string
+	_ = db.QueryRow("SELECT p.topic_id, t.name FROM posts p JOIN topics t ON t.id = p.topic_id WHERE p.id = ?", req.PostId).Scan(&topicID, &topicName)
 	_ = db.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&userName)
 	_ = db.QueryRow("SELECT url FROM reactions WHERE id = ?", req.ReactionId).Scan(&reactionUrl)
 
 	Events.Publish(db, Events.ReactionCreated, Events.ReactionCreatedEvent{
 		TopicID:    topicID,
+		TopicName:  topicName,
 		PostID:     req.PostId,
 		ReactionID: req.ReactionId,
 		Url:        reactionUrl,

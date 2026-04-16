@@ -31,6 +31,8 @@ func RegisterNotificationEventHandlers() {
 			title = "You were mentioned"
 		case "account_update":
 			title = "Account Update"
+		case "reaction":
+			title = "New Reaction"
 		}
 
 		res, err := db.Exec("INSERT INTO notifications (user_id, type, title, message, data, date_created, is_read) VALUES (?, ?, ?, ?, ?, NOW(), FALSE)",
@@ -72,6 +74,10 @@ func RegisterNotificationEventHandlers() {
 			notification = n
 		case "direct_message":
 			n := Entities.DirectMessageNotification{NotificationBase: base}
+			json.Unmarshal(dataJSON, &n.Data)
+			notification = n
+		case "reaction":
+			n := Entities.ReactionNotification{NotificationBase: base}
 			json.Unmarshal(dataJSON, &n.Data)
 			notification = n
 		default:

@@ -339,6 +339,18 @@ CREATE TABLE notifications (
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+create table user_notification_setting
+(
+    user_id           int          not null,
+    notification_type varchar(50)  not null,
+    disable_toast     boolean      not null default false,
+    disable_sound     boolean      not null default false,
+    disable_all       boolean      not null default false,
+    primary key (user_id, notification_type),
+    constraint fk_user_notification_setting_user
+        foreign key (user_id) references users (id) on delete cascade
+);
+
 create table recovery_codes
 (
     id            int auto_increment primary key,

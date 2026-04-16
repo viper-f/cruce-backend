@@ -318,8 +318,17 @@ func main() {
 	protectedRouter.POST("/topics/move", "Move topics to a different subforum", func(c *gin.Context) {
 		Controllers.MoveTopics(c, Services.DB)
 	})
+	publicRouter.GET("/notifications/types", "Get list of notification types", func(c *gin.Context) {
+		Controllers.GetNotificationTypes(c)
+	})
 	protectedRouter.GET("/notifications/unread", "Get unread notifications for the current user", func(c *gin.Context) {
 		Controllers.GetUnreadNotifications(c, Services.DB)
+	})
+	protectedRouter.GET("/notifications/settings", "Get notification settings for the current user", func(c *gin.Context) {
+		Controllers.GetNotificationSettings(c, Services.DB)
+	})
+	protectedRouter.POST("/notifications/settings/update", "Update a notification setting", func(c *gin.Context) {
+		Controllers.UpdateNotificationSetting(c, Services.DB)
 	})
 	protectedRouter.POST("/notifications/dismiss/:id", "Mark a notification as read", func(c *gin.Context) {
 		Controllers.DismissNotification(c, Services.DB)
