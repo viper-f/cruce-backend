@@ -21,6 +21,7 @@ const (
 	DirectMessageCreated   EventType = "DirectMessageCreated"
 	WantedCharacterCreated EventType = "WantedCharacterCreated"
 	StaticFileUploaded     EventType = "StaticFileUploaded"
+	ReactionCreated        EventType = "ReactionCreated"
 )
 
 type EventData interface{}
@@ -100,6 +101,15 @@ type DirectMessageCreatedEvent struct {
 
 type StaticFileUploadedEvent struct {
 	FileType string
+}
+
+type ReactionCreatedEvent struct {
+	TopicID    string `json:"topic_id"`
+	PostID     int    `json:"post_id"`
+	ReactionID int    `json:"reaction_id"`
+	Url        string `json:"url"`
+	UserID     int    `json:"user_id"`
+	UserName   string `json:"user_name"`
 }
 
 type EventHandler func(db *sql.DB, data EventData)

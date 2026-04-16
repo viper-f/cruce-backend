@@ -2,6 +2,7 @@ package Controllers
 
 import (
 	"cuento-backend/src/Entities"
+	"cuento-backend/src/Events"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
 	"database/sql"
@@ -180,6 +181,26 @@ func ReactToPost(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	var postAuthorID int
+	if err := db.QueryRow("SELECT author_user_id FROM posts WHERE id = ?", req.PostId).Scan(&postAuthorID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Post not found"})
+		c.Abort()
+		return
+	}
+	if postAuthorID == userID {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Cannot react to your own post"})
+		c.Abort()
+		return
+	}
+
+	var existing int
+	_ = db.QueryRow("SELECT COUNT(*) FROM post_reaction WHERE post_id = ? AND reaction_id = ? AND user_id = ?", req.PostId, req.ReactionId, userID).Scan(&existing)
+	if existing > 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusConflict, Message: "You have already added this reaction to the post"})
+		c.Abort()
+		return
+	}
+
 	_, err := db.Exec(
 		"INSERT INTO post_reaction (post_id, reaction_id, user_id) VALUES (?, ?, ?)",
 		req.PostId, req.ReactionId, userID,
@@ -191,4 +212,19 @@ func ReactToPost(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"post_id": req.PostId, "reaction_id": req.ReactionId, "user_id": userID})
+
+	var topicID int64
+	var userName, reactionUrl string
+	_ = db.QueryRow("SELECT topic_id FROM posts WHERE id = ?", req.PostId).Scan(&topicID)
+	_ = db.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&userName)
+	_ = db.QueryRow("SELECT url FROM reactions WHERE id = ?", req.ReactionId).Scan(&reactionUrl)
+
+	Events.Publish(db, Events.ReactionCreated, Events.ReactionCreatedEvent{
+		TopicID:    fmt.Sprintf("%d", topicID),
+		PostID:     req.PostId,
+		ReactionID: req.ReactionId,
+		Url:        reactionUrl,
+		UserID:     userID,
+		UserName:   userName,
+	})
 }
