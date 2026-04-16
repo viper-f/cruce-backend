@@ -296,6 +296,21 @@ func Login(c *gin.Context, db *sql.DB) {
 
 	user.Password = "" // Don't return password
 
+	user.NotificationSettings = []Entities.UserNotificationSetting{}
+	settingsRows, err := db.Query(
+		"SELECT notification_type, disable_toast, disable_sound, disable_all FROM user_notification_setting WHERE user_id = ?",
+		user.Id,
+	)
+	if err == nil {
+		defer settingsRows.Close()
+		for settingsRows.Next() {
+			var s Entities.UserNotificationSetting
+			if err := settingsRows.Scan(&s.NotificationType, &s.DisableToast, &s.DisableSound, &s.DisableAll); err == nil {
+				user.NotificationSettings = append(user.NotificationSettings, s)
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  tokenString,
 		"refresh_token": refreshTokenString,

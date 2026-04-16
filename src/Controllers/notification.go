@@ -129,13 +129,6 @@ func GetNotificationSettings(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, settings)
 }
 
-type UpdateNotificationSettingRequest struct {
-	NotificationType string `json:"notification_type" binding:"required"`
-	DisableToast     bool   `json:"disable_toast"`
-	DisableSound     bool   `json:"disable_sound"`
-	DisableAll       bool   `json:"disable_all"`
-}
-
 func UpdateNotificationSetting(c *gin.Context, db *sql.DB) {
 	userID := Services.GetUserIdFromContext(c)
 	if userID == 0 {
@@ -144,31 +137,28 @@ func UpdateNotificationSetting(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	var req UpdateNotificationSettingRequest
+	var req []Entities.UserNotificationSetting
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
 		c.Abort()
 		return
 	}
 
-	_, err := db.Exec(`
-		INSERT INTO user_notification_setting (user_id, notification_type, disable_toast, disable_sound, disable_all)
-		VALUES (?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE disable_toast = VALUES(disable_toast), disable_sound = VALUES(disable_sound), disable_all = VALUES(disable_all)`,
-		userID, req.NotificationType, req.DisableToast, req.DisableSound, req.DisableAll,
-	)
-	if err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update notification setting: " + err.Error()})
-		c.Abort()
-		return
+	for _, s := range req {
+		_, err := db.Exec(`
+			INSERT INTO user_notification_setting (user_id, notification_type, disable_toast, disable_sound, disable_all)
+			VALUES (?, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE disable_toast = VALUES(disable_toast), disable_sound = VALUES(disable_sound), disable_all = VALUES(disable_all)`,
+			userID, s.NotificationType, s.DisableToast, s.DisableSound, s.DisableAll,
+		)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update notification setting: " + err.Error()})
+			c.Abort()
+			return
+		}
 	}
 
-	c.JSON(http.StatusOK, Entities.UserNotificationSetting{
-		NotificationType: req.NotificationType,
-		DisableToast:     req.DisableToast,
-		DisableSound:     req.DisableSound,
-		DisableAll:       req.DisableAll,
-	})
+	c.JSON(http.StatusOK, req)
 }
 
 func DismissNotification(c *gin.Context, db *sql.DB) {

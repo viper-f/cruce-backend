@@ -5,19 +5,20 @@ import (
 )
 
 type User struct {
-	Id                int        `json:"id"`
-	Username          string     `json:"username"`
-	Avatar            *string    `json:"avatar"`
-	Password          string     `json:"password,omitempty"` // Don't return password in JSON
-	InterfaceLanguage *string    `json:"interface_language"`
-	InterfaceTimezone *string    `json:"interface_timezone"`
-	InterfaceFontSize float64    `json:"interface_font_size"`
-	UserStatus        UserStatus `json:"user_status"`
-	TotalPosts        int        `json:"total_posts"`
-	TotalGeneralPosts int        `json:"total_general_posts"`
-	DisableSound      bool       `json:"disable_sound"`
-	InterfaceDesign   *string    `json:"interface_design"`
-	Roles             []Role     `json:"roles"`
+	Id                   int                       `json:"id"`
+	Username             string                    `json:"username"`
+	Avatar               *string                   `json:"avatar"`
+	Password             string                    `json:"password,omitempty"` // Don't return password in JSON
+	InterfaceLanguage    *string                   `json:"interface_language"`
+	InterfaceTimezone    *string                   `json:"interface_timezone"`
+	InterfaceFontSize    float64                   `json:"interface_font_size"`
+	UserStatus           UserStatus                `json:"user_status"`
+	TotalPosts           int                       `json:"total_posts"`
+	TotalGeneralPosts    int                       `json:"total_general_posts"`
+	DisableSound         bool                      `json:"disable_sound"`
+	InterfaceDesign      *string                   `json:"interface_design"`
+	Roles                []Role                    `json:"roles"`
+	NotificationSettings []UserNotificationSetting `json:"notification_settings"`
 }
 
 type ShortUser struct {
