@@ -86,11 +86,7 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 		// Set up Ping/Pong handlers to keep connection alive
 		conn.SetReadLimit(512)
 		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-		conn.SetPongHandler(func(string) error {
-			conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-			Services.ActivityStorage.UpdateLastActive(userID)
-			return nil
-		})
+		conn.SetPongHandler(func(string) error { conn.SetReadDeadline(time.Now().Add(30 * time.Second)); return nil })
 
 		for {
 			_, p, err := conn.ReadMessage()

@@ -61,14 +61,6 @@ func (s *UserActivityStorage) RemoveUser(userID int) bool {
 	return false
 }
 
-func (s *UserActivityStorage) UpdateLastActive(userID int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if user, exists := s.users[userID]; exists {
-		user.LastActive = time.Now()
-	}
-}
-
 func (s *UserActivityStorage) UpdateUserLocation(db *sql.DB, userID int, pageType string, pageId string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
