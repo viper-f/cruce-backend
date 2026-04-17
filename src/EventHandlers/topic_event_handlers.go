@@ -50,17 +50,19 @@ func RegisterTopicEventHandlers() {
 		// Get all users currently reading this topic
 		users := Services.ActivityStorage.GetUsersOnPage("topic", event.TopicID)
 
-		// Construct the notification message
+		// Construct the notification message — only visible users appear in the list
 		type Viewer struct {
 			UserID   int    `json:"user_id"`
 			Username string `json:"username"`
 		}
 		var viewerList []Viewer
 		for _, u := range users {
-			viewerList = append(viewerList, Viewer{
-				UserID:   u.UserID,
-				Username: u.Username,
-			})
+			if u.IsVisible {
+				viewerList = append(viewerList, Viewer{
+					UserID:   u.UserID,
+					Username: u.Username,
+				})
+			}
 		}
 
 		notification := map[string]interface{}{

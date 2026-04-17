@@ -13,6 +13,7 @@ type UserActivity struct {
 	CurrentPageType string    `json:"current_page_type"`
 	CurrentPageId   string    `json:"current_page_id"`
 	LastActive      time.Time `json:"last_active"`
+	IsVisible       bool
 	connections     int
 }
 
@@ -34,6 +35,7 @@ func (s *UserActivityStorage) AddUser(userID int, username string) {
 			UserID:      userID,
 			Username:    username,
 			LastActive:  time.Now(),
+			IsVisible:   true,
 			connections: 1,
 		}
 	} else {
@@ -60,27 +62,45 @@ func (s *UserActivityStorage) RemoveUser(userID int) bool {
 	return false
 }
 
+// EvictInactiveUsers hides users from the activity list whose LastActive exceeds the timeout.
+// Keeps them in the map so they continue receiving page-based notifications.
+func (s *UserActivityStorage) EvictInactiveUsers(timeout time.Duration) []int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cutoff := time.Now().Add(-timeout)
+	evicted := make([]int, 0)
+	for userID, user := range s.users {
+		if user.IsVisible && user.LastActive.Before(cutoff) {
+			user.IsVisible = false
+			evicted = append(evicted, userID)
+		}
+	}
+	return evicted
+}
+
 func (s *UserActivityStorage) UpdateUserLocation(db *sql.DB, userID int, pageType string, pageId string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if user, exists := s.users[userID]; exists {
-		oldPageType := user.CurrentPageType
-		oldPageId := user.CurrentPageId
+	user, exists := s.users[userID]
+	if !exists {
+		return
+	}
 
-		user.CurrentPageType = pageType
-		user.CurrentPageId = pageId
-		user.LastActive = time.Now()
+	oldPageType := user.CurrentPageType
+	oldPageId := user.CurrentPageId
 
-		// Notify if entering a topic
-		if pageType == "topic" {
-			Events.Publish(db, Events.UserReadingTopic, Events.UserReadingTopicEvent{TopicID: pageId})
-		}
+	user.CurrentPageType = pageType
+	user.CurrentPageId = pageId
+	user.LastActive = time.Now()
+	user.IsVisible = true
 
-		// Notify if leaving a topic (and not just refreshing/re-entering same topic)
-		if oldPageType == "topic" && (pageType != "topic" || pageId != oldPageId) {
-			Events.Publish(db, Events.UserReadingTopic, Events.UserReadingTopicEvent{TopicID: oldPageId})
-		}
+	if pageType == "topic" {
+		Events.Publish(db, Events.UserReadingTopic, Events.UserReadingTopicEvent{TopicID: pageId})
+	}
+	if oldPageType == "topic" && (pageType != "topic" || pageId != oldPageId) {
+		Events.Publish(db, Events.UserReadingTopic, Events.UserReadingTopicEvent{TopicID: oldPageId})
 	}
 }
 
@@ -90,7 +110,9 @@ func (s *UserActivityStorage) GetActiveUsers() []*UserActivity {
 
 	activeUsers := make([]*UserActivity, 0, len(s.users))
 	for _, user := range s.users {
-		activeUsers = append(activeUsers, user)
+		if user.IsVisible {
+			activeUsers = append(activeUsers, user)
+		}
 	}
 	return activeUsers
 }
@@ -120,7 +142,7 @@ func (s *UserActivityStorage) GetUsersOnPageType(pageType string) []*UserActivit
 
 	usersOnPage := make([]*UserActivity, 0)
 	for _, user := range s.users {
-		if user.CurrentPageType == pageType {
+		if user.IsVisible && user.CurrentPageType == pageType {
 			usersOnPage = append(usersOnPage, user)
 		}
 	}

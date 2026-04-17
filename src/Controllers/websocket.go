@@ -58,7 +58,7 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 
 	Websockets.MainHub.Register(client)
 	Services.ActivityStorage.AddUser(userID, username)
-	broadcastActiveUsersToHome()
+	BroadcastActiveUsersToHome()
 
 	// Replay missed messages if the client provides last_message_id as a query param.
 	if lastMsgIDStr := c.Query("last_message_id"); lastMsgIDStr != "" {
@@ -77,7 +77,7 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 		defer func() {
 			removed := Services.ActivityStorage.RemoveUser(userID)
 			if removed {
-				broadcastActiveUsersToHome()
+				BroadcastActiveUsersToHome()
 			}
 			Websockets.MainHub.Unregister(client)
 			conn.Close()
@@ -118,7 +118,7 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 					}
 					Services.ActivityStorage.UpdateUserLocation(db, userID, msg.PageType, pageIdStr)
 					if msg.PageType == "home" {
-						broadcastActiveUsersToHome()
+						BroadcastActiveUsersToHome()
 					}
 					go BroadcastActiveUserActivity(db)
 				} else if msg.Type == "topic_view" && msg.TopicId != nil && msg.PostId != nil {
@@ -168,7 +168,7 @@ func GetActiveUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, shortUsers)
 }
 
-func broadcastActiveUsersToHome() {
+func BroadcastActiveUsersToHome() {
 	activeUsers := Services.ActivityStorage.GetActiveUsers()
 	shortUsers := make([]Entities.ShortUser, 0, len(activeUsers))
 	for _, u := range activeUsers {
