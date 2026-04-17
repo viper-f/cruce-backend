@@ -37,7 +37,6 @@ func (s *UserActivityStorage) AddUser(userID int, username string) {
 			connections: 1,
 		}
 	} else {
-		s.users[userID].LastActive = time.Now()
 		s.users[userID].connections++
 	}
 }
