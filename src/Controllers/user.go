@@ -6,6 +6,7 @@ import (
 	"cuento-backend/src/Features"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Services"
+	"cuento-backend/src/Websockets"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -1059,10 +1060,8 @@ type ActiveUserInfo struct {
 	LastActiveLocalized string  `json:"last_active"`
 }
 
-func GetActiveUserActivity(c *gin.Context, db *sql.DB) {
-	currentUserID := Services.GetUserIdFromContext(c)
-	timezone := Services.GetUserTimezone(currentUserID, db)
-
+func buildActiveUserActivity(forUserID int, db *sql.DB) []ActiveUserInfo {
+	timezone := Services.GetUserTimezone(forUserID, db)
 	activeUsers := Services.ActivityStorage.GetActiveUsers()
 	result := make([]ActiveUserInfo, 0, len(activeUsers))
 
@@ -1083,7 +1082,7 @@ func GetActiveUserActivity(c *gin.Context, db *sql.DB) {
 			err := db.QueryRow("SELECT subforum_id, name FROM topics WHERE id = ?", u.CurrentPageId).Scan(&subforumID, &topicName)
 			if err == nil {
 				perm := fmt.Sprintf("subforum_read:%d", subforumID)
-				if hasPerm, err := Services.HasPermission(currentUserID, perm, db); err == nil && hasPerm {
+				if hasPerm, err := Services.HasPermission(forUserID, perm, db); err == nil && hasPerm {
 					info.CurrentPageId = &u.CurrentPageId
 					info.CurrentPageName = &topicName
 				}
@@ -1095,7 +1094,25 @@ func GetActiveUserActivity(c *gin.Context, db *sql.DB) {
 		result = append(result, info)
 	}
 
-	c.JSON(http.StatusOK, result)
+	return result
+}
+
+func BroadcastActiveUserActivity(db *sql.DB) {
+	viewers := Services.ActivityStorage.GetUsersOnPageType("active-users")
+	if len(viewers) == 0 {
+		return
+	}
+	for _, v := range viewers {
+		Websockets.MainHub.SendNotification(v.UserID, map[string]interface{}{
+			"type": "active_users_activity_update",
+			"data": buildActiveUserActivity(v.UserID, db),
+		})
+	}
+}
+
+func GetActiveUserActivity(c *gin.Context, db *sql.DB) {
+	currentUserID := Services.GetUserIdFromContext(c)
+	c.JSON(http.StatusOK, buildActiveUserActivity(currentUserID, db))
 }
 
 func UserAutocomplete(c *gin.Context, db *sql.DB) {

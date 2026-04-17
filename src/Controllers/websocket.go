@@ -120,6 +120,7 @@ func HandleWebSocket(c *gin.Context, db *sql.DB) {
 					if msg.PageType == "home" {
 						broadcastActiveUsersToHome()
 					}
+					go BroadcastActiveUserActivity(db)
 				} else if msg.Type == "topic_view" && msg.TopicId != nil && msg.PostId != nil {
 					var topicID int64
 					switch v := msg.TopicId.(type) {

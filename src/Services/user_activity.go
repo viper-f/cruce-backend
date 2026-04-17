@@ -115,6 +115,19 @@ func (s *UserActivityStorage) GetUsersOnPage(pageType string, pageId string) []*
 	return usersOnPage
 }
 
+func (s *UserActivityStorage) GetUsersOnPageType(pageType string) []*UserActivity {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	usersOnPage := make([]*UserActivity, 0)
+	for _, user := range s.users {
+		if user.CurrentPageType == pageType {
+			usersOnPage = append(usersOnPage, user)
+		}
+	}
+	return usersOnPage
+}
+
 // GetInactiveUserIDs returns IDs of users whose LastActive is older than the given timeout.
 func (s *UserActivityStorage) GetInactiveUserIDs(timeout time.Duration) []int {
 	s.mu.RLock()
