@@ -1050,6 +1050,54 @@ func PrivateKeyCheck(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"result": keyCount > 0 || messageCount > 0})
 }
 
+type ActiveUserInfo struct {
+	UserID              int     `json:"user_id"`
+	Username            string  `json:"username"`
+	CurrentPageType     string  `json:"current_page_type"`
+	CurrentPageId       *string `json:"current_page_id"`
+	CurrentPageName     *string `json:"current_page_name"`
+	LastActiveLocalized string  `json:"last_active"`
+}
+
+func GetActiveUserActivity(c *gin.Context, db *sql.DB) {
+	currentUserID := Services.GetUserIdFromContext(c)
+	timezone := Services.GetUserTimezone(currentUserID, db)
+
+	activeUsers := Services.ActivityStorage.GetActiveUsers()
+	result := make([]ActiveUserInfo, 0, len(activeUsers))
+
+	for _, u := range activeUsers {
+		info := ActiveUserInfo{
+			UserID:              u.UserID,
+			Username:            u.Username,
+			CurrentPageType:     u.CurrentPageType,
+			LastActiveLocalized: Services.LocalizeTime(u.LastActive, timezone),
+		}
+
+		switch u.CurrentPageType {
+		case "direct-chat":
+			// never reveal chat id
+		case "topic":
+			var subforumID int
+			var topicName string
+			err := db.QueryRow("SELECT subforum_id, name FROM topics WHERE id = ?", u.CurrentPageId).Scan(&subforumID, &topicName)
+			if err == nil {
+				perm := fmt.Sprintf("subforum_read:%d", subforumID)
+				if hasPerm, err := Services.HasPermission(currentUserID, perm, db); err == nil && hasPerm {
+					info.CurrentPageId = &u.CurrentPageId
+					info.CurrentPageName = &topicName
+				}
+			}
+		default:
+			info.CurrentPageId = &u.CurrentPageId
+		}
+
+		result = append(result, info)
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 func UserAutocomplete(c *gin.Context, db *sql.DB) {
 	term := c.Param("term")
 
