@@ -216,7 +216,7 @@ func main() {
 	protectedGroup.Use(Middlewares.PermissionsMiddleware(Services.DB))
 	protectedRouter := Router.NewProtectedCustomRouter(protectedGroup)
 
-	protectedRouter.GET("/features", "Get list of all feature flags", func(c *gin.Context) {
+	optionalAuthRouter.GET("/features", "Get list of all feature flags", func(c *gin.Context) {
 		Features.GetFeaturesHandler(c)
 	})
 	protectedRouter.POST("/features/:key/toggle", "Toggle a feature flag on or off", func(c *gin.Context) {
