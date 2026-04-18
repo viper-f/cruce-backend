@@ -63,11 +63,12 @@ type NotificationSystem struct {
 }
 
 type NotificationAccountUpdate struct {
-	IncomeTypeKey string `json:"income_type_key"`
-	Amount        int    `json:"amount"`
-	TotalAmount   int    `json:"total_amount"`
-	PostId        int    `json:"post_id"`
-	TopicId       int    `json:"topic_id"`
+	IncomeTypeKey string  `json:"income_type_key"`
+	Amount        int     `json:"amount"`
+	TotalAmount   int     `json:"total_amount"`
+	PostId        int     `json:"post_id"`
+	TopicId       int     `json:"topic_id"`
+	Comment       *string `json:"comment,omitempty"`
 }
 
 type NotificationDirectMessage struct {

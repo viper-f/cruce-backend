@@ -1,6 +1,8 @@
 package Features
 
 import (
+	"cuento-backend/src/Entities"
+	"cuento-backend/src/Events"
 	"cuento-backend/src/Services"
 	"database/sql"
 	"encoding/json"
@@ -240,10 +242,10 @@ func AddUserCurrencyTransactionHandler(c *gin.Context, db *sql.DB) {
 	}
 
 	var req struct {
-		Type          CurrencyTransactionType `json:"type" binding:"required"`
-		Amount        int                     `json:"amount" binding:"required"`
-		IncomeTypeKey *string                 `json:"income_type_key"`
-		Metadata      *json.RawMessage        `json:"metadata"`
+		Type     CurrencyTransactionType `json:"type" binding:"required"`
+		Amount   int                     `json:"amount" binding:"required"`
+		Comment  *string                 `json:"comment"`
+		Metadata *json.RawMessage        `json:"metadata"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
@@ -267,9 +269,14 @@ func AddUserCurrencyTransactionHandler(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	incomeTypeKey := "currency_income_manual_transaction"
+	if req.Type == CurrencyTransactionSpend {
+		incomeTypeKey = "currency_spend_manual_transaction"
+	}
+
 	_, err = tx.Exec(
 		"INSERT INTO currency_user_transactions (user_id, type, amount, datetime, status, income_type_key, metadata) VALUES (?, ?, ?, NOW(), ?, ?, ?)",
-		userID, req.Type, req.Amount, CurrencyTransactionApproved, req.IncomeTypeKey, req.Metadata,
+		userID, req.Type, req.Amount, CurrencyTransactionApproved, incomeTypeKey, req.Metadata,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert transaction"})
@@ -282,6 +289,26 @@ func AddUserCurrencyTransactionHandler(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Transaction added"})
+
+	var newTotal int
+	_ = db.QueryRow("SELECT amount FROM currency_user_account WHERE user_id = ?", userID).Scan(&newTotal)
+
+	message := fmt.Sprintf("Your account has been credited with %d", req.Amount)
+	if req.Type == CurrencyTransactionSpend {
+		message = fmt.Sprintf("%d has been deducted from your account", req.Amount)
+	}
+
+	Events.Publish(db, Events.NotificationCreated, Events.NotificationEvent{
+		UserID:  userID,
+		Type:    "account_update",
+		Message: message,
+		Data: Entities.NotificationAccountUpdate{
+			IncomeTypeKey: incomeTypeKey,
+			Amount:        req.Amount,
+			TotalAmount:   newTotal,
+			Comment:       req.Comment,
+		},
+	})
 }
 
 func GetUserCurrencyAmountHandler(c *gin.Context, db *sql.DB) {
