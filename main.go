@@ -222,7 +222,7 @@ func main() {
 	protectedGroup.Use(Middlewares.PermissionsMiddleware(Services.DB))
 	protectedRouter := Router.NewProtectedCustomRouter(protectedGroup)
 
-	protectedRouter.GET("/features", "Get list of all feature flags", func(c *gin.Context) {
+	optionalAuthRouter.GET("/features", "Get list of all feature flags", func(c *gin.Context) {
 		Features.GetFeaturesHandler(c)
 	})
 	protectedRouter.POST("/features/:key/toggle", "Toggle a feature flag on or off", func(c *gin.Context) {
@@ -533,6 +533,15 @@ func main() {
 	})
 	protectedRouter.GET("/admin/role/list", "Get list of all roles", func(c *gin.Context) {
 		Controllers.GetRoleList(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/home", "Get admin home categories (all, including empty)", func(c *gin.Context) {
+		Controllers.GetAdminHomeCategories(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/user/roles/:id", "Get user roles", func(c *gin.Context) {
+		Controllers.GetUserRoles(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/user/roles/update", "Update user roles", func(c *gin.Context) {
+		Controllers.UpdateUserRoles(c, Services.DB)
 	})
 
 	// WebSocket route with special authentication

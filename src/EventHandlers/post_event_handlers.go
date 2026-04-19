@@ -109,7 +109,7 @@ func RegisterPostEventHandlers() {
 			return
 		}
 
-		_, err = db.Exec("UPDATE subforums SET post_number = post_number + 1, last_post_topic_id = ?, last_post_topic_name = ?, last_post_id = ?, date_last_post = NOW(), last_post_author_user_name = ?, show_last_topic = false WHERE id = ?",
+		_, err = db.Exec("UPDATE subforums SET post_number = COALESCE(post_number, 0) + 1, last_post_topic_id = ?, last_post_topic_name = ?, last_post_id = ?, date_last_post = NOW(), last_post_author_user_name = ?, show_last_topic = false WHERE id = ?",
 			event.TopicID, topicTitle, event.Post.Id, username, event.SubforumID)
 		if err != nil {
 			fmt.Printf("Error updating subforum stats: %v\n", err)

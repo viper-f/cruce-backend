@@ -28,7 +28,7 @@ func RegisterCharacterEventHandlers() {
 			fmt.Printf("Error updating global topic stats on character created: %v\n", err)
 		}
 
-		_, err = db.Exec("UPDATE subforums SET topic_number = topic_number + 1, show_last_topic = true, last_post_topic_id = ?, last_post_topic_name = ? WHERE id = ?", event.TopicID, event.TopicName, event.SubforumID)
+		_, err = db.Exec("UPDATE subforums SET topic_number = COALESCE(topic_number, 0) + 1, show_last_topic = true, last_post_topic_id = ?, last_post_topic_name = ? WHERE id = ?", event.TopicID, event.TopicName, event.SubforumID)
 		if err != nil {
 			fmt.Printf("Error updating subforum topic count for character: %v\n", err)
 		}

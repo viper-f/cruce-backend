@@ -14,10 +14,67 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func scanCategoryRows(rows *sql.Rows, userTimezone *string) ([]Entities.Category, error) {
+	var categories []Entities.Category
+	for rows.Next() {
+		var sub Entities.Subform
+		var cat Entities.Category
+		var dateLastPost *time.Time
+		var subID sql.NullInt64
+		var subName, subDescription sql.NullString
+		var subPosition, topicNumber, postNumber sql.NullInt64
+		if err := rows.Scan(
+			&subID,
+			&subName,
+			&subDescription,
+			&subPosition,
+			&topicNumber,
+			&postNumber,
+			&sub.LastPostTopicId,
+			&sub.LastPostTopicName,
+			&sub.LastPostId,
+			&dateLastPost,
+			&sub.LastPostAuthorName,
+			&sub.ShowLastTopic,
+			&cat.Id,
+			&cat.Name,
+			&cat.Position,
+		); err != nil {
+			return nil, err
+		}
+
+		if len(categories) == 0 || categories[len(categories)-1].Id != cat.Id {
+			cat.Subforums = []Entities.Subform{}
+			categories = append(categories, cat)
+		}
+
+		if !subID.Valid {
+			continue
+		}
+
+		sub.Id = int(subID.Int64)
+		sub.Name = subName.String
+		sub.Description = subDescription.String
+		sub.Position = int(subPosition.Int64)
+		sub.TopicNumber = int(topicNumber.Int64)
+		sub.PostNumber = int(postNumber.Int64)
+		if dateLastPost != nil {
+			localized := Services.LocalizeTime(*dateLastPost, userTimezone)
+			sub.DateLastPostLocalized = &localized
+		}
+		sub.DescriptionHtml = Services.ParseBBCode(sub.Description)
+
+		categories[len(categories)-1].Subforums = append(categories[len(categories)-1].Subforums, sub)
+	}
+	if categories == nil {
+		categories = []Entities.Category{}
+	}
+	return categories, nil
+}
+
 func GetHomeCategories(c *gin.Context, db *sql.DB) {
 	userID := Services.GetUserIdFromContext(c)
 
-	// 1. Get visible subforum IDs
 	visibleSubforumIDs, err := Services.GetVisibleSubforums(userID, "subforum_read", db)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to determine visible subforums: " + err.Error()})
@@ -30,14 +87,13 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// 2. Fetch all subforums and categories
 	placeholders := strings.Repeat("?,", len(visibleSubforumIDs)-1) + "?"
 	query := fmt.Sprintf(`
 		SELECT
-			subforums.id as subforum_id,
-			subforums.name as subforum_name,
+			subforums.id,
+			subforums.name,
 			subforums.description,
-			subforums.position as subforum_position,
+			subforums.position,
 			subforums.topic_number,
 			subforums.post_number,
 			subforums.last_post_topic_id,
@@ -46,14 +102,12 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 			subforums.date_last_post,
 			subforums.last_post_author_user_name,
 			subforums.show_last_topic,
-			categories.id as category_id,
-			categories.name as category_name,
-			categories.position as category_position
-		FROM subforums
-		JOIN categories on subforums.category_id = categories.id
-		WHERE subforums.id IN (%s)
-		ORDER BY category_position, subforum_position
-	`, placeholders)
+			categories.id,
+			categories.name,
+			categories.position
+		FROM categories
+		JOIN subforums ON subforums.category_id = categories.id AND subforums.id IN (%s)
+		ORDER BY categories.position, subforums.position`, placeholders)
 
 	args := make([]interface{}, len(visibleSubforumIDs))
 	for i, id := range visibleSubforumIDs {
@@ -68,54 +122,52 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 	}
 	defer rows.Close()
 
-	// 3. Group Results into Categories
-	userTimezone := Services.GetUserTimezone(userID, db)
-	var categories []Entities.Category
-	for rows.Next() {
-		var sub Entities.Subform
-		var cat Entities.Category
-		var dateLastPost *time.Time
-		var topicNumber, postNumber sql.NullInt64
-		if err := rows.Scan(
-			&sub.Id,
-			&sub.Name,
-			&sub.Description,
-			&sub.Position,
-			&topicNumber,
-			&postNumber,
-			&sub.LastPostTopicId,
-			&sub.LastPostTopicName,
-			&sub.LastPostId,
-			&dateLastPost,
-			&sub.LastPostAuthorName,
-			&sub.ShowLastTopic,
-			&cat.Id,
-			&cat.Name,
-			&cat.Position,
-		); err != nil {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan category data: " + err.Error()})
-			c.Abort()
-			return
-		}
-		sub.TopicNumber = int(topicNumber.Int64)
-		sub.PostNumber = int(postNumber.Int64)
-		if dateLastPost != nil {
-			localized := Services.LocalizeTime(*dateLastPost, userTimezone)
-			sub.DateLastPostLocalized = &localized
-		}
-		sub.DescriptionHtml = Services.ParseBBCode(sub.Description)
-
-		// Check if we need to start a new category block
-		if len(categories) == 0 || categories[len(categories)-1].Id != cat.Id {
-			cat.Subforums = []Entities.Subform{}
-			categories = append(categories, cat)
-		}
-		// Append subforum to the current category
-		categories[len(categories)-1].Subforums = append(categories[len(categories)-1].Subforums, sub)
+	categories, err := scanCategoryRows(rows, Services.GetUserTimezone(userID, db))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan category data: " + err.Error()})
+		c.Abort()
+		return
 	}
 
-	if categories == nil {
-		categories = []Entities.Category{}
+	c.JSON(http.StatusOK, categories)
+}
+
+func GetAdminHomeCategories(c *gin.Context, db *sql.DB) {
+	query := `
+		SELECT
+			subforums.id,
+			subforums.name,
+			subforums.description,
+			subforums.position,
+			subforums.topic_number,
+			subforums.post_number,
+			subforums.last_post_topic_id,
+			subforums.last_post_topic_name,
+			subforums.last_post_id,
+			subforums.date_last_post,
+			subforums.last_post_author_user_name,
+			subforums.show_last_topic,
+			categories.id,
+			categories.name,
+			categories.position
+		FROM categories
+		LEFT JOIN subforums ON subforums.category_id = categories.id
+		ORDER BY categories.position, subforums.position`
+
+	rows, err := db.Query(query)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get categories: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	userID := Services.GetUserIdFromContext(c)
+	categories, err := scanCategoryRows(rows, Services.GetUserTimezone(userID, db))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan category data: " + err.Error()})
+		c.Abort()
+		return
 	}
 
 	c.JSON(http.StatusOK, categories)
@@ -249,8 +301,18 @@ func CreateSubforum(c *gin.Context, db *sql.DB) {
 
 	var adminRoleID int
 	if err := db.QueryRow("SELECT id FROM roles WHERE name = 'admin'").Scan(&adminRoleID); err == nil {
-		permission := fmt.Sprintf("subforum_read:%d", id)
-		_, _ = db.Exec("INSERT INTO role_permission (type, role_id, permission) VALUES (1, ?, ?)", adminRoleID, permission)
+		excluded := map[string]bool{
+			"subforum_create_episode_topic":          true,
+			"subforum_create_character_topic":        true,
+			"subforum_create_wanted_character_topic": true,
+		}
+		for permKey := range Services.SubforumPermissions {
+			if excluded[permKey] {
+				continue
+			}
+			perm := fmt.Sprintf("%s:%d", permKey, id)
+			_, _ = db.Exec("INSERT INTO role_permission (type, role_id, permission) VALUES (1, ?, ?)", adminRoleID, perm)
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
