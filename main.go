@@ -528,6 +528,12 @@ func main() {
 	protectedRouter.GET("/admin/role/list", "Get list of all roles", func(c *gin.Context) {
 		Controllers.GetRoleList(c, Services.DB)
 	})
+	protectedRouter.GET("/admin/user/roles/:id", "Get user roles", func(c *gin.Context) {
+		Controllers.GetUserRoles(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/user/roles/update", "Update user roles", func(c *gin.Context) {
+		Controllers.UpdateUserRoles(c, Services.DB)
+	})
 
 	// WebSocket route with special authentication
 	wsGroup := r.Group("/")
