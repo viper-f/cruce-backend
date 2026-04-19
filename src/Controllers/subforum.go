@@ -25,39 +25,57 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	// 2. Fetch categories and their visible subforums
+	var query string
+	var args []interface{}
+
 	if len(visibleSubforumIDs) == 0 {
-		c.JSON(http.StatusOK, []Entities.Category{})
-		return
-	}
-
-	// 2. Fetch all subforums and categories
-	placeholders := strings.Repeat("?,", len(visibleSubforumIDs)-1) + "?"
-	query := fmt.Sprintf(`
-		SELECT
-			subforums.id as subforum_id,
-			subforums.name as subforum_name,
-			subforums.description,
-			subforums.position as subforum_position,
-			subforums.topic_number,
-			subforums.post_number,
-			subforums.last_post_topic_id,
-			subforums.last_post_topic_name,
-			subforums.last_post_id,
-			subforums.date_last_post,
-			subforums.last_post_author_user_name,
-			subforums.show_last_topic,
-			categories.id as category_id,
-			categories.name as category_name,
-			categories.position as category_position
-		FROM subforums
-		JOIN categories on subforums.category_id = categories.id
-		WHERE subforums.id IN (%s)
-		ORDER BY category_position, subforum_position
-	`, placeholders)
-
-	args := make([]interface{}, len(visibleSubforumIDs))
-	for i, id := range visibleSubforumIDs {
-		args[i] = id
+		query = `
+			SELECT
+				subforums.id,
+				subforums.name,
+				subforums.description,
+				subforums.position,
+				subforums.topic_number,
+				subforums.post_number,
+				subforums.last_post_topic_id,
+				subforums.last_post_topic_name,
+				subforums.last_post_id,
+				subforums.date_last_post,
+				subforums.last_post_author_user_name,
+				subforums.show_last_topic,
+				categories.id,
+				categories.name,
+				categories.position
+			FROM categories
+			LEFT JOIN subforums ON subforums.category_id = categories.id
+			ORDER BY categories.position, subforums.position`
+	} else {
+		placeholders := strings.Repeat("?,", len(visibleSubforumIDs)-1) + "?"
+		query = fmt.Sprintf(`
+			SELECT
+				subforums.id,
+				subforums.name,
+				subforums.description,
+				subforums.position,
+				subforums.topic_number,
+				subforums.post_number,
+				subforums.last_post_topic_id,
+				subforums.last_post_topic_name,
+				subforums.last_post_id,
+				subforums.date_last_post,
+				subforums.last_post_author_user_name,
+				subforums.show_last_topic,
+				categories.id,
+				categories.name,
+				categories.position
+			FROM categories
+			LEFT JOIN subforums ON subforums.category_id = categories.id AND subforums.id IN (%s)
+			ORDER BY categories.position, subforums.position`, placeholders)
+		args = make([]interface{}, len(visibleSubforumIDs))
+		for i, id := range visibleSubforumIDs {
+			args[i] = id
+		}
 	}
 
 	rows, err := db.Query(query, args...)
@@ -75,12 +93,14 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 		var sub Entities.Subform
 		var cat Entities.Category
 		var dateLastPost *time.Time
-		var topicNumber, postNumber sql.NullInt64
+		var subID sql.NullInt64
+		var subName, subDescription sql.NullString
+		var subPosition, topicNumber, postNumber sql.NullInt64
 		if err := rows.Scan(
-			&sub.Id,
-			&sub.Name,
-			&sub.Description,
-			&sub.Position,
+			&subID,
+			&subName,
+			&subDescription,
+			&subPosition,
 			&topicNumber,
 			&postNumber,
 			&sub.LastPostTopicId,
@@ -97,6 +117,22 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 			c.Abort()
 			return
 		}
+
+		// Check if we need to start a new category block
+		if len(categories) == 0 || categories[len(categories)-1].Id != cat.Id {
+			cat.Subforums = []Entities.Subform{}
+			categories = append(categories, cat)
+		}
+
+		// Skip subforum append if there are no subforums in this category (LEFT JOIN NULL row)
+		if !subID.Valid {
+			continue
+		}
+
+		sub.Id = int(subID.Int64)
+		sub.Name = subName.String
+		sub.Description = subDescription.String
+		sub.Position = int(subPosition.Int64)
 		sub.TopicNumber = int(topicNumber.Int64)
 		sub.PostNumber = int(postNumber.Int64)
 		if dateLastPost != nil {
@@ -105,11 +141,6 @@ func GetHomeCategories(c *gin.Context, db *sql.DB) {
 		}
 		sub.DescriptionHtml = Services.ParseBBCode(sub.Description)
 
-		// Check if we need to start a new category block
-		if len(categories) == 0 || categories[len(categories)-1].Id != cat.Id {
-			cat.Subforums = []Entities.Subform{}
-			categories = append(categories, cat)
-		}
 		// Append subforum to the current category
 		categories[len(categories)-1].Subforums = append(categories[len(categories)-1].Subforums, sub)
 	}
@@ -249,8 +280,10 @@ func CreateSubforum(c *gin.Context, db *sql.DB) {
 
 	var adminRoleID int
 	if err := db.QueryRow("SELECT id FROM roles WHERE name = 'admin'").Scan(&adminRoleID); err == nil {
-		permission := fmt.Sprintf("subforum_read:%d", id)
-		_, _ = db.Exec("INSERT INTO role_permission (type, role_id, permission) VALUES (1, ?, ?)", adminRoleID, permission)
+		for permKey := range Services.SubforumPermissions {
+			perm := fmt.Sprintf("%s:%d", permKey, id)
+			_, _ = db.Exec("INSERT INTO role_permission (type, role_id, permission) VALUES (1, ?, ?)", adminRoleID, perm)
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"id": id})
