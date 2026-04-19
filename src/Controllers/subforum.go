@@ -280,7 +280,15 @@ func CreateSubforum(c *gin.Context, db *sql.DB) {
 
 	var adminRoleID int
 	if err := db.QueryRow("SELECT id FROM roles WHERE name = 'admin'").Scan(&adminRoleID); err == nil {
+		excluded := map[string]bool{
+			"subforum_create_episode_topic":          true,
+			"subforum_create_character_topic":        true,
+			"subforum_create_wanted_character_topic": true,
+		}
 		for permKey := range Services.SubforumPermissions {
+			if excluded[permKey] {
+				continue
+			}
 			perm := fmt.Sprintf("%s:%d", permKey, id)
 			_, _ = db.Exec("INSERT INTO role_permission (type, role_id, permission) VALUES (1, ?, ?)", adminRoleID, perm)
 		}
