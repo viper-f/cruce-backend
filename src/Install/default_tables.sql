@@ -445,10 +445,10 @@ create table character_claim
     id              int auto_increment primary key,
     name            varchar(255) not null,
     description     text         null,
-    is_claimed      boolean      default false not null,
-    claim_record_id int          null,
-    can_change_name boolean      default false not null,
-    constraint fk_character_claim_record foreign key (claim_record_id) references claim_record (id) on delete set null
+    is_claimed                 boolean      default false not null,
+    claim_record_id            int          null,
+    can_change_name            boolean      default false not null,
+    show_only_with_active_claim boolean     default false not null
 );
 
 create table claim_record
@@ -466,6 +466,10 @@ create table claim_record
     constraint fk_claim_record_user       foreign key (user_id) references users (id) on delete set null,
     constraint fk_claim_record_character  foreign key (character_id) references character_base (id) on delete set null
 );
+
+ALTER TABLE character_claim
+    ADD CONSTRAINT fk_character_claim_record
+        FOREIGN KEY (claim_record_id) REFERENCES claim_record (id) ON DELETE SET NULL;
 
 create table character_claim_faction
 (

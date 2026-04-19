@@ -599,6 +599,8 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 			SELECT
 				cc.id,
 				cc.name,
+				cc.show_only_with_active_claim,
+				cc.claim_record_id,
 				f.id AS faction_id,
 				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
 			FROM character_claim cc
@@ -609,8 +611,10 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		SELECT r.id, r.name, r.faction_id, wc.topic_id AS wanted_character_id
 		FROM RankedFactions r
 		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = r.id
+		LEFT JOIN claim_record cr ON cr.id = r.claim_record_id
 		WHERE r.rn = 1
 		  AND (wc.id IS NULL OR wc.wanted_character_status = 0)
+		  AND (r.show_only_with_active_claim = false OR (cr.id IS NOT NULL AND cr.claim_expiration_date > NOW()))
 	`
 	claimRows, err := db.Query(claimQuery)
 	if err != nil {
@@ -658,9 +662,11 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		SELECT cc.id, cc.name, wc.topic_id
 		FROM character_claim cc
 		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = cc.id
+		LEFT JOIN claim_record cr ON cr.id = cc.claim_record_id
 		WHERE cc.is_claimed IS NOT TRUE
 		AND cc.id NOT IN (SELECT character_claim_id FROM character_claim_faction)
 		AND (wc.id IS NULL OR wc.wanted_character_status = 0)
+		AND (cc.show_only_with_active_claim = false OR (cr.id IS NOT NULL AND cr.claim_expiration_date > NOW()))
 	`)
 	if err == nil {
 		defer noFactionClaimRows.Close()
@@ -1359,13 +1365,14 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 				cc.description,
 				cc.is_claimed,
 				cc.can_change_name,
+				cc.show_only_with_active_claim,
 				f.id AS faction_id,
 				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
 			FROM character_claim cc
 			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
 			JOIN factions f ON ccf.faction_id = f.id
 		)
-		SELECT id, name, description, is_claimed, can_change_name, faction_id
+		SELECT id, name, description, is_claimed, can_change_name, show_only_with_active_claim, faction_id
 		FROM RankedFactions
 		WHERE rn = 1
 	`
@@ -1380,7 +1387,7 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 	for claimRows.Next() {
 		var claim Entities.CharacterClaim
 		var factionID int
-		if err := claimRows.Scan(&claim.Id, &claim.Name, &claim.Description, &claim.IsClaimed, &claim.CanChangeName, &factionID); err != nil {
+		if err := claimRows.Scan(&claim.Id, &claim.Name, &claim.Description, &claim.IsClaimed, &claim.CanChangeName, &claim.ShowOnlyWithActiveClaim, &factionID); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
 			c.Abort()
 			return
@@ -1415,8 +1422,8 @@ func CreateCharacterClaim(c *gin.Context, db *sql.DB) {
 	defer tx.Rollback()
 
 	res, err := tx.Exec(
-		"INSERT INTO character_claim (name, description, is_claimed, can_change_name) VALUES (?, ?, ?, ?)",
-		req.Claim.Name, req.Claim.Description, req.Claim.IsClaimed, req.Claim.CanChangeName,
+		"INSERT INTO character_claim (name, description, is_claimed, can_change_name, show_only_with_active_claim) VALUES (?, ?, ?, ?, ?)",
+		req.Claim.Name, req.Claim.Description, req.Claim.IsClaimed, req.Claim.CanChangeName, req.Claim.ShowOnlyWithActiveClaim,
 	)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to insert character claim: " + err.Error()})
