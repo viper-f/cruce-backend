@@ -24,12 +24,20 @@ type FactionUpdateRequest struct {
 
 func GetFactionChildren(c *gin.Context, db *sql.DB) {
 	parentIDStr := c.Param("parent_id")
+	includePending := c.Query("include_pending") == "true"
+
+	statuses := []interface{}{Entities.FactionActive}
+	if includePending {
+		statuses = append(statuses, Entities.FactionPending)
+	}
+	placeholders := strings.Repeat("?,", len(statuses)-1) + "?"
 
 	var rows *sql.Rows
 	var err error
 
 	if parentIDStr == "" || parentIDStr == "0" {
-		rows, err = db.Query("SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status FROM factions WHERE parent_id IS NULL AND faction_status = ? ORDER BY name", Entities.FactionActive)
+		args := append([]interface{}(nil), statuses...)
+		rows, err = db.Query("SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status FROM factions WHERE parent_id IS NULL AND faction_status IN ("+placeholders+") ORDER BY name", args...)
 	} else {
 		parentID, convErr := strconv.Atoi(parentIDStr)
 		if convErr != nil {
@@ -37,7 +45,8 @@ func GetFactionChildren(c *gin.Context, db *sql.DB) {
 			c.Abort()
 			return
 		}
-		rows, err = db.Query("SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status FROM factions WHERE parent_id = ? AND faction_status = ? ORDER BY name", parentID, Entities.FactionActive)
+		args := append([]interface{}{parentID}, statuses...)
+		rows, err = db.Query("SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status FROM factions WHERE parent_id = ? AND faction_status IN ("+placeholders+") ORDER BY name", args...)
 	}
 
 	if err != nil {
@@ -183,6 +192,45 @@ func CreateFaction(c *gin.Context, db *sql.DB) {
 
 	req.Id = int(id)
 	c.JSON(http.StatusOK, req)
+}
+
+type CreatePendingFactionRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+func CreatePendingFaction(c *gin.Context, db *sql.DB) {
+	var req CreatePendingFactionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var existingId int
+	err := db.QueryRow("SELECT id FROM factions WHERE LOWER(name) = LOWER(?)", req.Name).Scan(&existingId)
+	if err == nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusConflict, Message: "A faction with this name already exists"})
+		c.Abort()
+		return
+	}
+	if err != sql.ErrNoRows {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to check faction name: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	res, err := db.Exec(
+		"INSERT INTO factions (name, faction_status, level, show_on_profile) VALUES (?, ?, 0, false)",
+		req.Name, Entities.FactionPending,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create faction: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	id, _ := res.LastInsertId()
+	c.JSON(http.StatusOK, gin.H{"id": id, "name": req.Name, "faction_status": Entities.FactionPending})
 }
 
 func GetPendingFactions(c *gin.Context, db *sql.DB) {

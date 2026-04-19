@@ -770,3 +770,105 @@ func CreateClaimRecord(c *gin.Context, db *sql.DB) {
 		"claim_expiration_date": expirationDate,
 	})
 }
+
+type CreateNewRoleClaimRequest struct {
+	CharacterName string `json:"character_name" binding:"required"`
+	FactionId     int    `json:"faction_id" binding:"required"`
+}
+
+func CreateNewRoleClaim(c *gin.Context, db *sql.DB) {
+	var req CreateNewRoleClaimRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var factionExists int
+	if err := db.QueryRow("SELECT id FROM factions WHERE id = ?", req.FactionId).Scan(&factionExists); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Faction not found"})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+	isGuest := userID == 0
+	expirationDays := 5
+	if isGuest {
+		expirationDays = 3
+	}
+	expirationDate := time.Now().AddDate(0, 0, expirationDays)
+
+	var guestHash string
+	var cookieSlot string
+	if isGuest {
+		for i := 1; i <= 3; i++ {
+			slotName := fmt.Sprintf("claim_hash_%d", i)
+			if _, err := c.Cookie(slotName); err != nil {
+				cookieSlot = slotName
+				break
+			}
+		}
+		if cookieSlot == "" {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Maximum number of guest claims reached"})
+			c.Abort()
+			return
+		}
+		guestHash = generateGuestHash()
+	}
+
+	claimRes, err := db.Exec(
+		"INSERT INTO character_claim (name, show_only_with_active_claim) VALUES (?, true)",
+		req.CharacterName,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim: " + err.Error()})
+		c.Abort()
+		return
+	}
+	claimId, _ := claimRes.LastInsertId()
+
+	_, err = db.Exec(
+		"INSERT INTO character_claim_faction (character_claim_id, faction_id) VALUES (?, ?)",
+		claimId, req.FactionId,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to link faction to claim: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var userIdParam *int
+	if !isGuest {
+		userIdParam = &userID
+	}
+
+	recordRes, err := db.Exec(
+		"INSERT INTO claim_record (claim_id, user_id, guest_hash, is_guest, claim_date, claim_expiration_date) VALUES (?, ?, ?, ?, NOW(), ?)",
+		claimId, userIdParam, guestHash, isGuest, expirationDate,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
+		c.Abort()
+		return
+	}
+	recordId, _ := recordRes.LastInsertId()
+
+	_, err = db.Exec("UPDATE character_claim SET claim_record_id = ? WHERE id = ?", recordId, claimId)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update claim record reference: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if isGuest {
+		c.SetCookie(cookieSlot, guestHash, expirationDays*24*60*60, "/", "", false, true)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"claim_id":              claimId,
+		"claim_record_id":       recordId,
+		"guest_hash":            guestHash,
+		"claim_expiration_date": expirationDate,
+	})
+}

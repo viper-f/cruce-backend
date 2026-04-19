@@ -605,7 +605,7 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
 			FROM character_claim cc
 			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
-			JOIN factions f ON ccf.faction_id = f.id
+			JOIN factions f ON ccf.faction_id = f.id AND f.faction_status != 2
 			WHERE cc.is_claimed IS NOT TRUE
 		)
 		SELECT r.id, r.name, r.faction_id, wc.topic_id AS wanted_character_id
