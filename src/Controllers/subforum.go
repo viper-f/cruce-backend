@@ -14,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func scanCategoryRows(rows *sql.Rows, userTimezone string) ([]Entities.Category, error) {
+func scanCategoryRows(rows *sql.Rows, userTimezone *string) ([]Entities.Category, error) {
 	var categories []Entities.Category
 	for rows.Next() {
 		var sub Entities.Subform
