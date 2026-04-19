@@ -3,8 +3,11 @@ package EventHandlers
 import (
 	"cuento-backend/src/Entities"
 	"cuento-backend/src/Events"
+	"cuento-backend/src/Services"
+	"cuento-backend/src/Websockets"
 	"database/sql"
 	"fmt"
+	"strconv"
 )
 
 func RegisterReactionEventHandlers() {
@@ -14,6 +17,7 @@ func RegisterReactionEventHandlers() {
 			return
 		}
 
+		// 1. Notify the post author
 		Events.Publish(db, Events.NotificationCreated, Events.NotificationEvent{
 			UserID:  event.PostAuthorID,
 			Type:    "reaction",
@@ -28,5 +32,22 @@ func RegisterReactionEventHandlers() {
 				UserName:   event.UserName,
 			},
 		})
+
+		// 2. Broadcast reaction_created to everyone in the topic
+		topicIDStr := strconv.FormatInt(event.TopicID, 10)
+		users := Services.ActivityStorage.GetUsersOnPage("topic", topicIDStr)
+		payload := map[string]interface{}{
+			"type": "reaction_created",
+			"data": map[string]interface{}{
+				"post_id":     event.PostID,
+				"reaction_id": event.ReactionID,
+				"url":         event.Url,
+				"user_id":     event.UserID,
+				"user_name":   event.UserName,
+			},
+		}
+		for _, u := range users {
+			Websockets.MainHub.SendNotification(u.UserID, payload)
+		}
 	})
 }
