@@ -82,6 +82,18 @@ VALUES ('allow_add_faction', 'y');
 INSERT INTO global_settings (setting_name, setting_value)
 VALUES ('allow_wanted_for_claims', 'moderated');
 
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_users_create_factions', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_guests_create_factions', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_users_create_claims', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_guests_create_claims', 'y');
+
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NULL,
