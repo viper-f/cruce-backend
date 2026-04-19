@@ -82,6 +82,18 @@ VALUES ('allow_add_faction', 'y');
 INSERT INTO global_settings (setting_name, setting_value)
 VALUES ('allow_wanted_for_claims', 'moderated');
 
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_users_create_factions', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_guests_create_factions', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_users_create_claims', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_guests_create_claims', 'y');
+
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NULL,
@@ -445,9 +457,10 @@ create table character_claim
     id              int auto_increment primary key,
     name            varchar(255) not null,
     description     text         null,
-    is_claimed      boolean      default false not null,
-    claim_record_id int          null,
-    can_change_name boolean      default false not null
+    is_claimed                 boolean      default false not null,
+    claim_record_id            int          null,
+    can_change_name            boolean      default false not null,
+    show_only_with_active_claim boolean     default false not null
 );
 
 create table claim_record

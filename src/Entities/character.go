@@ -56,12 +56,13 @@ type ClaimRecord struct {
 }
 
 type CharacterClaim struct {
-	Id            int     `json:"id"`
-	Name          string  `json:"name"`
-	Description   *string `json:"description"`
-	IsClaimed     bool    `json:"is_claimed"`
-	ClaimRecordId *int    `json:"claim_record_id"`
-	CanChangeName bool    `json:"can_change_name"`
+	Id                      int     `json:"id"`
+	Name                    string  `json:"name"`
+	Description             *string `json:"description"`
+	IsClaimed               bool    `json:"is_claimed"`
+	ClaimRecordId           *int    `json:"claim_record_id"`
+	CanChangeName           bool    `json:"can_change_name"`
+	ShowOnlyWithActiveClaim bool    `json:"show_only_with_active_claim"`
 }
 
 type WantedCharacterStatus int

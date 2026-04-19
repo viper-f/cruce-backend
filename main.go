@@ -164,6 +164,12 @@ func main() {
 	optionalAuthRouter.POST("/claim-record/create", "Create a new claim record for a wanted character or claim", func(c *gin.Context) {
 		Controllers.CreateClaimRecord(c, Services.DB)
 	})
+	optionalAuthRouter.POST("/faction/create-pending", "Create a new faction in pending status", func(c *gin.Context) {
+		Controllers.CreatePendingFaction(c, Services.DB)
+	})
+	optionalAuthRouter.POST("/role-claim/create", "Create a new role claim with character name and faction", func(c *gin.Context) {
+		Controllers.CreateNewRoleClaim(c, Services.DB)
+	})
 	optionalAuthRouter.GET("/factions/get", "Get faction tree", func(c *gin.Context) {
 		Controllers.GetActiveFactionTree(c, Services.DB)
 	})
