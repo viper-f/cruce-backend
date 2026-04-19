@@ -382,14 +382,13 @@ create table direct_chats
 
 create table direct_chat_users
 (
-    direct_chat_id      int not null,
-    user_id             int not null,
+    direct_chat_id       int not null,
+    user_id              int not null,
     last_read_message_id int null,
     unread_count         int not null default 0,
     constraint direct_chat_users_pk primary key (direct_chat_id, user_id),
     constraint fk_direct_chat_users_chat foreign key (direct_chat_id) references direct_chats (id) on delete cascade,
-    constraint fk_direct_chat_users_user foreign key (user_id) references users (id) on delete cascade,
-    constraint fk_direct_chat_users_last_message foreign key (last_read_message_id) references direct_chat_messages (id) on delete set null
+    constraint fk_direct_chat_users_user foreign key (user_id) references users (id) on delete cascade
 );
 
 create table direct_chat_messages
@@ -406,6 +405,10 @@ create table direct_chat_messages
     constraint fk_direct_chat_messages_chat foreign key (chat_id) references direct_chats (id) on delete cascade,
     constraint fk_direct_chat_messages_user foreign key (user_id) references users (id) on delete cascade
 );
+
+ALTER TABLE direct_chat_users
+    ADD CONSTRAINT fk_direct_chat_users_last_message
+        FOREIGN KEY (last_read_message_id) REFERENCES direct_chat_messages (id) ON DELETE SET NULL;
 
 create table public_keys
 (
@@ -444,8 +447,7 @@ create table character_claim
     description     text         null,
     is_claimed      boolean      default false not null,
     claim_record_id int          null,
-    can_change_name boolean      default false not null,
-    constraint fk_character_claim_record foreign key (claim_record_id) references claim_record (id) on delete set null
+    can_change_name boolean      default false not null
 );
 
 create table claim_record
@@ -463,6 +465,10 @@ create table claim_record
     constraint fk_claim_record_user       foreign key (user_id) references users (id) on delete set null,
     constraint fk_claim_record_character  foreign key (character_id) references character_base (id) on delete set null
 );
+
+ALTER TABLE character_claim
+    ADD CONSTRAINT fk_character_claim_record
+        FOREIGN KEY (claim_record_id) REFERENCES claim_record (id) ON DELETE SET NULL;
 
 create table character_claim_faction
 (
