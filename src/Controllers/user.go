@@ -1115,6 +1115,36 @@ func GetActiveUserActivity(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, buildActiveUserActivity(currentUserID, db))
 }
 
+func GetUserRoles(c *gin.Context, db *sql.DB) {
+	userID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid user ID"})
+		c.Abort()
+		return
+	}
+
+	rows, err := db.Query(`SELECT r.id, r.name FROM roles r INNER JOIN user_role ur ON r.id = ur.role_id WHERE ur.user_id = ?`, userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user roles: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	roles := []Entities.Role{}
+	for rows.Next() {
+		var r Entities.Role
+		if err := rows.Scan(&r.Id, &r.Name); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan role: " + err.Error()})
+			c.Abort()
+			return
+		}
+		roles = append(roles, r)
+	}
+
+	c.JSON(http.StatusOK, roles)
+}
+
 func UpdateUserRoles(c *gin.Context, db *sql.DB) {
 	var req struct {
 		UserID  int   `json:"user_id" binding:"required"`
