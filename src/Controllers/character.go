@@ -593,7 +593,17 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		}
 	}
 
-	// 4. Fetch character claims with their deepest faction and associated wanted character
+	// 4. Collect current user identity for pending faction exception
+	userID := Services.GetUserIdFromContext(c)
+	guestHashes := make([]string, 3)
+	for i := 1; i <= 3; i++ {
+		if hash, err := c.Cookie(fmt.Sprintf("claim_hash_%d", i)); err == nil {
+			guestHashes[i-1] = hash
+		}
+	}
+
+	// 5. Fetch character claims with their deepest faction and associated wanted character.
+	//    Pending factions are included only when the claim belongs to the current user.
 	claimQuery := `
 		WITH RankedFactions AS (
 			SELECT
@@ -602,13 +612,19 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 				cc.show_only_with_active_claim,
 				cc.claim_record_id,
 				f.id AS faction_id,
+				f.name AS faction_name,
+				f.faction_status,
 				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
 			FROM character_claim cc
 			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
-			JOIN factions f ON ccf.faction_id = f.id AND f.faction_status != 2
+			JOIN factions f ON ccf.faction_id = f.id
+			LEFT JOIN claim_record cr ON cr.id = cc.claim_record_id
 			WHERE cc.is_claimed IS NOT TRUE
+			  AND (f.faction_status != 2
+			       OR (? > 0 AND cr.user_id = ?)
+			       OR cr.guest_hash IN (?, ?, ?))
 		)
-		SELECT r.id, r.name, r.faction_id, wc.topic_id AS wanted_character_id
+		SELECT r.id, r.name, r.faction_id, r.faction_name, r.faction_status, wc.topic_id AS wanted_character_id
 		FROM RankedFactions r
 		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = r.id
 		LEFT JOIN claim_record cr ON cr.id = r.claim_record_id
@@ -616,7 +632,7 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		  AND (wc.id IS NULL OR wc.wanted_character_status = 0)
 		  AND (r.show_only_with_active_claim = false OR (cr.id IS NOT NULL AND cr.claim_expiration_date > NOW()))
 	`
-	claimRows, err := db.Query(claimQuery)
+	claimRows, err := db.Query(claimQuery, userID, userID, guestHashes[0], guestHashes[1], guestHashes[2])
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character claims: " + err.Error()})
 		c.Abort()
@@ -627,15 +643,25 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 	for claimRows.Next() {
 		var item Entities.CharacterListItem
 		var factionID int
-		if err := claimRows.Scan(&item.Id, &item.Name, &factionID, &item.WantedCharacterId); err != nil {
+		var factionName string
+		var factionStatus Entities.FactionStatus
+		if err := claimRows.Scan(&item.Id, &item.Name, &factionID, &factionName, &factionStatus, &item.WantedCharacterId); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
 			c.Abort()
 			return
 		}
 		item.IsClaim = true
-		if faction, ok := factionMap[factionID]; ok {
-			faction.Characters = append(faction.Characters, item)
+		if _, ok := factionMap[factionID]; !ok {
+			// Pending faction only visible to the current user — add it on-the-fly
+			factions = append(factions, Entities.Faction{
+				Id:            factionID,
+				Name:          factionName,
+				FactionStatus: factionStatus,
+				Characters:    []Entities.CharacterListItem{},
+			})
+			factionMap[factionID] = &factions[len(factions)-1]
 		}
+		factionMap[factionID].Characters = append(factionMap[factionID].Characters, item)
 	}
 
 	noFaction := Entities.Faction{Id: 0, Name: "No Faction", Characters: []Entities.CharacterListItem{}}
