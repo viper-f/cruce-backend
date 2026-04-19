@@ -104,13 +104,14 @@ type StaticFileUploadedEvent struct {
 }
 
 type ReactionCreatedEvent struct {
-	TopicID    int64  `json:"topic_id"`
-	TopicName  string `json:"topic_name"`
-	PostID     int    `json:"post_id"`
-	ReactionID int    `json:"reaction_id"`
-	Url        string `json:"url"`
-	UserID     int    `json:"user_id"`
-	UserName   string `json:"user_name"`
+	TopicID      int64  `json:"topic_id"`
+	TopicName    string `json:"topic_name"`
+	PostID       int    `json:"post_id"`
+	PostAuthorID int    `json:"post_author_id"`
+	ReactionID   int    `json:"reaction_id"`
+	Url          string `json:"url"`
+	UserID       int    `json:"user_id"`
+	UserName     string `json:"user_name"`
 }
 
 type EventHandler func(db *sql.DB, data EventData)
