@@ -1188,6 +1188,112 @@ func UpdateUserRoles(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "User roles updated"})
 }
 
+type WipeOutMyUserRequest struct {
+	RecoveryCode string `json:"recovery_code" binding:"required"`
+}
+
+func WipeOutMyUser(c *gin.Context, db *sql.DB) {
+	var req WipeOutMyUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var codeID, userID int
+	err := db.QueryRow(
+		"SELECT id, user_id FROM recovery_codes WHERE recovery_code = ? AND date_used IS NULL",
+		req.RecoveryCode,
+	).Scan(&codeID, &userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid or already used recovery code"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	// Delete direct chat messages
+	if _, err := tx.Exec("DELETE FROM direct_chat_messages WHERE user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to delete direct messages: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Delete posts in general topics
+	if _, err := tx.Exec(
+		"DELETE FROM posts WHERE author_user_id = ? AND topic_id IN (SELECT id FROM topics WHERE type = ?)",
+		userID, Entities.GeneralTopic,
+	); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to delete general posts: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign remaining posts to The Nameless One
+	if _, err := tx.Exec("UPDATE posts SET author_user_id = 1 WHERE author_user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign posts: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign topics
+	if _, err := tx.Exec("UPDATE topics SET author_user_id = 1 WHERE author_user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign topics: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign characters
+	if _, err := tx.Exec("UPDATE character_base SET user_id = 1 WHERE user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign character profiles
+	if _, err := tx.Exec("UPDATE character_profile_base SET user_id = 1 WHERE user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign character profiles: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign wanted characters
+	if _, err := tx.Exec("UPDATE wanted_character_base SET author_user_id = 1 WHERE author_user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign wanted characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Mark recovery code as used
+	if _, err := tx.Exec("UPDATE recovery_codes SET date_used = NOW() WHERE id = ?", codeID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to mark recovery code as used: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Delete the user (cascades direct_chat_users and other FK cascades)
+	if _, err := tx.Exec("DELETE FROM users WHERE id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to delete user: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User account wiped"})
+}
+
 func UserAutocomplete(c *gin.Context, db *sql.DB) {
 	term := c.Param("term")
 

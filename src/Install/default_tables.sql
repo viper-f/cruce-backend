@@ -22,7 +22,8 @@ INSERT INTO users (username, password, date_registered, avatar, date_last_visit,
 UPDATE users SET id = 0 WHERE username = 'guest';
 ALTER TABLE users AUTO_INCREMENT = 1;
 
-INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status, interface_font_size) VALUES (1, 'System', null, null, null, null, null, null, 0, 1.00);
+INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status, interface_font_size) VALUES (1, 'The Nameless One', null, null, null, null, null, null, 0, 1.00);
+ALTER TABLE users AUTO_INCREMENT = 2;
 
 create table user_role
 (
