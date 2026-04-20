@@ -164,6 +164,9 @@ func main() {
 	optionalAuthRouter.POST("/claim-record/create", "Create a new claim record for a wanted character or claim", func(c *gin.Context) {
 		Controllers.CreateClaimRecord(c, Services.DB)
 	})
+	optionalAuthRouter.POST("/claim-record/revoke", "Revoke an active claim record", func(c *gin.Context) {
+		Controllers.RevokeClaim(c, Services.DB)
+	})
 	optionalAuthRouter.POST("/faction/create-pending", "Create a new faction in pending status", func(c *gin.Context) {
 		Controllers.CreatePendingFaction(c, Services.DB)
 	})
