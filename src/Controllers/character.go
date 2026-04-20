@@ -624,13 +624,15 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 			       OR (? > 0 AND cr.user_id = ?)
 			       OR cr.guest_hash IN (?, ?, ?))
 		)
-		SELECT r.id, r.name, r.faction_id, r.faction_name, r.faction_status, wc.topic_id AS wanted_character_id
+		SELECT r.id, r.name, r.faction_id, r.faction_name, r.faction_status, wc.topic_id AS wanted_character_id,
+		       cr.id AS claim_record_id, cr.user_id AS claim_author_id, u.username AS claim_author_username, cr.guest_hash AS claim_guest_hash
 		FROM RankedFactions r
 		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = r.id
-		LEFT JOIN claim_record cr ON cr.id = r.claim_record_id
+		LEFT JOIN claim_record cr ON cr.id = r.claim_record_id AND cr.claim_expiration_date > NOW()
+		LEFT JOIN users u ON u.id = cr.user_id
 		WHERE r.rn = 1
 		  AND (wc.id IS NULL OR wc.wanted_character_status = 0)
-		  AND (r.show_only_with_active_claim = false OR (cr.id IS NOT NULL AND cr.claim_expiration_date > NOW()))
+		  AND (r.show_only_with_active_claim = false OR cr.id IS NOT NULL)
 	`
 	claimRows, err := db.Query(claimQuery, userID, userID, guestHashes[0], guestHashes[1], guestHashes[2])
 	if err != nil {
@@ -645,7 +647,7 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		var factionID int
 		var factionName string
 		var factionStatus Entities.FactionStatus
-		if err := claimRows.Scan(&item.Id, &item.Name, &factionID, &factionName, &factionStatus, &item.WantedCharacterId); err != nil {
+		if err := claimRows.Scan(&item.Id, &item.Name, &factionID, &factionName, &factionStatus, &item.WantedCharacterId, &item.ClaimRecordId, &item.ClaimAuthorId, &item.ClaimAuthorUsername, &item.ClaimGuestHash); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
 			c.Abort()
 			return

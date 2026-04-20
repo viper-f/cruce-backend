@@ -690,16 +690,67 @@ func GetClaimAutocomplete(c *gin.Context, db *sql.DB) {
 func fetchActiveClaimRecord(characterClaimId int, db *sql.DB) *Entities.ClaimRecord {
 	var cr Entities.ClaimRecord
 	err := db.QueryRow(`
-		SELECT id, claim_id, user_id, guest_hash, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet
-		FROM claim_record
-		WHERE claim_id = ? AND claim_expiration_date > NOW()
-		ORDER BY claim_date DESC
+		SELECT cr.id, cr.claim_id, cr.user_id, cr.guest_hash, cr.is_guest, cr.claim_date, cr.claim_expiration_date, cr.character_id, cr.claim_created_with_character_sheet, u.id, u.username
+		FROM claim_record cr
+		LEFT JOIN users u ON u.id = cr.user_id
+		WHERE cr.claim_id = ? AND cr.claim_expiration_date > NOW()
+		ORDER BY cr.claim_date DESC
 		LIMIT 1
-	`, characterClaimId).Scan(&cr.Id, &cr.ClaimId, &cr.UserId, &cr.GuestHash, &cr.IsGuest, &cr.ClaimDate, &cr.ClaimExpirationDate, &cr.CharacterId, &cr.ClaimCreatedWithCharacterSheet)
+	`, characterClaimId).Scan(&cr.Id, &cr.ClaimId, &cr.UserId, &cr.GuestHash, &cr.IsGuest, &cr.ClaimDate, &cr.ClaimExpirationDate, &cr.CharacterId, &cr.ClaimCreatedWithCharacterSheet, &cr.ClaimAuthorId, &cr.ClaimAuthorUsername)
 	if err != nil {
 		return nil
 	}
 	return &cr
+}
+
+type RevokeClaimRequest struct {
+	ClaimRecordId int `json:"claim_record_id" binding:"required"`
+}
+
+func RevokeClaim(c *gin.Context, db *sql.DB) {
+	var req RevokeClaimRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var recordUserID *int
+	var guestHash *string
+	if err := db.QueryRow("SELECT user_id, guest_hash FROM claim_record WHERE id = ?", req.ClaimRecordId).Scan(&recordUserID, &guestHash); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Claim record not found"})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+	authorized := false
+
+	if userID != 0 {
+		authorized = recordUserID != nil && *recordUserID == userID
+	} else if guestHash != nil {
+		for i := 1; i <= 3; i++ {
+			if hash, err := c.Cookie(fmt.Sprintf("claim_hash_%d", i)); err == nil && hash == *guestHash {
+				authorized = true
+				break
+			}
+		}
+	}
+
+	if !authorized {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "You are not authorized to revoke this claim"})
+		c.Abort()
+		return
+	}
+
+	_, err := db.Exec("UPDATE claim_record SET claim_expiration_date = NOW() - INTERVAL 1 SECOND WHERE id = ?", req.ClaimRecordId)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to revoke claim: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Claim revoked"})
 }
 
 type CreateClaimRecordRequest struct {

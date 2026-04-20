@@ -53,6 +53,8 @@ type ClaimRecord struct {
 	ClaimExpirationDate            time.Time `json:"claim_expiration_date"`
 	CharacterId                    *int      `json:"character_id"`
 	ClaimCreatedWithCharacterSheet *bool     `json:"claim_created_with_character_sheet"`
+	ClaimAuthorId                  *int      `json:"claim_author_id"`
+	ClaimAuthorUsername            *string   `json:"claim_author_username"`
 }
 
 type CharacterClaim struct {
@@ -92,8 +94,12 @@ func (w *WantedCharacter) GetBaseFields() []string {
 }
 
 type CharacterListItem struct {
-	Id                int    `json:"id"`
-	Name              string `json:"name"`
-	IsClaim           bool   `json:"is_claim"`
-	WantedCharacterId *int   `json:"wanted_character_id"`
+	Id                  int     `json:"id"`
+	Name                string  `json:"name"`
+	IsClaim             bool    `json:"is_claim"`
+	WantedCharacterId   *int    `json:"wanted_character_id"`
+	ClaimRecordId       *int    `json:"claim_record_id,omitempty"`
+	ClaimAuthorId       *int    `json:"claim_author_id,omitempty"`
+	ClaimAuthorUsername *string `json:"claim_author_username,omitempty"`
+	ClaimGuestHash      *string `json:"claim_guest_hash,omitempty"`
 }
