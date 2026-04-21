@@ -3,6 +3,8 @@ name: Build and Deploy Cuento
 on:
   push:
     branches: [release]
+    paths-ignore:
+      - 'deployments/**'
   workflow_dispatch:
 
 jobs:
