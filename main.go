@@ -63,6 +63,9 @@ func main() {
 	publicRouter.POST("/refresh", "Refresh access token", func(c *gin.Context) {
 		Controllers.RefreshToken(c, Services.DB)
 	})
+	publicRouter.GET("/currency/settings", "Get currency settings", func(c *gin.Context) {
+		Features.GetCurrencySettingsHandler(c, Services.DB)
+	})
 	publicRouter.GET("/board/info", "Get board information", func(c *gin.Context) {
 		Controllers.GetBoard(c, Services.DB)
 	})
@@ -237,9 +240,6 @@ func main() {
 	})
 	protectedRouter.GET("/currency/income-types", "Get list of currency income types", func(c *gin.Context) {
 		Features.GetCurrencyIncomeTypesHandler(c, Services.DB)
-	})
-	protectedRouter.GET("/currency/settings", "Get currency settings", func(c *gin.Context) {
-		Features.GetCurrencySettingsHandler(c, Services.DB)
 	})
 	protectedRouter.POST("/currency/settings/update", "Update currency settings", func(c *gin.Context) {
 		Features.UpdateCurrencySettingsHandler(c, Services.DB)

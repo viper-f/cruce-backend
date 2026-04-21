@@ -95,6 +95,9 @@ VALUES ('allow_users_create_claims', 'y');
 INSERT INTO global_settings (setting_name, setting_value)
 VALUES ('allow_guests_create_claims', 'y');
 
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('visual_navlinks_after_header_panel', 'n');
+
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NULL,
