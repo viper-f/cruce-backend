@@ -544,7 +544,7 @@ func main() {
 	protectedRouter.GET("/admin/home", "Get admin home categories (all, including empty)", func(c *gin.Context) {
 		Controllers.GetAdminHomeCategories(c, Services.DB)
 	})
-	protectedRouter.GET("/admin/user/roles/:id", "Get user roles for admin", func(c *gin.Context) {
+	protectedRouter.GET("/admin/user/roles/:id", "Get user roles", func(c *gin.Context) {
 		Controllers.GetUserRoles(c, Services.DB)
 	})
 	protectedRouter.POST("/admin/user/roles/update", "Update user roles", func(c *gin.Context) {
