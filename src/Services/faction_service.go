@@ -132,6 +132,10 @@ func GetFactionTree(db *sql.DB) ([]Entities.Faction, error) {
 	return getFactionTree(db, &[]Entities.FactionStatus{Entities.FactionActive, Entities.FactionInactive})
 }
 
+func GetFullFactionTree(db *sql.DB) ([]Entities.Faction, error) {
+	return getFactionTree(db, nil)
+}
+
 func getFactionTree(db *sql.DB, statusFilter *[]Entities.FactionStatus) ([]Entities.Faction, error) {
 	// Fetch all factions
 	query := `

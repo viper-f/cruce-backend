@@ -1367,7 +1367,7 @@ func GetUserMasks(c *gin.Context, db *sql.DB) {
 }
 
 func GetCharacterClaims(c *gin.Context, db *sql.DB) {
-	factions, err := Services.GetFactionTree(db)
+	factions, err := Services.GetFullFactionTree(db)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get faction tree: " + err.Error()})
 		c.Abort()
@@ -1398,6 +1398,7 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 				cc.name,
 				cc.description,
 				cc.is_claimed,
+				cc.claim_record_id,
 				cc.can_change_name,
 				cc.show_only_with_active_claim,
 				f.id AS faction_id,
@@ -1406,7 +1407,7 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
 			JOIN factions f ON ccf.faction_id = f.id
 		)
-		SELECT id, name, description, is_claimed, can_change_name, show_only_with_active_claim, faction_id
+		SELECT id, name, description, is_claimed, claim_record_id, can_change_name, show_only_with_active_claim, faction_id
 		FROM RankedFactions
 		WHERE rn = 1
 	`
@@ -1421,7 +1422,7 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 	for claimRows.Next() {
 		var claim Entities.CharacterClaim
 		var factionID int
-		if err := claimRows.Scan(&claim.Id, &claim.Name, &claim.Description, &claim.IsClaimed, &claim.CanChangeName, &claim.ShowOnlyWithActiveClaim, &factionID); err != nil {
+		if err := claimRows.Scan(&claim.Id, &claim.Name, &claim.Description, &claim.IsClaimed, &claim.ClaimRecordId, &claim.CanChangeName, &claim.ShowOnlyWithActiveClaim, &factionID); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
 			c.Abort()
 			return
