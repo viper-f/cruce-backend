@@ -796,9 +796,10 @@ func CreateClaimRecord(c *gin.Context, db *sql.DB) {
 	}
 	expirationDate := time.Now().AddDate(0, 0, expirationDays)
 
-	var guestHash string
+	var guestHash *string
 	if isGuest {
-		guestHash = generateGuestHash()
+		h := generateGuestHash()
+		guestHash = &h
 	}
 
 	var userIdParam *int
@@ -850,7 +851,7 @@ func CreateNewRoleClaim(c *gin.Context, db *sql.DB) {
 	}
 	expirationDate := time.Now().AddDate(0, 0, expirationDays)
 
-	var guestHash string
+	var guestHash *string
 	var cookieSlot string
 	if isGuest {
 		for i := 1; i <= 3; i++ {
@@ -865,7 +866,8 @@ func CreateNewRoleClaim(c *gin.Context, db *sql.DB) {
 			c.Abort()
 			return
 		}
-		guestHash = generateGuestHash()
+		h := generateGuestHash()
+		guestHash = &h
 	}
 
 	claimRes, err := db.Exec(
@@ -912,8 +914,8 @@ func CreateNewRoleClaim(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	if isGuest {
-		c.SetCookie(cookieSlot, guestHash, expirationDays*24*60*60, "/", "", false, true)
+	if isGuest && guestHash != nil {
+		c.SetCookie(cookieSlot, *guestHash, expirationDays*24*60*60, "/", "", false, true)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

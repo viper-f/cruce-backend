@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -595,6 +596,7 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 
 	// 4. Collect current user identity for pending faction exception
 	userID := Services.GetUserIdFromContext(c)
+	userTimezone := Services.GetUserTimezone(userID, db)
 	guestHashes := make([]string, 3)
 	for i := 1; i <= 3; i++ {
 		if hash, err := c.Cookie(fmt.Sprintf("claim_hash_%d", i)); err == nil {
@@ -622,10 +624,10 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 			WHERE cc.is_claimed IS NOT TRUE
 			  AND (f.faction_status != 2
 			       OR (? > 0 AND cr.user_id = ?)
-			       OR cr.guest_hash IN (?, ?, ?))
+			       OR (cr.guest_hash IS NOT NULL AND cr.guest_hash != '' AND cr.guest_hash IN (?, ?, ?)))
 		)
 		SELECT r.id, r.name, r.faction_id, r.faction_name, r.faction_status, wc.topic_id AS wanted_character_id,
-		       cr.id AS claim_record_id, cr.user_id AS claim_author_id, u.username AS claim_author_username, cr.guest_hash AS claim_guest_hash
+		       cr.id AS claim_record_id, cr.user_id AS claim_author_id, u.username AS claim_author_username, cr.guest_hash AS claim_guest_hash, cr.claim_expiration_date
 		FROM RankedFactions r
 		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = r.id
 		LEFT JOIN claim_record cr ON cr.id = r.claim_record_id AND cr.claim_expiration_date > NOW()
@@ -647,12 +649,16 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		var factionID int
 		var factionName string
 		var factionStatus Entities.FactionStatus
-		if err := claimRows.Scan(&item.Id, &item.Name, &factionID, &factionName, &factionStatus, &item.WantedCharacterId, &item.ClaimRecordId, &item.ClaimAuthorId, &item.ClaimAuthorUsername, &item.ClaimGuestHash); err != nil {
+		var claimExpirationDate *time.Time
+		if err := claimRows.Scan(&item.Id, &item.Name, &factionID, &factionName, &factionStatus, &item.WantedCharacterId, &item.ClaimRecordId, &item.ClaimAuthorId, &item.ClaimAuthorUsername, &item.ClaimGuestHash, &claimExpirationDate); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
 			c.Abort()
 			return
 		}
 		item.IsClaim = true
+		if claimExpirationDate != nil {
+			item.ClaimExpirationDate = Services.LocalizeTime(*claimExpirationDate, userTimezone)
+		}
 		if _, ok := factionMap[factionID]; !ok {
 			// Pending faction only visible to the current user — add it on-the-fly
 			factions = append(factions, Entities.Faction{

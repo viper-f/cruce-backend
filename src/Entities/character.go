@@ -102,4 +102,5 @@ type CharacterListItem struct {
 	ClaimAuthorId       *int    `json:"claim_author_id,omitempty"`
 	ClaimAuthorUsername *string `json:"claim_author_username,omitempty"`
 	ClaimGuestHash      *string `json:"claim_guest_hash,omitempty"`
+	ClaimExpirationDate string  `json:"claim_expiration_date,omitempty"`
 }
