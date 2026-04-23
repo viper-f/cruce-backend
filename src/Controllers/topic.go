@@ -1305,6 +1305,8 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 	}
 	defer rows.Close()
 
+	userTimezone := Services.GetUserTimezone(userID, db)
+
 	var topics []ViewforumRow
 	for rows.Next() {
 		var topic ViewforumRow
@@ -1324,6 +1326,10 @@ func GetActiveTopics(c *gin.Context, db *sql.DB) {
 			&topic.LastViewedId,
 		); err != nil {
 			continue
+		}
+		if topic.DateLastPost != nil {
+			localized := Services.LocalizeTime(*topic.DateLastPost, userTimezone)
+			topic.DateLastPostLocalized = &localized
 		}
 		topics = append(topics, topic)
 	}
