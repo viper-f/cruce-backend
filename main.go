@@ -4,12 +4,10 @@ import (
 	"cuento-backend/src/Controllers"
 	"cuento-backend/src/EventHandlers"
 	"cuento-backend/src/Features"
-	"cuento-backend/src/Install"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Router"
 	"cuento-backend/src/Services"
 	"cuento-backend/src/Websockets"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -136,13 +134,6 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "pong",
 		})
-	})
-	optionalAuthRouter.GET("/install", "Install default database tables", func(c *gin.Context) {
-		err := Install.ExecuteSQLFile(Services.DB, "./src/Install/default_tables.sql")
-		if err != nil {
-			fmt.Println(err.Error())
-			return
-		}
 	})
 	optionalAuthRouter.GET("/viewforum/:subforum/:page", "Get topics in a subforum by page", func(c *gin.Context) {
 		Controllers.GetTopicsBySubforum(c, Services.DB)
