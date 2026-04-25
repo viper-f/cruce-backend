@@ -218,18 +218,23 @@ func UpdateAdditionalNavlink(c *gin.Context, db *sql.DB) {
 	}
 	defer tx.Rollback()
 
+	var exists int
+	if err := tx.QueryRow("SELECT COUNT(*) FROM additional_navlinks WHERE id = ?", id).Scan(&exists); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to check navlink: " + err.Error()})
+		c.Abort()
+		return
+	}
+	if exists == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Navlink not found"})
+		c.Abort()
+		return
+	}
+
 	if len(setClauses) > 0 {
 		args = append(args, id)
 		query := "UPDATE additional_navlinks SET " + strings.Join(setClauses, ", ") + " WHERE id = ?"
-		res, err := tx.Exec(query, args...)
-		if err != nil {
+		if _, err := tx.Exec(query, args...); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update navlink: " + err.Error()})
-			c.Abort()
-			return
-		}
-		rows, _ := res.RowsAffected()
-		if rows == 0 {
-			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Navlink not found"})
 			c.Abort()
 			return
 		}
