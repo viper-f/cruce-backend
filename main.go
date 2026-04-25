@@ -538,6 +538,9 @@ func main() {
 	protectedRouter.GET("/admin/additional-navlink/list", "Get admin list of all additional navlinks", func(c *gin.Context) {
 		Controllers.GetAdditionalNavlinkList(c, Services.DB)
 	})
+	protectedRouter.GET("/admin/additional-navlink/delete/:id", "Delete additional navlink by ID", func(c *gin.Context) {
+		Controllers.DeleteAdditionalNavlink(c, Services.DB)
+	})
 	protectedRouter.GET("/admin/role/list", "Get list of all roles", func(c *gin.Context) {
 		Controllers.GetRoleList(c, Services.DB)
 	})
