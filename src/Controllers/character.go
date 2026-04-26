@@ -244,25 +244,41 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 			claimId = *characterClaimId
 		}
 
+		// Expire the existing standalone claim record if present
 		var existingRecordId int
-		err := tx.QueryRow("SELECT id FROM claim_record WHERE claim_id = ? AND user_id = ?", claimId, userID).Scan(&existingRecordId)
+		err := tx.QueryRow("SELECT id FROM claim_record WHERE claim_id = ? AND user_id = ? AND character_id IS NULL", claimId, userID).Scan(&existingRecordId)
 		if err == nil {
-			if _, err := tx.Exec("UPDATE claim_record SET character_id = ? WHERE id = ?", characterID, existingRecordId); err != nil {
-				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update claim record: " + err.Error()})
+			if _, err := tx.Exec("UPDATE claim_record SET claim_expiration_date = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE id = ?", existingRecordId); err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to expire old claim record: " + err.Error()})
 				c.Abort()
 				return
 			}
-		} else if err == sql.ErrNoRows {
-			if _, err := tx.Exec(
-				"INSERT INTO claim_record (claim_id, user_id, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet) VALUES (?, ?, false, NOW(), NOW(), ?, true)",
-				claimId, userID, characterID,
-			); err != nil {
-				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
-				c.Abort()
-				return
-			}
-		} else {
+		} else if err != sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to check claim record: " + err.Error()})
+			c.Abort()
+			return
+		}
+
+		// Create a new claim record associated with the character sheet
+		newClaimRes, err := tx.Exec(
+			"INSERT INTO claim_record (claim_id, user_id, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet) VALUES (?, ?, false, NOW(), DATE_ADD(NOW(), INTERVAL 5 DAY), ?, true)",
+			claimId, userID, characterID,
+		)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
+			c.Abort()
+			return
+		}
+		newClaimRecordId, err := newClaimRes.LastInsertId()
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get new claim record ID"})
+			c.Abort()
+			return
+		}
+
+		// Update character_claim so the new record shows in the character list
+		if _, err := tx.Exec("UPDATE character_claim SET claim_record_id = ? WHERE id = ?", newClaimRecordId, claimId); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update character claim: " + err.Error()})
 			c.Abort()
 			return
 		}
