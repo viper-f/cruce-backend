@@ -73,6 +73,7 @@ role_id,type,permission
 3,0,/character-claim/create
 3,0,/character-claims
 3,0,/character/accept/:id
+3,0,/character/decline/:id
 3,0,/currency/income-types
 3,0,/currency/income-types/update
 3,0,/currency/settings
@@ -120,3 +121,4 @@ role_id,type,permission
 3,0,/admin/user/roles/update
 3,0,/admin/user/roles/:id
 3,0,/admin/home
+3,0,/admin/smile/upload
