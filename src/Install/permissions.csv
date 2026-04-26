@@ -63,6 +63,7 @@ role_id,type,permission
 3,0,/admin/additional-navlink/list
 3,0,/admin/additional-navlink/update/:id
 3,0,/admin/additional-navlink/delete/:id
+3,0,/admin/smile/upload
 3,0,/admin/role/list
 3,0,/admin/user-list
 3,0,/admin/user/create

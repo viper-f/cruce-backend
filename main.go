@@ -76,6 +76,9 @@ func main() {
 	publicRouter.GET("/entity/fields/:entity_type", "Get field names for an entity type", func(c *gin.Context) {
 		Controllers.GetEntityFields(c, Services.DB)
 	})
+	publicRouter.GET("/smiles", "Get list of all smiles ordered by category", func(c *gin.Context) {
+		Controllers.GetSmileList(c, Services.DB)
+	})
 	publicRouter.GET("/user/profile/:userID", "Get user profile details", func(c *gin.Context) {
 		Controllers.GetUserProfile(c, Services.DB)
 	})
@@ -360,6 +363,9 @@ func main() {
 	protectedRouter.POST("/character/deactivate/:id", "Deactivate a character", func(c *gin.Context) {
 		Controllers.DeactivateCharacter(c, Services.DB)
 	})
+	protectedRouter.POST("/character/decline/:id", "Decline a pending character", func(c *gin.Context) {
+		Controllers.DeclineCharacter(c, Services.DB)
+	})
 	protectedRouter.POST("/character/activate/:id", "Activate a character", func(c *gin.Context) {
 		Controllers.ActivateCharacter(c, Services.DB)
 	})
@@ -531,6 +537,9 @@ func main() {
 	})
 	protectedRouter.GET("/admin/additional-navlink/delete/:id", "Delete additional navlink by ID", func(c *gin.Context) {
 		Controllers.DeleteAdditionalNavlink(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/smile/upload", "Upload a smile image", func(c *gin.Context) {
+		Controllers.UploadSmile(c, Services.DB)
 	})
 	protectedRouter.GET("/admin/role/list", "Get list of all roles", func(c *gin.Context) {
 		Controllers.GetRoleList(c, Services.DB)
