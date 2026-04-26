@@ -1065,6 +1065,12 @@ func buildActiveUserActivity(forUserID int, db *sql.DB) []ActiveUserInfo {
 	activeUsers := Services.ActivityStorage.GetActiveUsers()
 	result := make([]ActiveUserInfo, 0, len(activeUsers))
 
+	visibleSubforums, _ := Services.GetVisibleSubforums(forUserID, "subforum_read", db)
+	visibleSubforumSet := make(map[int]bool, len(visibleSubforums))
+	for _, id := range visibleSubforums {
+		visibleSubforumSet[id] = true
+	}
+
 	for _, u := range activeUsers {
 		info := ActiveUserInfo{
 			UserID:              u.UserID,
@@ -1080,12 +1086,9 @@ func buildActiveUserActivity(forUserID int, db *sql.DB) []ActiveUserInfo {
 			var subforumID int
 			var topicName string
 			err := db.QueryRow("SELECT subforum_id, name FROM topics WHERE id = ?", u.CurrentPageId).Scan(&subforumID, &topicName)
-			if err == nil {
-				perm := fmt.Sprintf("subforum_read:%d", subforumID)
-				if hasPerm, err := Services.HasPermission(forUserID, perm, db); err == nil && hasPerm {
-					info.CurrentPageId = &u.CurrentPageId
-					info.CurrentPageName = &topicName
-				}
+			if err == nil && visibleSubforumSet[subforumID] {
+				info.CurrentPageId = &u.CurrentPageId
+				info.CurrentPageName = &topicName
 			}
 		default:
 			info.CurrentPageId = &u.CurrentPageId
