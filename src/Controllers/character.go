@@ -504,6 +504,11 @@ func UpdateCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	_, _ = db.Exec(
+		"UPDATE subforums SET last_post_topic_name = ? WHERE last_post_topic_id = ?",
+		req.Name, topicID,
+	)
+
 	// 6. Fetch updated character and return
 	updatedCharacter, err := Services.GetEntity(int64(characterID), "character", db)
 	if err != nil {

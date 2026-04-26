@@ -500,6 +500,11 @@ func UpdateWantedCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	_, _ = db.Exec(
+		"UPDATE subforums SET last_post_topic_name = ? WHERE last_post_topic_id = ?",
+		req.Name, topicID,
+	)
+
 	updatedEntity, err := Services.GetEntity(int64(wantedCharacterID), "wanted_character", db)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated wanted character: " + err.Error()})

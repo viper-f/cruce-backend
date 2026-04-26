@@ -1203,6 +1203,13 @@ func UpdateTopic(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	if req.Name != nil {
+		_, _ = db.Exec(
+			"UPDATE subforums SET last_post_topic_name = ? WHERE last_post_topic_id = ?",
+			*req.Name, topicID,
+		)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Topic updated successfully"})
 }
 
