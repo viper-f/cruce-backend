@@ -650,7 +650,14 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		SELECT r.id, r.name, r.faction_id, r.faction_name, r.faction_status, wc.topic_id AS wanted_character_id,
 		       cr.id AS claim_record_id, cr.user_id AS claim_author_id, u.username AS claim_author_username, cr.guest_hash AS claim_guest_hash, cr.claim_expiration_date
 		FROM RankedFactions r
-		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = r.id
+		LEFT JOIN (
+			SELECT character_claim_id,
+			       MIN(id) AS id,
+			       MIN(wanted_character_status) AS wanted_character_status,
+			       MIN(CASE WHEN wanted_character_status = 0 THEN topic_id END) AS topic_id
+			FROM wanted_character_base
+			GROUP BY character_claim_id
+		) wc ON wc.character_claim_id = r.id
 		LEFT JOIN claim_record cr ON cr.id = r.claim_record_id AND cr.claim_expiration_date > NOW()
 		LEFT JOIN users u ON u.id = cr.user_id
 		WHERE r.rn = 1
@@ -716,7 +723,14 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 	noFactionClaimRows, err := db.Query(`
 		SELECT cc.id, cc.name, wc.topic_id
 		FROM character_claim cc
-		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = cc.id
+		LEFT JOIN (
+			SELECT character_claim_id,
+			       MIN(id) AS id,
+			       MIN(wanted_character_status) AS wanted_character_status,
+			       MIN(CASE WHEN wanted_character_status = 0 THEN topic_id END) AS topic_id
+			FROM wanted_character_base
+			GROUP BY character_claim_id
+		) wc ON wc.character_claim_id = cc.id
 		LEFT JOIN claim_record cr ON cr.id = cc.claim_record_id
 		WHERE cc.is_claimed IS NOT TRUE
 		AND cc.id NOT IN (SELECT character_claim_id FROM character_claim_faction)
