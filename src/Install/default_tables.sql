@@ -673,6 +673,14 @@ create table reactions
     is_active boolean      not null default true
 );
 
+create table smiles
+(
+    id        int          not null auto_increment primary key,
+    text_form varchar(50)  null,
+    url       varchar(255) not null,
+    category  varchar(100) null
+);
+
 create table post_reaction
 (
     post_id     bigint unsigned not null,
