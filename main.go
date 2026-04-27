@@ -342,6 +342,9 @@ func main() {
 	protectedRouter.POST("/topics/move", "Move topics to a different subforum", func(c *gin.Context) {
 		Controllers.MoveTopics(c, Services.DB)
 	})
+	protectedRouter.POST("/topics/bulk-update", "Bulk update topics", func(c *gin.Context) {
+		Controllers.BulkUpdateTopics(c, Services.DB)
+	})
 	publicRouter.GET("/notifications/types", "Get list of notification types", func(c *gin.Context) {
 		Controllers.GetNotificationTypes(c)
 	})

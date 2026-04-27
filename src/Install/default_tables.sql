@@ -108,7 +108,7 @@ CREATE TABLE subforums (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     category_id INT NULL,
     name VARCHAR(255) NULL,
-    description TINYTEXT NULL,
+    description MEDIUMTEXT NULL,
     position INT NULL,
     topic_number INT NULL,
     post_number INT NULL,

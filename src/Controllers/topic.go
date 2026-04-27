@@ -1213,6 +1213,89 @@ func UpdateTopic(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "Topic updated successfully"})
 }
 
+func BulkUpdateTopics(c *gin.Context, db *sql.DB) {
+	var req struct {
+		TopicIDs []int                `json:"topic_ids" binding:"required"`
+		Status   Entities.TopicStatus `json:"status" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+	if len(req.TopicIDs) == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "topic_ids must not be empty"})
+		c.Abort()
+		return
+	}
+	if req.Status == Entities.FullTopic {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "FullTopic status cannot be set manually"})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+
+	placeholders := strings.Repeat("?,", len(req.TopicIDs)-1) + "?"
+	idArgs := make([]interface{}, len(req.TopicIDs))
+	for i, id := range req.TopicIDs {
+		idArgs[i] = id
+	}
+
+	// Fetch subforum IDs and validate no topic is Full
+	rows, err := db.Query(
+		fmt.Sprintf("SELECT id, subforum_id, status FROM topics WHERE id IN (%s)", placeholders),
+		idArgs...,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch topics: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	subforumSeen := make(map[int]bool)
+	for rows.Next() {
+		var tID, subforumID int
+		var status Entities.TopicStatus
+		if err := rows.Scan(&tID, &subforumID, &status); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan topic: " + err.Error()})
+			c.Abort()
+			return
+		}
+		if status == Entities.FullTopic {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: fmt.Sprintf("Topic %d is full and cannot be updated", tID)})
+			c.Abort()
+			return
+		}
+		subforumSeen[subforumID] = true
+	}
+
+	// Check edit-others permission for every subforum involved
+	for subforumID := range subforumSeen {
+		perm := fmt.Sprintf("subforum_edit_others_topic:%d", subforumID)
+		if ok, err := Services.HasPermission(userID, perm, db); err != nil || !ok {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: fmt.Sprintf("No permission to edit topics in subforum %d", subforumID)})
+			c.Abort()
+			return
+		}
+	}
+
+	args := append([]interface{}{req.Status}, idArgs...)
+	result, err := db.Exec(
+		fmt.Sprintf("UPDATE topics SET status = ? WHERE id IN (%s)", placeholders),
+		args...,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update topics: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	updated, _ := result.RowsAffected()
+	c.JSON(http.StatusOK, gin.H{"updated": updated})
+}
+
 func GetActiveTopics(c *gin.Context, db *sql.DB) {
 	pageStr := c.Query("page")
 	notViewedStr := c.Query("not_viewed")
