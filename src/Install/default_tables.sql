@@ -690,6 +690,18 @@ create table smiles
     constraint fk_smiles_category foreign key (category_id) references smile_category (id) on delete set null
 );
 
+create table lore_pages
+(
+    topic_id  bigint unsigned not null,
+    post_id   bigint unsigned not null,
+    name      varchar(255)    not null,
+    is_hidden boolean         not null default false,
+    position  int             not null default 0,
+    primary key (topic_id, post_id),
+    constraint fk_lore_pages_topic foreign key (topic_id) references topics (id) on delete cascade,
+    constraint fk_lore_pages_post  foreign key (post_id)  references posts (id)  on delete cascade
+);
+
 create table post_reaction
 (
     post_id     bigint unsigned not null,

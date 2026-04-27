@@ -342,6 +342,27 @@ func main() {
 	protectedRouter.POST("/topic/update/:id", "Update topic by ID", func(c *gin.Context) {
 		Controllers.UpdateTopic(c, Services.DB)
 	})
+	publicRouter.GET("/lore-topic/:id/pages", "Get lore pages by topic ID", func(c *gin.Context) {
+		Controllers.GetLorePagesByTopic(c, Services.DB)
+	})
+	protectedRouter.GET("/lore-topic/:id/posts", "Get posts of a lore topic with lore page data", func(c *gin.Context) {
+		Controllers.GetLoreTopicPosts(c, Services.DB)
+	})
+	protectedRouter.POST("/lore-topic/create", "Create lore topic", func(c *gin.Context) {
+		Controllers.CreateLoreTopic(c, Services.DB)
+	})
+	protectedRouter.POST("/lore-topic/update/:id", "Update lore topic by ID", func(c *gin.Context) {
+		Controllers.UpdateLoreTopic(c, Services.DB)
+	})
+	protectedRouter.POST("/lore-page/create", "Create a lore page", func(c *gin.Context) {
+		Controllers.CreateLorePage(c, Services.DB)
+	})
+	protectedRouter.POST("/lore-page/update/:post_id", "Update lore page by post ID", func(c *gin.Context) {
+		Controllers.UpdateLorePage(c, Services.DB)
+	})
+	protectedRouter.GET("/lore-page/delete/:post_id", "Delete lore page by post ID", func(c *gin.Context) {
+		Controllers.DeleteLorePage(c, Services.DB)
+	})
 	protectedRouter.POST("/topics/move", "Move topics to a different subforum", func(c *gin.Context) {
 		Controllers.MoveTopics(c, Services.DB)
 	})
