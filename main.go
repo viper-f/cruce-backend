@@ -76,8 +76,8 @@ func main() {
 	publicRouter.GET("/entity/fields/:entity_type", "Get field names for an entity type", func(c *gin.Context) {
 		Controllers.GetEntityFields(c, Services.DB)
 	})
-	publicRouter.GET("/smiles", "Get list of all smiles ordered by category", func(c *gin.Context) {
-		Controllers.GetSmileList(c, Services.DB)
+	publicRouter.GET("/smiles", "Get smile categories with their smiles", func(c *gin.Context) {
+		Controllers.GetSmileTree(c, Services.DB)
 	})
 	publicRouter.GET("/user/profile/:userID", "Get user profile details", func(c *gin.Context) {
 		Controllers.GetUserProfile(c, Services.DB)
@@ -544,8 +544,29 @@ func main() {
 	protectedRouter.GET("/admin/additional-navlink/delete/:id", "Delete additional navlink by ID", func(c *gin.Context) {
 		Controllers.DeleteAdditionalNavlink(c, Services.DB)
 	})
+	protectedRouter.GET("/admin/smile/list", "Get flat list of all smiles", func(c *gin.Context) {
+		Controllers.GetSmileList(c, Services.DB)
+	})
 	protectedRouter.POST("/admin/smile/upload", "Upload a smile image", func(c *gin.Context) {
 		Controllers.UploadSmile(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/smile/delete/:id", "Delete smile by ID", func(c *gin.Context) {
+		Controllers.DeleteSmile(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/smile/update-category/:id", "Update smile's category by ID", func(c *gin.Context) {
+		Controllers.UpdateCategoryId(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/smile-category/list", "Get list of all smile categories", func(c *gin.Context) {
+		Controllers.GetSmileCategoryList(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/smile-category/create", "Create a new smile category", func(c *gin.Context) {
+		Controllers.CreateSmileCategory(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/smile-category/update/:id", "Update smile category by ID", func(c *gin.Context) {
+		Controllers.UpdateSmileCategory(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/smile-category/delete/:id", "Delete smile category by ID", func(c *gin.Context) {
+		Controllers.DeleteSmileCategory(c, Services.DB)
 	})
 	protectedRouter.GET("/admin/role/list", "Get list of all roles", func(c *gin.Context) {
 		Controllers.GetRoleList(c, Services.DB)
