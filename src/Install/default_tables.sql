@@ -675,12 +675,19 @@ create table reactions
     is_active boolean      not null default true
 );
 
+create table smile_category
+(
+    id   int          not null auto_increment primary key,
+    name varchar(100) not null
+);
+
 create table smiles
 (
-    id        int          not null auto_increment primary key,
-    text_form varchar(50)  null,
-    url       varchar(255) not null,
-    category  varchar(100) null
+    id          int          not null auto_increment primary key,
+    text_form   varchar(50)  null,
+    url         varchar(255) not null,
+    category_id int          null,
+    constraint fk_smiles_category foreign key (category_id) references smile_category (id) on delete set null
 );
 
 create table post_reaction
