@@ -50,7 +50,7 @@ func GetLorePagesByTopic(c *gin.Context, db *sql.DB) {
 	}
 
 	rows, err := db.Query(
-		"SELECT post_id, name, is_hidden, `order` FROM lore_pages WHERE topic_id = ? AND is_hidden = false ORDER BY `order` ASC",
+		"SELECT post_id, name, is_hidden, position FROM lore_pages WHERE topic_id = ? AND is_hidden = false ORDER BY position ASC",
 		topicID,
 	)
 	if err != nil {
@@ -79,8 +79,8 @@ func GetLorePagesByTopic(c *gin.Context, db *sql.DB) {
 }
 
 type LoreTopicPostRow struct {
-	Id          int64        `json:"id"`
-	DateCreated time.Time    `json:"date_created"`
+	Id          int64         `json:"id"`
+	DateCreated time.Time     `json:"date_created"`
 	LorePage    *LorePageInfo `json:"lore_page"`
 }
 
@@ -109,7 +109,7 @@ func GetLoreTopicPosts(c *gin.Context, db *sql.DB) {
 	}
 
 	rows, err := db.Query(`
-		SELECT p.id, p.date_created, lp.name, lp.is_hidden, lp.`order`
+		SELECT p.id, p.date_created, lp.name, lp.is_hidden, lp.position
 		FROM posts p
 		LEFT JOIN lore_pages lp ON lp.topic_id = p.topic_id AND lp.post_id = p.id
 		WHERE p.topic_id = ? AND (p.is_deleted IS NULL OR p.is_deleted = 0)
@@ -200,7 +200,7 @@ func CreateLoreTopic(c *gin.Context, db *sql.DB) {
 	}
 
 	if _, err := tx.Exec(
-		"INSERT INTO lore_pages (topic_id, post_id, name, is_hidden, `order`) VALUES (?, ?, 'Index', false, 0)",
+		"INSERT INTO lore_pages (topic_id, post_id, name, is_hidden, position) VALUES (?, ?, 'Index', false, 0)",
 		topicID, postID,
 	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create index lore page: " + err.Error()})
@@ -361,7 +361,7 @@ func CreateLorePage(c *gin.Context, db *sql.DB) {
 	}
 
 	_, err := db.Exec(
-		"INSERT INTO lore_pages (topic_id, post_id, name, is_hidden, `order`) VALUES (?, ?, ?, ?, ?)",
+		"INSERT INTO lore_pages (topic_id, post_id, name, is_hidden, position) VALUES (?, ?, ?, ?, ?)",
 		req.TopicId, req.PostId, req.Name, req.IsHidden, req.Order,
 	)
 	if err != nil {
@@ -414,9 +414,9 @@ func UpdateLorePage(c *gin.Context, db *sql.DB) {
 
 	var result sql.Result
 	if isFirst {
-		result, err = db.Exec("UPDATE lore_pages SET name = ?, `order` = ? WHERE post_id = ?", req.Name, req.Order, postId)
+		result, err = db.Exec("UPDATE lore_pages SET name = ?, position = ? WHERE post_id = ?", req.Name, req.Order, postId)
 	} else {
-		result, err = db.Exec("UPDATE lore_pages SET name = ?, is_hidden = ?, `order` = ? WHERE post_id = ?", req.Name, req.IsHidden, req.Order, postId)
+		result, err = db.Exec("UPDATE lore_pages SET name = ?, is_hidden = ?, position = ? WHERE post_id = ?", req.Name, req.IsHidden, req.Order, postId)
 	}
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update lore page: " + err.Error()})
