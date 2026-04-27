@@ -370,7 +370,7 @@ func CreateLorePage(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Lore page created successfully"})
+	c.JSON(http.StatusOK, LorePage{PostId: req.PostId, Name: req.Name, IsHidden: req.IsHidden, Order: req.Order})
 }
 
 func isFirstLorePost(db *sql.DB, postId int64) (bool, error) {
@@ -430,7 +430,11 @@ func UpdateLorePage(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Lore page updated successfully"})
+	isHidden := req.IsHidden
+	if isFirst {
+		isHidden = false
+	}
+	c.JSON(http.StatusOK, LorePage{PostId: postId, Name: req.Name, IsHidden: isHidden, Order: req.Order})
 }
 
 func DeleteLorePage(c *gin.Context, db *sql.DB) {
