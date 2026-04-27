@@ -46,6 +46,12 @@ role_id,type,permission
 2,0,/template/:type/get
 2,0,/topic/create
 2,0,/topic/update/:id
+2,0,/lore-topic/:id/posts
+2,0,/lore-topic/create
+2,0,/lore-topic/update/:id
+2,0,/lore-page/create
+2,0,/lore-page/update/:post_id
+2,0,/lore-page/delete/:post_id
 2,0,/user-masks/:userID
 2,0,/user/character-profiles
 2,0,/user/character-profiles-topic/:topicID
