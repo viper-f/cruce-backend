@@ -286,7 +286,7 @@ func main() {
 	protectedRouter.POST("/faction/update/:id", "Update faction by ID", func(c *gin.Context) {
 		Controllers.UpdateFactionById(c, Services.DB)
 	})
-	protectedRouter.DELETE("/faction/:id", "Delete faction by ID", func(c *gin.Context) {
+	protectedRouter.DELETE("/faction/delete/:id", "Delete faction by ID", func(c *gin.Context) {
 		Controllers.DeleteFaction(c, Services.DB)
 	})
 	protectedRouter.GET("/global-settings", "Get all global settings", func(c *gin.Context) {
