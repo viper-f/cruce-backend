@@ -660,9 +660,11 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		) wc ON wc.character_claim_id = r.id
 		LEFT JOIN claim_record cr ON cr.id = r.claim_record_id AND cr.claim_expiration_date > NOW()
 		LEFT JOIN users u ON u.id = cr.user_id
+		LEFT JOIN character_base cb ON cb.id = cr.character_id
 		WHERE r.rn = 1
 		  AND (wc.id IS NULL OR wc.wanted_character_status = 0)
 		  AND (r.show_only_with_active_claim = false OR cr.id IS NOT NULL)
+		  AND (cr.character_id IS NULL OR cb.character_status = 2)
 	`
 	claimRows, err := db.Query(claimQuery, userID, userID, guestHashes[0], guestHashes[1], guestHashes[2])
 	if err != nil {
@@ -732,10 +734,12 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 			GROUP BY character_claim_id
 		) wc ON wc.character_claim_id = cc.id
 		LEFT JOIN claim_record cr ON cr.id = cc.claim_record_id
+		LEFT JOIN character_base cb ON cb.id = cr.character_id
 		WHERE cc.is_claimed IS NOT TRUE
 		AND cc.id NOT IN (SELECT character_claim_id FROM character_claim_faction)
 		AND (wc.id IS NULL OR wc.wanted_character_status = 0)
 		AND (cc.show_only_with_active_claim = false OR (cr.id IS NOT NULL AND cr.claim_expiration_date > NOW()))
+		AND (cr.character_id IS NULL OR cb.character_status = 2)
 	`)
 	if err == nil {
 		defer noFactionClaimRows.Close()
