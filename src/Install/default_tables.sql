@@ -134,6 +134,8 @@ CREATE TABLE topics (
     post_number INT,
     author_user_id INT NOT NULL,
     subforum_id BIGINT UNSIGNED NOT NULL,
+    is_sticky BOOLEAN DEFAULT FALSE NULL,
+    is_sticky_first_post BOOLEAN DEFAULT FALSE NULL,
     CONSTRAINT fk_topics_subforum
         FOREIGN KEY (subforum_id) REFERENCES subforums (id) ON DELETE NO ACTION ,
     CONSTRAINT fk_topics_user
