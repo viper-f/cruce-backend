@@ -84,7 +84,7 @@ role_id,type,permission
 3,0,/design-variation/list
 3,0,/design-variation/update/:id
 3,0,/faction-tree
-3,0,/faction/:id
+3,0,/faction/delete/:id
 3,0,/faction/create
 3,0,/faction/update/:id
 3,0,/factions/pending
