@@ -393,6 +393,9 @@ func main() {
 	protectedRouter.POST("/character/decline/:id", "Decline a pending character", func(c *gin.Context) {
 		Controllers.DeclineCharacter(c, Services.DB)
 	})
+	protectedRouter.POST("/character/pending/:id", "Set a character to pending state", func(c *gin.Context) {
+		Controllers.PendingCharacter(c, Services.DB)
+	})
 	protectedRouter.POST("/character/activate/:id", "Activate a character", func(c *gin.Context) {
 		Controllers.ActivateCharacter(c, Services.DB)
 	})
