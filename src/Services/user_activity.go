@@ -135,7 +135,7 @@ func (s *UserActivityStorage) GetUsersOnPage(pageType string, pageId string) []*
 
 	usersOnPage := make([]*UserActivity, 0)
 	for _, user := range s.users {
-		if user.CurrentPageType == pageType && user.CurrentPageId == pageId {
+		if user.IsVisible && user.CurrentPageType == pageType && user.CurrentPageId == pageId {
 			usersOnPage = append(usersOnPage, user)
 		}
 	}
