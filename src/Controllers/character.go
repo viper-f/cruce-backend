@@ -1579,6 +1579,8 @@ func DeactivateCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	Events.Publish(db, Events.CharacterDeactivated, Events.CharacterDeactivatedEvent{CharacterID: id})
+
 	var topicStatus Entities.TopicStatus
 	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", id).Scan(&topicStatus)
 
@@ -1701,6 +1703,8 @@ func ActivateCharacter(c *gin.Context, db *sql.DB) {
 		c.Abort()
 		return
 	}
+
+	Events.Publish(db, Events.CharacterActivated, Events.CharacterActivatedEvent{CharacterID: id})
 
 	var topicStatus Entities.TopicStatus
 	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", id).Scan(&topicStatus)
