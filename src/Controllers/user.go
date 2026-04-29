@@ -41,6 +41,7 @@ type UserProfileResponse struct {
 	TotalGeneralPosts         int                        `json:"total_general_posts"`
 	Characters                []CharacterProfileListItem `json:"characters"`
 	CurrencyAmount            *int                       `json:"currency_amount"`
+	UserStatus                Entities.UserStatus        `json:"user_status"`
 	ArchiveDate               *time.Time                 `json:"archive_date"`
 	ArchiveReason             *string                    `json:"archive_reason"`
 }
@@ -73,6 +74,7 @@ type UserListItem struct {
 	Id            int                       `json:"id"`
 	Username      string                    `json:"username"`
 	Characters    []Entities.ShortCharacter `json:"characters"`
+	UserStatus    Entities.UserStatus       `json:"user_status"`
 	ArchiveDate   *time.Time                `json:"archive_date"`
 	ArchiveReason *string                   `json:"archive_reason"`
 }
@@ -452,7 +454,7 @@ func GetUserProfile(c *gin.Context, db *sql.DB) {
 	}
 
 	var profile UserProfileResponse
-	err = db.QueryRow("SELECT id, username, avatar, date_registered, total_posts, total_general_posts, archive_date, archive_reason FROM users WHERE id = ?", userID).Scan(&profile.UserId, &profile.Username, &profile.Avatar, &profile.RegistrationDate, &profile.TotalPosts, &profile.TotalGeneralPosts, &profile.ArchiveDate, &profile.ArchiveReason)
+	err = db.QueryRow("SELECT id, username, avatar, date_registered, total_posts, total_general_posts, user_status, archive_date, archive_reason FROM users WHERE id = ?", userID).Scan(&profile.UserId, &profile.Username, &profile.Avatar, &profile.RegistrationDate, &profile.TotalPosts, &profile.TotalGeneralPosts, &profile.UserStatus, &profile.ArchiveDate, &profile.ArchiveReason)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "User not found"})
@@ -668,7 +670,7 @@ func GetAdminUserList(c *gin.Context, db *sql.DB) {
 
 func GetUserList(c *gin.Context, db *sql.DB) {
 	// 1. Fetch active users ordered alphabetically
-	query := "SELECT id, username, archive_date, archive_reason FROM users WHERE user_status = 0 AND id > 1 ORDER BY username ASC"
+	query := "SELECT id, username, user_status, archive_date, archive_reason FROM users WHERE user_status = 0 AND id > 1 ORDER BY username ASC"
 	rows, err := db.Query(query)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch users: " + err.Error()})
@@ -680,7 +682,7 @@ func GetUserList(c *gin.Context, db *sql.DB) {
 	var users []UserListItem
 	for rows.Next() {
 		var user UserListItem
-		if err := rows.Scan(&user.Id, &user.Username, &user.ArchiveDate, &user.ArchiveReason); err != nil {
+		if err := rows.Scan(&user.Id, &user.Username, &user.UserStatus, &user.ArchiveDate, &user.ArchiveReason); err != nil {
 			continue
 		}
 
