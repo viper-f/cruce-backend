@@ -420,6 +420,9 @@ func main() {
 	protectedRouter.POST("/admin/user/ban/:id", "Ban a user by ID and deactivate all their characters", func(c *gin.Context) {
 		Controllers.BanUser(c, Services.DB)
 	})
+	protectedRouter.POST("/admin/user/reactivate/:id", "Reactivate an archived user by ID", func(c *gin.Context) {
+		Controllers.ReactivateUser(c, Services.DB)
+	})
 	protectedRouter.GET("/admin/user-list", "Get full user list for admin panel", func(c *gin.Context) {
 		Controllers.GetAdminUserList(c, Services.DB)
 	})

@@ -1351,6 +1351,33 @@ func ArchiveAccount(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"user_status": Entities.ArchivedUser})
 }
 
+func ReactivateUser(c *gin.Context, db *sql.DB) {
+	userID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid user ID"})
+		c.Abort()
+		return
+	}
+
+	result, err := db.Exec(
+		"UPDATE users SET user_status = ?, archive_date = NULL, archive_reason = NULL WHERE id = ?",
+		Entities.ActiveUser, userID,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reactivate user: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "User not found"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user_status": Entities.ActiveUser})
+}
+
 func BanUser(c *gin.Context, db *sql.DB) {
 	userID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
