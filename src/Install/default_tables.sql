@@ -100,6 +100,21 @@ VALUES ('allow_guests_create_claims', 'y');
 INSERT INTO global_settings (setting_name, setting_value)
 VALUES ('visual_navlinks_after_header_panel', 'n');
 
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('auto_archiving_enabled', 'n');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('auto_archiving_show_page_link', 'n');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('auto_archiving_days', '20');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('absence_max_days', '30');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('absence_cooldown_days', '7');
+
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NULL,
@@ -723,4 +738,40 @@ create table sonic_ingest_cursor
     last_id       bigint      not null,
     date_ingested datetime    not null default current_timestamp,
     primary key (bucket)
+);
+
+CREATE TABLE auto_archiving_immunity
+(
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    character_id BIGINT UNSIGNED NOT NULL,
+    start_date   DATETIME        NOT NULL,
+    end_date     DATETIME        NOT NULL,
+    reason       VARCHAR(255)    NOT NULL,
+    CONSTRAINT fk_auto_archiving_immunity_character FOREIGN KEY (character_id) REFERENCES character_base (id) ON DELETE CASCADE
+);
+
+CREATE TABLE archiving_warning_log
+(
+    character_id BIGINT UNSIGNED NOT NULL,
+    days_warning INT             NOT NULL,
+    base_date    DATE            NOT NULL,
+    sent_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (character_id, days_warning, base_date),
+    CONSTRAINT fk_archiving_warning_log_character FOREIGN KEY (character_id) REFERENCES character_base (id) ON DELETE CASCADE
+);
+
+CREATE TABLE pending_user_refresh
+(
+    user_id    INT      NOT NULL PRIMARY KEY,
+    queued_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pending_user_refresh_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE absent_users
+(
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    user_id             INT      NOT NULL,
+    absence_start_date  DATETIME NOT NULL,
+    absence_end_date    DATETIME NOT NULL,
+    CONSTRAINT fk_absent_users_user FOREIGN KEY (user_id) REFERENCES users (id)
 );
