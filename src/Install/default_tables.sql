@@ -116,6 +116,15 @@ VALUES ('absence_max_days', '30');
 INSERT INTO global_settings (setting_name, setting_value)
 VALUES ('absence_cooldown_days', '7');
 
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('ai_api_key', '');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('ai_name', '');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('ai_model', '');
+
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NULL,
@@ -796,4 +805,16 @@ CREATE TABLE absent_users
     absence_start_date  DATETIME NOT NULL,
     absence_end_date    DATETIME NOT NULL,
     CONSTRAINT fk_absent_users_user FOREIGN KEY (user_id) REFERENCES users (id)
+);
+
+
+create table ai_chat_messages
+(
+    id           int                      not null auto_increment primary key,
+    user_id      int                      not null,
+    role         enum('user', 'assistant') not null,
+    content      text                     not null,
+    sources      json                     null,
+    date_created datetime                 not null default current_timestamp,
+    constraint fk_ai_chat_messages_user foreign key (user_id) references users (id) on delete cascade
 );
