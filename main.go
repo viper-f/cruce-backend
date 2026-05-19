@@ -21,6 +21,8 @@ import (
 func main() {
 	Services.InitDB()
 	Services.InitSonic()
+	Services.InitQdrant(Services.DB)
+	Services.QueueNotifyFunc = MCP.NotifyWorker
 	if err := Services.InitI18n("locales"); err != nil {
 		panic("failed to load i18n bundles: " + err.Error())
 	}
@@ -719,6 +721,21 @@ func main() {
 	})
 	protectedRouter.POST("/admin/sonic/catchup/:bucket", "Catch up Sonic ingestion for a specific bucket", func(c *gin.Context) {
 		Controllers.CatchUpSonicBucket(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/qdrant/cursors", "Get Qdrant ingest cursors for all buckets", func(c *gin.Context) {
+		Controllers.GetQdrantCursors(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/qdrant/status", "Get Qdrant vector counts per collection", func(c *gin.Context) {
+		Controllers.GetQdrantCollectionStatus(c)
+	})
+	protectedRouter.POST("/admin/qdrant/catchup/:bucket", "Re-embed and upsert all content for a Qdrant bucket", func(c *gin.Context) {
+		Controllers.QdrantCatchUpBucket(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/qdrant/subforum-matrix", "Get vector search subforum×bucket matrix", func(c *gin.Context) {
+		Controllers.GetVectorSearchMatrix(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/qdrant/subforum-matrix/update", "Replace all vector search subforum+bucket entries", func(c *gin.Context) {
+		Controllers.UpdateVectorSearchMatrix(c, Services.DB)
 	})
 	protectedRouter.GET("/admin/user/roles/:id", "Get user roles", func(c *gin.Context) {
 		Controllers.GetUserRoles(c, Services.DB)

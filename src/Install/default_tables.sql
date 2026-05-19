@@ -759,6 +759,14 @@ create table sonic_ingest_cursor
     primary key (bucket)
 );
 
+create table qdrant_ingest_cursor
+(
+    bucket        varchar(64) not null,
+    last_id       bigint      not null,
+    date_ingested datetime    not null default current_timestamp,
+    primary key (bucket)
+);
+
 CREATE TABLE auto_archiving_immunity
 (
     id           INT AUTO_INCREMENT PRIMARY KEY,
@@ -821,15 +829,25 @@ create table ai_chat_messages
 
 create table ai_task_queue
 (
-    id             int                                        not null auto_increment primary key,
-    user_id        int                                        not null,
-    status         enum('pending', 'processing', 'done', 'failed') not null default 'pending',
-    retries        int                                        not null default 0,
-    error          text                                       null,
-    date_created   datetime                                   not null default current_timestamp,
-    date_started   datetime                                   null,
-    date_completed datetime                                   null,
+    id             int                                              not null auto_increment primary key,
+    type           varchar(32)                                      not null default 'chat',
+    user_id        int                                              null,
+    payload        json                                             null,
+    status         enum ('pending', 'processing', 'done', 'failed') not null default 'pending',
+    retries        int                                              not null default 0,
+    error          text                                             null,
+    date_created   datetime                                         not null default current_timestamp,
+    date_started   datetime                                         null,
+    date_completed datetime                                         null,
     index idx_ai_task_queue_status (status, date_created),
     index idx_ai_task_queue_user (user_id),
     constraint fk_ai_task_queue_user foreign key (user_id) references users (id) on delete cascade
+);
+
+create table vector_search_bucket_subforum
+(
+    subforum_id bigint unsigned not null,
+    bucket      varchar(64)    not null,
+    primary key (subforum_id, bucket),
+    constraint fk_vsbs_subforum foreign key (subforum_id) references subforums (id) on delete cascade
 );

@@ -29,6 +29,9 @@ const (
 	CharacterActivated     EventType = "CharacterActivated"
 	CharacterDeactivated   EventType = "CharacterDeactivated"
 	UserWiped              EventType = "UserWiped"
+	CharacterUpdated       EventType = "CharacterUpdated"
+	EpisodeUpdated         EventType = "EpisodeUpdated"
+	WantedCharacterUpdated EventType = "WantedCharacterUpdated"
 )
 
 type EventData interface{}
@@ -80,6 +83,7 @@ type CharacterAcceptedEvent struct {
 	CharacterName string
 	UserID        int
 	TopicID       int
+	SubforumID    int
 }
 
 type UserRegisteredEvent struct {
@@ -137,6 +141,21 @@ type EpisodeTopicsDeletedEvent struct {
 
 type UserWipedEvent struct {
 	DeletedGeneralPostIDs []int
+}
+
+type CharacterUpdatedEvent struct {
+	CharacterID int64
+	SubforumID  int
+}
+
+type EpisodeUpdatedEvent struct {
+	EpisodeID  int64
+	SubforumID int
+}
+
+type WantedCharacterUpdatedEvent struct {
+	WantedCharacterID int64
+	SubforumID        int
 }
 
 type ReactionCreatedEvent struct {
