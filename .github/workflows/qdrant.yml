@@ -40,7 +40,7 @@ jobs:
             chmod 755 /usr/local/bin/qdrant
             cp /tmp/qdrant-deploy/qdrant.service /etc/systemd/system/qdrant.service
             id -u qdrant &>/dev/null || useradd --system --no-create-home --shell /usr/sbin/nologin qdrant
-            mkdir -p /var/lib/qdrant/storage
+            mkdir -p /var/lib/qdrant/storage /var/lib/qdrant/snapshots
             chown -R qdrant:qdrant /var/lib/qdrant
             systemctl daemon-reload
             systemctl enable qdrant
