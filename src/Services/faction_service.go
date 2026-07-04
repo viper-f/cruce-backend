@@ -10,8 +10,7 @@ import (
 func GetFactionTreeByRoot(rootID int, db *sql.DB) ([]Entities.Faction, error) {
 	query := `
 		SELECT f.id, f.name, f.parent_id, f.level, f.description, f.icon, f.show_on_profile, f.faction_status,
-		       f.use_date_from_another_faction_id,
-		       (f.free_format_date IS NOT NULL) AS free_form_date_set
+		       f.free_format_date_id
 		FROM factions f
 		WHERE f.root_id = ? OR f.id = ?
 	`
@@ -24,14 +23,14 @@ func GetFactionTreeByRoot(rootID int, db *sql.DB) ([]Entities.Faction, error) {
 	var allFactions []Entities.Faction
 	for rows.Next() {
 		var f Entities.Faction
-		var useDateFromFactionId sql.NullInt64
+		var freeFormatDateId sql.NullInt64
 		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus,
-			&useDateFromFactionId, &f.FreeFormDateSet); err != nil {
+			&freeFormatDateId); err != nil {
 			return nil, err
 		}
-		if useDateFromFactionId.Valid {
-			v := int(useDateFromFactionId.Int64)
-			f.UseDateFromFactionId = &v
+		if freeFormatDateId.Valid {
+			v := int(freeFormatDateId.Int64)
+			f.FreeFormatDateId = &v
 		}
 		allFactions = append(allFactions, f)
 	}
@@ -146,8 +145,7 @@ func GetFullFactionTree(db *sql.DB) ([]Entities.Faction, error) {
 func getFactionTree(db *sql.DB, statusFilter *[]Entities.FactionStatus) ([]Entities.Faction, error) {
 	query := `
 		SELECT f.id, f.name, f.parent_id, f.level, f.description, f.icon, f.show_on_profile, f.faction_status,
-		       f.use_date_from_another_faction_id,
-		       (f.free_format_date IS NOT NULL) AS free_form_date_set
+		       f.free_format_date_id
 		FROM factions f
 	`
 	var rows *sql.Rows
@@ -171,14 +169,14 @@ func getFactionTree(db *sql.DB, statusFilter *[]Entities.FactionStatus) ([]Entit
 	var allFactions []Entities.Faction
 	for rows.Next() {
 		var f Entities.Faction
-		var useDateFromFactionId sql.NullInt64
+		var freeFormatDateId sql.NullInt64
 		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus,
-			&useDateFromFactionId, &f.FreeFormDateSet); err != nil {
+			&freeFormatDateId); err != nil {
 			return nil, err
 		}
-		if useDateFromFactionId.Valid {
-			v := int(useDateFromFactionId.Int64)
-			f.UseDateFromFactionId = &v
+		if freeFormatDateId.Valid {
+			v := int(freeFormatDateId.Int64)
+			f.FreeFormatDateId = &v
 		}
 		allFactions = append(allFactions, f)
 	}
