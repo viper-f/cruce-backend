@@ -8,11 +8,12 @@ import (
 )
 
 func GetFactionTreeByRoot(rootID int, db *sql.DB) ([]Entities.Faction, error) {
-	// Fetch all factions that belong to this root (including the root itself)
 	query := `
-		SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status
-		FROM factions
-		WHERE root_id = ? OR id = ?
+		SELECT f.id, f.name, f.parent_id, f.level, f.description, f.icon, f.show_on_profile, f.faction_status,
+		       f.use_date_from_another_faction_id,
+		       (f.free_format_date IS NOT NULL) AS free_form_date_set
+		FROM factions f
+		WHERE f.root_id = ? OR f.id = ?
 	`
 	rows, err := db.Query(query, rootID, rootID)
 	if err != nil {
@@ -23,8 +24,14 @@ func GetFactionTreeByRoot(rootID int, db *sql.DB) ([]Entities.Faction, error) {
 	var allFactions []Entities.Faction
 	for rows.Next() {
 		var f Entities.Faction
-		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus); err != nil {
+		var useDateFromFactionId sql.NullInt64
+		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus,
+			&useDateFromFactionId, &f.FreeFormDateSet); err != nil {
 			return nil, err
+		}
+		if useDateFromFactionId.Valid {
+			v := int(useDateFromFactionId.Int64)
+			f.UseDateFromFactionId = &v
 		}
 		allFactions = append(allFactions, f)
 	}
@@ -137,16 +144,17 @@ func GetFullFactionTree(db *sql.DB) ([]Entities.Faction, error) {
 }
 
 func getFactionTree(db *sql.DB, statusFilter *[]Entities.FactionStatus) ([]Entities.Faction, error) {
-	// Fetch all factions
 	query := `
-		SELECT id, name, parent_id, level, description, icon, show_on_profile, faction_status
-		FROM factions
+		SELECT f.id, f.name, f.parent_id, f.level, f.description, f.icon, f.show_on_profile, f.faction_status,
+		       f.use_date_from_another_faction_id,
+		       (f.free_format_date IS NOT NULL) AS free_form_date_set
+		FROM factions f
 	`
 	var rows *sql.Rows
 	var err error
 	if statusFilter != nil && len(*statusFilter) > 0 {
 		placeholders := strings.Repeat("?,", len(*statusFilter)-1) + "?"
-		query += " WHERE faction_status IN (" + placeholders + ")"
+		query += " WHERE f.faction_status IN (" + placeholders + ")"
 		args := make([]interface{}, len(*statusFilter))
 		for i, s := range *statusFilter {
 			args[i] = s
@@ -163,8 +171,14 @@ func getFactionTree(db *sql.DB, statusFilter *[]Entities.FactionStatus) ([]Entit
 	var allFactions []Entities.Faction
 	for rows.Next() {
 		var f Entities.Faction
-		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus); err != nil {
+		var useDateFromFactionId sql.NullInt64
+		if err := rows.Scan(&f.Id, &f.Name, &f.ParentId, &f.Level, &f.Description, &f.Icon, &f.ShowOnProfile, &f.FactionStatus,
+			&useDateFromFactionId, &f.FreeFormDateSet); err != nil {
 			return nil, err
+		}
+		if useDateFromFactionId.Valid {
+			v := int(useDateFromFactionId.Int64)
+			f.UseDateFromFactionId = &v
 		}
 		allFactions = append(allFactions, f)
 	}

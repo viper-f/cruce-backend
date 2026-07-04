@@ -388,6 +388,7 @@ func main() {
 
 	// Character Template routes
 	publicRouter.GET("/template/episode/get", "Get episode template (public)", func(c *gin.Context) {
+		c.Params = append(c.Params, gin.Param{Key: "type", Value: "episode"})
 		Controllers.GetTemplate(c, Services.DB)
 	})
 	protectedRouter.GET("/template/:type/get", "Get character template by type", func(c *gin.Context) {
@@ -818,6 +819,12 @@ func main() {
 	})
 
 	// Fraction settings routes
+	publicRouter.GET("/faction/:faction_id/free-format-date", "Get free format date config for a faction", func(c *gin.Context) {
+		Controllers.GetFactionFreeFormatDate(c, Services.DB)
+	})
+	publicRouter.POST("/factions/free-format-date", "Get free format date templates for factions by character IDs", func(c *gin.Context) {
+		Controllers.GetFactionFreeFormatDateByCharacters(c, Services.DB)
+	})
 	publicRouter.GET("/faction-settings/list", "Get list of all faction settings ordered by level", func(c *gin.Context) {
 		Controllers.GetFactionSettings(c, Services.DB)
 	})
@@ -826,6 +833,9 @@ func main() {
 	})
 	protectedRouter.POST("/admin/faction-setting/update/:id", "Update faction setting by ID", func(c *gin.Context) {
 		Controllers.UpdateFactionSetting(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/faction/:id/free-format-date", "Update free format date for a faction", func(c *gin.Context) {
+		Controllers.UpdateFactionFreeFormatDate(c, Services.DB)
 	})
 	protectedRouter.GET("/admin/faction-setting/delete/:id", "Delete faction setting by ID", func(c *gin.Context) {
 		Controllers.DeleteFactionSetting(c, Services.DB)
