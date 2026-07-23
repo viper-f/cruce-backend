@@ -216,6 +216,9 @@ func main() {
 	optionalAuthRouter.GET("/character-autocomplete/:term", "Get list of characters matching search term", func(c *gin.Context) {
 		Controllers.GetCharacterAutocomplete(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/episode-autocomplete/:term", "Get list of episodes matching search term, optionally filtered to current user's episodes", func(c *gin.Context) {
+		Controllers.GetEpisodeAutocomplete(c, Services.DB)
+	})
 	optionalAuthRouter.GET("/mask-autocomplete/:term", "Get list of masks matching search term", func(c *gin.Context) {
 		Controllers.GetMaskAutocomplete(c, Services.DB)
 	})
@@ -914,6 +917,26 @@ func main() {
 	})
 	protectedRouter.GET("/admin/standard-warning/delete/:id/:locale", "Delete standard warning by ID and locale", func(c *gin.Context) {
 		Controllers.DeleteStandardWarning(c, Services.DB)
+	})
+
+	// User data migration routes
+	protectedRouter.GET("/user-data-migration/list", "Get list of all data migration processings for the current user", func(c *gin.Context) {
+		Controllers.GetUserDataProcessingList(c, Services.DB)
+	})
+	protectedRouter.GET("/user-data-migration/processing/:id", "Get a single user data processing record by ID", func(c *gin.Context) {
+		Controllers.GetUserDataProcessing(c, Services.DB)
+	})
+	protectedRouter.POST("/user-data-migration/create-processing", "Create a new user data processing record in pending status", func(c *gin.Context) {
+		Controllers.CreateUserDataProcessing(c, Services.DB)
+	})
+	protectedRouter.POST("/user-data-migration/process-mybb-topic", "Parse a MyBB topic JSON export and save posts to user_data_migration", func(c *gin.Context) {
+		Controllers.ProcessMybbTopicJson(c, Services.DB)
+	})
+	protectedRouter.POST("/user-data-migration/publish", "Publish processed migration posts to a topic in original order", func(c *gin.Context) {
+		Controllers.UserDataProcessingPublish(c, Services.DB)
+	})
+	protectedRouter.POST("/user-data-migration/update-character-map", "Set character IDs for original user IDs in a processing record", func(c *gin.Context) {
+		Controllers.UpdateUserCharacterMap(c, Services.DB)
 	})
 
 	// WebSocket route with special authentication
