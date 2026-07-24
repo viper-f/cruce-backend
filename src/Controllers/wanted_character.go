@@ -1049,11 +1049,19 @@ func WantedCustomFieldList(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	baseFields := map[string]string{
+		"is_claimed":              "wb.is_claimed",
+		"is_deleted":              "wb.is_deleted",
+		"wanted_character_status": "wb.wanted_character_status",
+		"author_user_id":          "wb.author_user_id",
+	}
+	filterClause, filterArgs := buildCustomFieldFilters(c, "wf", "wb", baseFields, fieldConfigs)
+
 	query := fmt.Sprintf(
-		"SELECT wf.`%s`, wb.name, wb.topic_id FROM wanted_character_flattened wf JOIN wanted_character_base wb ON wb.id = wf.entity_id WHERE wf.`%s` IS NOT NULL AND wf.`%s` != '' ORDER BY wf.`%s` ASC",
-		machineName, machineName, machineName, machineName,
+		"SELECT wf.`%s`, wb.name, wb.topic_id FROM wanted_character_flattened wf JOIN wanted_character_base wb ON wb.id = wf.entity_id WHERE wf.`%s` IS NOT NULL AND wf.`%s` != ''%s ORDER BY wf.`%s` ASC",
+		machineName, machineName, machineName, filterClause, machineName,
 	)
-	rows, err := db.Query(query)
+	rows, err := db.Query(query, filterArgs...)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to query field values: " + err.Error()})
 		c.Abort()
