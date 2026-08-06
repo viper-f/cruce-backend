@@ -881,6 +881,34 @@ protectedRouter.POST("/category/create", "Create a new category", func(c *gin.Co
 	publicRouter.POST("/external-app/post", "Create a post as an external app (authenticated via X-Api-Key header)", func(c *gin.Context) {
 		Controllers.ExternalAppPost(c, Services.DB)
 	})
+	optionalAuthRouter.GET("/puzzles", "Get list of puzzles", func(c *gin.Context) {
+		Controllers.GetPuzzles(c, Services.DB)
+	})
+	optionalAuthRouter.GET("/puzzle/:id", "Get a single puzzle by ID", func(c *gin.Context) {
+		Controllers.GetPuzzle(c, Services.DB)
+	})
+	optionalAuthRouter.GET("/user/:user_id/puzzle-achievements", "Get puzzle achievements for a user", func(c *gin.Context) {
+		Controllers.GetUserPuzzleAchievements(c, Services.DB)
+	})
+	protectedRouter.POST("/puzzle/:id/achievement", "Save a puzzle achievement", func(c *gin.Context) {
+		Controllers.SavePuzzleAchievement(c, Services.DB)
+	})
+	protectedRouter.DELETE("/puzzle/achievement/:id", "Delete own puzzle achievement", func(c *gin.Context) {
+		Controllers.DeletePuzzleAchievement(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/puzzle/list", "Get all puzzles including inactive (admin)", func(c *gin.Context) {
+		Controllers.AdminGetPuzzles(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/puzzle/:id", "Get a single puzzle by ID (admin)", func(c *gin.Context) {
+		Controllers.AdminGetPuzzle(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/puzzle/create", "Create a new puzzle (admin)", func(c *gin.Context) {
+		Controllers.AdminCreatePuzzle(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/puzzle/update/:id", "Update a puzzle (admin)", func(c *gin.Context) {
+		Controllers.AdminUpdatePuzzle(c, Services.DB)
+	})
+
 	publicRouter.GET("/external-app/active-topics", "Get active topics for an external app (authenticated via X-Api-Key header)", func(c *gin.Context) {
 		Controllers.ExternalAppGetActiveTopics(c, Services.DB)
 	})
