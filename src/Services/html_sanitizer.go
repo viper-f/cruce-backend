@@ -65,14 +65,16 @@ var templatePolicy = func() *bluemonday.Policy {
 		"dd", "del", "details", "dfn", "div", "dl", "dt",
 		"em",
 		"figcaption", "figure", "footer",
+		"a",
 		"h1", "h2", "h3", "h4", "h5", "h6", "header", "hr",
-		"i", "ins",
+		"i", "img", "ins",
 		"kbd",
 		"li",
 		"main", "mark",
 		"nav",
 		"ol",
 		"q",
+		"p",
 		"s", "samp", "section", "small", "source", "span", "strong", "sub", "summary", "sup",
 		"table", "tbody", "td", "tfoot", "th", "thead", "tr",
 		"u", "ul",
@@ -80,6 +82,8 @@ var templatePolicy = func() *bluemonday.Policy {
 		"wbr",
 	)
 
+	p.AllowAttrs("href", "target", "rel").OnElements("a")
+	p.AllowAttrs("src", "alt", "width", "height").OnElements("img")
 	p.AllowAttrs("cite").OnElements("blockquote", "q", "del", "ins")
 	p.AllowAttrs("datetime").OnElements("time", "del", "ins")
 	p.AllowAttrs("open").OnElements("details")
