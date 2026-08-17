@@ -18,10 +18,16 @@ const (
 	EpisodeCreated         EventType = "EpisodeCreated"
 	CharacterAccepted      EventType = "CharacterAccepted"
 	UserRegistered         EventType = "UserRegistered"
+	UserActivityChanged    EventType = "UserActivityChanged"
 	DirectMessageCreated   EventType = "DirectMessageCreated"
 	WantedCharacterCreated EventType = "WantedCharacterCreated"
 	StaticFileUploaded     EventType = "StaticFileUploaded"
 	ReactionCreated        EventType = "ReactionCreated"
+	TopicsMoved            EventType = "TopicsMoved"
+	TopicsDeleted          EventType = "TopicsDeleted"
+	EpisodeTopicsDeleted   EventType = "EpisodeTopicsDeleted"
+	CharacterActivated     EventType = "CharacterActivated"
+	CharacterDeactivated   EventType = "CharacterDeactivated"
 )
 
 type EventData interface{}
@@ -80,6 +86,10 @@ type UserRegisteredEvent struct {
 	Username string
 }
 
+type UserActivityChangedEvent struct {
+	UserID int
+}
+
 type WantedCharacterCreatedEvent struct {
 	WantedCharacterID int64
 	SubforumID        int
@@ -103,14 +113,35 @@ type StaticFileUploadedEvent struct {
 	FileType string
 }
 
+type CharacterActivatedEvent struct {
+	CharacterID int
+}
+
+type CharacterDeactivatedEvent struct {
+	CharacterID int
+}
+
+type TopicsMovedEvent struct {
+	SubforumIDs []int // all affected subforum IDs (sources + target)
+}
+
+type TopicsDeletedEvent struct {
+	SubforumIDs []int // subforums that had topics deleted
+}
+
+type EpisodeTopicsDeletedEvent struct {
+	EpisodeIDs []int // episode IDs whose topics were deleted
+}
+
 type ReactionCreatedEvent struct {
-	TopicID    int64  `json:"topic_id"`
-	TopicName  string `json:"topic_name"`
-	PostID     int    `json:"post_id"`
-	ReactionID int    `json:"reaction_id"`
-	Url        string `json:"url"`
-	UserID     int    `json:"user_id"`
-	UserName   string `json:"user_name"`
+	TopicID      int64  `json:"topic_id"`
+	TopicName    string `json:"topic_name"`
+	PostID       int    `json:"post_id"`
+	PostAuthorID int    `json:"post_author_id"`
+	ReactionID   int    `json:"reaction_id"`
+	Url          string `json:"url"`
+	UserID       int    `json:"user_id"`
+	UserName     string `json:"user_name"`
 }
 
 type EventHandler func(db *sql.DB, data EventData)

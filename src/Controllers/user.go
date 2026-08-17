@@ -41,15 +41,19 @@ type UserProfileResponse struct {
 	TotalGeneralPosts         int                        `json:"total_general_posts"`
 	Characters                []CharacterProfileListItem `json:"characters"`
 	CurrencyAmount            *int                       `json:"currency_amount"`
+	UserStatus                Entities.UserStatus        `json:"user_status"`
+	ArchiveDate               *time.Time                 `json:"archive_date"`
+	ArchiveReason             *string                    `json:"archive_reason"`
 }
 
 type CharacterProfileListItem struct {
-	Id            int                `json:"id"`
-	Name          string             `json:"name"`
-	TotalEpisodes int                `json:"total_episodes"`
-	TotalPosts    int                `json:"total_posts"`
-	LastPostDate  *time.Time         `json:"last_post_date"`
-	Factions      []Entities.Faction `json:"factions"`
+	Id              int                      `json:"id"`
+	Name            string                   `json:"name"`
+	TotalEpisodes   int                      `json:"total_episodes"`
+	TotalPosts      int                      `json:"total_posts"`
+	LastPostDate    *time.Time               `json:"last_post_date"`
+	CharacterStatus Entities.CharacterStatus `json:"character_status"`
+	Factions        []Entities.Faction       `json:"factions"`
 }
 
 type UpdateSettingsRequest struct {
@@ -67,9 +71,12 @@ type CreateUserRequest struct {
 }
 
 type UserListItem struct {
-	Id         int                       `json:"id"`
-	Username   string                    `json:"username"`
-	Characters []Entities.ShortCharacter `json:"characters"`
+	Id            int                       `json:"id"`
+	Username      string                    `json:"username"`
+	Characters    []Entities.ShortCharacter `json:"characters"`
+	UserStatus    Entities.UserStatus       `json:"user_status"`
+	ArchiveDate   *time.Time                `json:"archive_date"`
+	ArchiveReason *string                   `json:"archive_reason"`
 }
 
 func Register(c *gin.Context, db *sql.DB) {
@@ -201,8 +208,8 @@ func Login(c *gin.Context, db *sql.DB) {
 	}
 
 	var user Entities.User
-	query := "SELECT id, username, avatar, password, interface_language, interface_timezone, interface_font_size, user_status, interface_design FROM users WHERE username = ?"
-	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.InterfaceDesign)
+	query := "SELECT id, username, avatar, password, interface_language, interface_timezone, interface_font_size, user_status, interface_design, archive_reason FROM users WHERE username = ?"
+	err := db.QueryRow(query, creds.Username).Scan(&user.Id, &user.Username, &user.Avatar, &user.Password, &user.InterfaceLanguage, &user.InterfaceTimezone, &user.InterfaceFontSize, &user.UserStatus, &user.InterfaceDesign, &user.ArchiveReason)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
@@ -213,14 +220,14 @@ func Login(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	if user.UserStatus == Entities.BlockedUser {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "User is blocked"})
+	if err := user.CheckPassword(creds.Password); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
 		c.Abort()
 		return
 	}
 
-	if err := user.CheckPassword(creds.Password); err != nil {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusUnauthorized, Message: "Invalid credentials"})
+	if user.UserStatus == Entities.ArchivedUser {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User is archived", "archive_reason": user.ArchiveReason})
 		c.Abort()
 		return
 	}
@@ -347,8 +354,8 @@ func RefreshToken(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	if user.UserStatus == Entities.BlockedUser {
-		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "User is blocked"})
+	if user.UserStatus == Entities.ArchivedUser {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "User is archived"})
 		c.Abort()
 		return
 	}
@@ -447,7 +454,7 @@ func GetUserProfile(c *gin.Context, db *sql.DB) {
 	}
 
 	var profile UserProfileResponse
-	err = db.QueryRow("SELECT id, username, avatar, date_registered, total_posts, total_general_posts FROM users WHERE id = ?", userID).Scan(&profile.UserId, &profile.Username, &profile.Avatar, &profile.RegistrationDate, &profile.TotalPosts, &profile.TotalGeneralPosts)
+	err = db.QueryRow("SELECT id, username, avatar, date_registered, total_posts, total_general_posts, user_status, archive_date, archive_reason FROM users WHERE id = ?", userID).Scan(&profile.UserId, &profile.Username, &profile.Avatar, &profile.RegistrationDate, &profile.TotalPosts, &profile.TotalGeneralPosts, &profile.UserStatus, &profile.ArchiveDate, &profile.ArchiveReason)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "User not found"})
@@ -463,7 +470,7 @@ func GetUserProfile(c *gin.Context, db *sql.DB) {
 	profile.RegistrationDateLocalized = Services.LocalizeTime(profile.RegistrationDate, viewerTimezone)
 
 	// Fetch characters for this user
-	charRows, err := db.Query("SELECT id, name, total_episodes, total_posts, date_last_post FROM character_base WHERE user_id = ?", userID)
+	charRows, err := db.Query("SELECT cb.id, cb.name, cb.total_episodes, cb.total_posts, cb.date_last_post, cb.character_status FROM character_base cb LEFT JOIN topics t ON cb.topic_id = t.id WHERE cb.user_id = ? AND (cb.topic_id IS NULL OR t.status != ?)", userID, Entities.DeletedTopic)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user characters: " + err.Error()})
 		c.Abort()
@@ -473,7 +480,7 @@ func GetUserProfile(c *gin.Context, db *sql.DB) {
 
 	for charRows.Next() {
 		var char CharacterProfileListItem
-		if err := charRows.Scan(&char.Id, &char.Name, &char.TotalEpisodes, &char.TotalPosts, &char.LastPostDate); err != nil {
+		if err := charRows.Scan(&char.Id, &char.Name, &char.TotalEpisodes, &char.TotalPosts, &char.LastPostDate, &char.CharacterStatus); err != nil {
 			continue
 		}
 
@@ -618,6 +625,8 @@ type AdminUserListItem struct {
 	DateLastVisit    *time.Time `json:"date_last_visit"`
 	CharacterCount   int        `json:"character_count"`
 	LastGamePostDate *time.Time `json:"last_game_post_date"`
+	ArchiveDate      *time.Time `json:"archive_date"`
+	ArchiveReason    *string    `json:"archive_reason"`
 }
 
 func GetAdminUserList(c *gin.Context, db *sql.DB) {
@@ -629,11 +638,13 @@ func GetAdminUserList(c *gin.Context, db *sql.DB) {
 			u.date_registered,
 			u.date_last_visit,
 			COUNT(c.id) AS character_count,
-			MAX(c.date_last_post) AS last_game_post_date
+			MAX(c.date_last_post) AS last_game_post_date,
+			u.archive_date,
+			u.archive_reason
 		FROM users u
 		LEFT JOIN character_base c ON c.user_id = u.id
 		WHERE u.id > 1
-		GROUP BY u.id, u.username, u.user_status, u.date_registered, u.date_last_visit
+		GROUP BY u.id, u.username, u.user_status, u.date_registered, u.date_last_visit, u.archive_date, u.archive_reason
 		ORDER BY u.username ASC
 	`)
 	if err != nil {
@@ -646,7 +657,7 @@ func GetAdminUserList(c *gin.Context, db *sql.DB) {
 	users := []AdminUserListItem{}
 	for rows.Next() {
 		var u AdminUserListItem
-		if err := rows.Scan(&u.Id, &u.Username, &u.UserStatus, &u.DateRegistered, &u.DateLastVisit, &u.CharacterCount, &u.LastGamePostDate); err != nil {
+		if err := rows.Scan(&u.Id, &u.Username, &u.UserStatus, &u.DateRegistered, &u.DateLastVisit, &u.CharacterCount, &u.LastGamePostDate, &u.ArchiveDate, &u.ArchiveReason); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan user: " + err.Error()})
 			c.Abort()
 			return
@@ -659,7 +670,7 @@ func GetAdminUserList(c *gin.Context, db *sql.DB) {
 
 func GetUserList(c *gin.Context, db *sql.DB) {
 	// 1. Fetch active users ordered alphabetically
-	query := "SELECT id, username FROM users WHERE user_status = 0 AND id > 1 ORDER BY username ASC"
+	query := "SELECT id, username, user_status, archive_date, archive_reason FROM users WHERE user_status = 0 AND id > 1 ORDER BY username ASC"
 	rows, err := db.Query(query)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch users: " + err.Error()})
@@ -671,7 +682,7 @@ func GetUserList(c *gin.Context, db *sql.DB) {
 	var users []UserListItem
 	for rows.Next() {
 		var user UserListItem
-		if err := rows.Scan(&user.Id, &user.Username); err != nil {
+		if err := rows.Scan(&user.Id, &user.Username, &user.UserStatus, &user.ArchiveDate, &user.ArchiveReason); err != nil {
 			continue
 		}
 
@@ -1065,6 +1076,12 @@ func buildActiveUserActivity(forUserID int, db *sql.DB) []ActiveUserInfo {
 	activeUsers := Services.ActivityStorage.GetActiveUsers()
 	result := make([]ActiveUserInfo, 0, len(activeUsers))
 
+	visibleSubforums, _ := Services.GetVisibleSubforums(forUserID, "subforum_read", db)
+	visibleSubforumSet := make(map[int]bool, len(visibleSubforums))
+	for _, id := range visibleSubforums {
+		visibleSubforumSet[id] = true
+	}
+
 	for _, u := range activeUsers {
 		info := ActiveUserInfo{
 			UserID:              u.UserID,
@@ -1080,12 +1097,9 @@ func buildActiveUserActivity(forUserID int, db *sql.DB) []ActiveUserInfo {
 			var subforumID int
 			var topicName string
 			err := db.QueryRow("SELECT subforum_id, name FROM topics WHERE id = ?", u.CurrentPageId).Scan(&subforumID, &topicName)
-			if err == nil {
-				perm := fmt.Sprintf("subforum_read:%d", subforumID)
-				if hasPerm, err := Services.HasPermission(forUserID, perm, db); err == nil && hasPerm {
-					info.CurrentPageId = &u.CurrentPageId
-					info.CurrentPageName = &topicName
-				}
+			if err == nil && visibleSubforumSet[subforumID] {
+				info.CurrentPageId = &u.CurrentPageId
+				info.CurrentPageName = &topicName
 			}
 		default:
 			info.CurrentPageId = &u.CurrentPageId
@@ -1113,6 +1127,308 @@ func BroadcastActiveUserActivity(db *sql.DB) {
 func GetActiveUserActivity(c *gin.Context, db *sql.DB) {
 	currentUserID := Services.GetUserIdFromContext(c)
 	c.JSON(http.StatusOK, buildActiveUserActivity(currentUserID, db))
+}
+
+func GetUserRoles(c *gin.Context, db *sql.DB) {
+	userID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid user ID"})
+		c.Abort()
+		return
+	}
+
+	rows, err := db.Query(`SELECT r.id, r.name FROM roles r INNER JOIN user_role ur ON r.id = ur.role_id WHERE ur.user_id = ?`, userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user roles: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer rows.Close()
+
+	roles := []Entities.Role{}
+	for rows.Next() {
+		var r Entities.Role
+		if err := rows.Scan(&r.Id, &r.Name); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan role: " + err.Error()})
+			c.Abort()
+			return
+		}
+		roles = append(roles, r)
+	}
+
+	c.JSON(http.StatusOK, roles)
+}
+
+func UpdateUserRoles(c *gin.Context, db *sql.DB) {
+	var req struct {
+		UserID  int   `json:"user_id" binding:"required"`
+		RoleIDs []int `json:"role_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if _, err := tx.Exec("DELETE FROM user_role WHERE user_id = ?", req.UserID); err != nil {
+		tx.Rollback()
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to clear user roles: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	for _, roleID := range req.RoleIDs {
+		if _, err := tx.Exec("INSERT INTO user_role (user_id, role_id) VALUES (?, ?)", req.UserID, roleID); err != nil {
+			tx.Rollback()
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to assign role: " + err.Error()})
+			c.Abort()
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User roles updated"})
+}
+
+type WipeOutMyUserRequest struct {
+	RecoveryCode string `json:"recovery_code" binding:"required"`
+}
+
+func WipeOutMyUser(c *gin.Context, db *sql.DB) {
+	var req WipeOutMyUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var codeID, userID int
+	err := db.QueryRow(
+		"SELECT id, user_id FROM recovery_codes WHERE recovery_code = ? AND date_used IS NULL",
+		req.RecoveryCode,
+	).Scan(&codeID, &userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid or already used recovery code"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction: " + err.Error()})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	// Delete direct chat messages
+	if _, err := tx.Exec("DELETE FROM direct_chat_messages WHERE user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to delete direct messages: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Delete posts in general topics
+	if _, err := tx.Exec(
+		"DELETE FROM posts WHERE author_user_id = ? AND topic_id IN (SELECT id FROM topics WHERE type = ?)",
+		userID, Entities.GeneralTopic,
+	); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to delete general posts: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign remaining posts to The Nameless One
+	if _, err := tx.Exec("UPDATE posts SET author_user_id = 1 WHERE author_user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign posts: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign topics
+	if _, err := tx.Exec("UPDATE topics SET author_user_id = 1 WHERE author_user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign topics: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign characters
+	if _, err := tx.Exec("UPDATE character_base SET user_id = 1 WHERE user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign character profiles
+	if _, err := tx.Exec("UPDATE character_profile_base SET user_id = 1 WHERE user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign character profiles: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Reassign wanted characters
+	if _, err := tx.Exec("UPDATE wanted_character_base SET author_user_id = 1 WHERE author_user_id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reassign wanted characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Mark recovery code as used
+	if _, err := tx.Exec("UPDATE recovery_codes SET date_used = NOW() WHERE id = ?", codeID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to mark recovery code as used: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Delete the user (cascades direct_chat_users and other FK cascades)
+	if _, err := tx.Exec("DELETE FROM users WHERE id = ?", userID); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to delete user: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User account wiped"})
+}
+
+func ArchiveAccount(c *gin.Context, db *sql.DB) {
+	userID := Services.GetUserIdFromContext(c)
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(
+		"UPDATE users SET user_status = ?, archive_date = ?, archive_reason = ? WHERE id = ?",
+		Entities.ArchivedUser, time.Now(), "User's decision", userID,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to archive account: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "User not found"})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec("UPDATE character_base SET character_status = ? WHERE user_id = ?", Entities.InactiveCharacter, userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to deactivate characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user_status": Entities.ArchivedUser})
+}
+
+func ReactivateUser(c *gin.Context, db *sql.DB) {
+	userID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid user ID"})
+		c.Abort()
+		return
+	}
+
+	result, err := db.Exec(
+		"UPDATE users SET user_status = ?, archive_date = NULL, archive_reason = NULL WHERE id = ?",
+		Entities.ActiveUser, userID,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reactivate user: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "User not found"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user_status": Entities.ActiveUser})
+}
+
+func BanUser(c *gin.Context, db *sql.DB) {
+	userID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid user ID"})
+		c.Abort()
+		return
+	}
+
+	var body struct {
+		Reason *string `json:"reason"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(
+		"UPDATE users SET user_status = ?, archive_date = ?, archive_reason = ? WHERE id = ?",
+		Entities.ArchivedUser, time.Now(), body.Reason, userID,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to ban user: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "User not found"})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec("UPDATE character_base SET character_status = ? WHERE user_id = ?", Entities.InactiveCharacter, userID)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to deactivate characters: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user_status": Entities.ArchivedUser})
 }
 
 func UserAutocomplete(c *gin.Context, db *sql.DB) {

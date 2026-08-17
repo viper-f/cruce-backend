@@ -12,6 +12,8 @@ create table users
     interface_font_size decimal(5,2) default 1.00 not null,
     interface_design    varchar(255) null,
     user_status        int default 0 not null,
+    archive_date       datetime     null,
+    archive_reason     varchar(512) null,
     total_posts        int default 0 not null,
     total_general_posts int default 0 not null,
     constraint users_pk_2
@@ -22,7 +24,8 @@ INSERT INTO users (username, password, date_registered, avatar, date_last_visit,
 UPDATE users SET id = 0 WHERE username = 'guest';
 ALTER TABLE users AUTO_INCREMENT = 1;
 
-INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status, interface_font_size) VALUES (1, 'System', null, null, null, null, null, null, 0, 1.00);
+INSERT INTO users (id, username, password, date_registered, avatar, date_last_visit, interface_language, interface_timezone, user_status, interface_font_size) VALUES (1, 'The Nameless One', null, null, null, null, null, null, 0, 1.00);
+ALTER TABLE users AUTO_INCREMENT = 2;
 
 create table user_role
 (
@@ -82,6 +85,21 @@ VALUES ('allow_add_faction', 'y');
 INSERT INTO global_settings (setting_name, setting_value)
 VALUES ('allow_wanted_for_claims', 'moderated');
 
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_users_create_factions', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_guests_create_factions', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_users_create_claims', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('allow_guests_create_claims', 'y');
+
+INSERT INTO global_settings (setting_name, setting_value)
+VALUES ('visual_navlinks_after_header_panel', 'n');
+
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NULL,
@@ -92,7 +110,7 @@ CREATE TABLE subforums (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     category_id INT NULL,
     name VARCHAR(255) NULL,
-    description TINYTEXT NULL,
+    description MEDIUMTEXT NULL,
     position INT NULL,
     topic_number INT NULL,
     post_number INT NULL,
@@ -118,6 +136,8 @@ CREATE TABLE topics (
     post_number INT,
     author_user_id INT NOT NULL,
     subforum_id BIGINT UNSIGNED NOT NULL,
+    is_sticky BOOLEAN DEFAULT FALSE NULL,
+    is_sticky_first_post BOOLEAN DEFAULT FALSE NULL,
     CONSTRAINT fk_topics_subforum
         FOREIGN KEY (subforum_id) REFERENCES subforums (id) ON DELETE NO ACTION ,
     CONSTRAINT fk_topics_user
@@ -237,7 +257,7 @@ create table episode_mask
 
 create table global_stats
 (
-    stat_name   varchar(255) null
+    stat_name varchar(255) null
         primary key,
     stat_value decimal      null,
     stat_secondary varchar(255) null
@@ -382,14 +402,13 @@ create table direct_chats
 
 create table direct_chat_users
 (
-    direct_chat_id      int not null,
-    user_id             int not null,
+    direct_chat_id       int not null,
+    user_id              int not null,
     last_read_message_id int null,
     unread_count         int not null default 0,
     constraint direct_chat_users_pk primary key (direct_chat_id, user_id),
     constraint fk_direct_chat_users_chat foreign key (direct_chat_id) references direct_chats (id) on delete cascade,
-    constraint fk_direct_chat_users_user foreign key (user_id) references users (id) on delete cascade,
-    constraint fk_direct_chat_users_last_message foreign key (last_read_message_id) references direct_chat_messages (id) on delete set null
+    constraint fk_direct_chat_users_user foreign key (user_id) references users (id) on delete cascade
 );
 
 create table direct_chat_messages
@@ -406,6 +425,10 @@ create table direct_chat_messages
     constraint fk_direct_chat_messages_chat foreign key (chat_id) references direct_chats (id) on delete cascade,
     constraint fk_direct_chat_messages_user foreign key (user_id) references users (id) on delete cascade
 );
+
+ALTER TABLE direct_chat_users
+    ADD CONSTRAINT fk_direct_chat_users_last_message
+        FOREIGN KEY (last_read_message_id) REFERENCES direct_chat_messages (id) ON DELETE SET NULL;
 
 create table public_keys
 (
@@ -442,10 +465,10 @@ create table character_claim
     id              int auto_increment primary key,
     name            varchar(255) not null,
     description     text         null,
-    is_claimed      boolean      default false not null,
-    claim_record_id int          null,
-    can_change_name boolean      default false not null,
-    constraint fk_character_claim_record foreign key (claim_record_id) references claim_record (id) on delete set null
+    is_claimed                 boolean      default false not null,
+    claim_record_id            int          null,
+    can_change_name            boolean      default false not null,
+    show_only_with_active_claim boolean     default false not null
 );
 
 create table claim_record
@@ -463,6 +486,10 @@ create table claim_record
     constraint fk_claim_record_user       foreign key (user_id) references users (id) on delete set null,
     constraint fk_claim_record_character  foreign key (character_id) references character_base (id) on delete set null
 );
+
+ALTER TABLE character_claim
+    ADD CONSTRAINT fk_character_claim_record
+        FOREIGN KEY (claim_record_id) REFERENCES claim_record (id) ON DELETE SET NULL;
 
 create table character_claim_faction
 (
@@ -546,6 +573,7 @@ create table widget_panels
 );
 
 INSERT INTO widget_panels (`key`, content, is_hidden) VALUES ('header', NULL, false);
+INSERT INTO widget_panels (`key`, content, is_hidden) VALUES ('footer', NULL, false);
 
 CREATE TABLE static_files
 (
@@ -648,6 +676,33 @@ create table reactions
     id        int          not null auto_increment primary key,
     url       varchar(255) not null,
     is_active boolean      not null default true
+);
+
+create table smile_category
+(
+    id   int          not null auto_increment primary key,
+    name varchar(100) not null
+);
+
+create table smiles
+(
+    id          int          not null auto_increment primary key,
+    text_form   varchar(50)  null,
+    url         varchar(255) not null,
+    category_id int          null,
+    constraint fk_smiles_category foreign key (category_id) references smile_category (id) on delete set null
+);
+
+create table lore_pages
+(
+    topic_id  bigint unsigned not null,
+    post_id   bigint unsigned not null,
+    name      varchar(255)    not null,
+    is_hidden boolean         not null default false,
+    position  int             not null default 0,
+    primary key (topic_id, post_id),
+    constraint fk_lore_pages_topic foreign key (topic_id) references topics (id) on delete cascade,
+    constraint fk_lore_pages_post  foreign key (post_id)  references posts (id)  on delete cascade
 );
 
 create table post_reaction

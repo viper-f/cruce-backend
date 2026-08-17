@@ -11,16 +11,17 @@ import (
 )
 
 type BoardInfo struct {
-	SiteName               string              `json:"site_name"`
-	Domain                 string              `json:"domain"`
-	PostsPerPage           int                 `json:"posts_per_page"`
-	TotalUserNumber        int                 `json:"total_user_number"`
-	TotalCharacterNumber   int                 `json:"total_character_number"`
-	TotalEpisodeNumber     int                 `json:"total_episode_number"`
-	TotalTopicNumber       int                 `json:"total_topic_number"`
-	TotalPostNumber        int                 `json:"total_post_number"`
-	TotalEpisodePostNumber int                 `json:"total_episode_post_number"`
-	LastRegisteredUser     *Entities.ShortUser `json:"last_registered_user"`
+	SiteName                       string              `json:"site_name"`
+	Domain                         string              `json:"domain"`
+	PostsPerPage                   int                 `json:"posts_per_page"`
+	TotalUserNumber                int                 `json:"total_user_number"`
+	TotalCharacterNumber           int                 `json:"total_character_number"`
+	TotalEpisodeNumber             int                 `json:"total_episode_number"`
+	TotalTopicNumber               int                 `json:"total_topic_number"`
+	TotalPostNumber                int                 `json:"total_post_number"`
+	TotalEpisodePostNumber         int                 `json:"total_episode_post_number"`
+	LastRegisteredUser             *Entities.ShortUser `json:"last_registered_user"`
+	VisualNavlinksAfterHeaderPanel string              `json:"visual_navlinks_after_header_panel"`
 }
 
 func GetBoard(c *gin.Context, db *sql.DB) {
@@ -34,7 +35,7 @@ func GetBoard(c *gin.Context, db *sql.DB) {
 		LastRegisteredUser:     nil,
 	}
 
-	rows, err := db.Query("SELECT setting_name, setting_value FROM global_settings WHERE setting_name IN ('site_name', 'domain', 'posts_per_page')")
+	rows, err := db.Query("SELECT setting_name, setting_value FROM global_settings WHERE setting_name IN ('site_name', 'domain', 'posts_per_page', 'visual_navlinks_after_header_panel')")
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get global settings: " + err.Error()})
 		c.Abort()
@@ -56,6 +57,8 @@ func GetBoard(c *gin.Context, db *sql.DB) {
 			boardInfo.Domain = value
 		case "posts_per_page":
 			boardInfo.PostsPerPage, _ = strconv.Atoi(value)
+		case "visual_navlinks_after_header_panel":
+			boardInfo.VisualNavlinksAfterHeaderPanel = value
 		}
 	}
 

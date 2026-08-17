@@ -3,13 +3,12 @@ package main
 import (
 	"cuento-backend/src/Controllers"
 	"cuento-backend/src/EventHandlers"
+	"cuento-backend/src/Events"
 	"cuento-backend/src/Features"
-	"cuento-backend/src/Install"
 	"cuento-backend/src/Middlewares"
 	"cuento-backend/src/Router"
 	"cuento-backend/src/Services"
 	"cuento-backend/src/Websockets"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -34,6 +33,9 @@ func main() {
 		for range ticker.C {
 			evicted := Services.ActivityStorage.EvictInactiveUsers(10 * time.Minute)
 			if len(evicted) > 0 {
+				for _, userID := range evicted {
+					Events.Publish(Services.DB, Events.UserActivityChanged, Events.UserActivityChangedEvent{UserID: userID})
+				}
 				Controllers.BroadcastActiveUserActivity(Services.DB)
 				Controllers.BroadcastActiveUsersToHome()
 			}
@@ -63,6 +65,12 @@ func main() {
 	publicRouter.POST("/refresh", "Refresh access token", func(c *gin.Context) {
 		Controllers.RefreshToken(c, Services.DB)
 	})
+	publicRouter.GET("/global-settings", "Get all global settings", func(c *gin.Context) {
+		Controllers.GetGlobalSettings(c, Services.DB)
+	})
+	publicRouter.GET("/currency/settings", "Get currency settings", func(c *gin.Context) {
+		Features.GetCurrencySettingsHandler(c, Services.DB)
+	})
 	publicRouter.GET("/board/info", "Get board information", func(c *gin.Context) {
 		Controllers.GetBoard(c, Services.DB)
 	})
@@ -74,6 +82,9 @@ func main() {
 	})
 	publicRouter.GET("/entity/fields/:entity_type", "Get field names for an entity type", func(c *gin.Context) {
 		Controllers.GetEntityFields(c, Services.DB)
+	})
+	publicRouter.GET("/smiles", "Get smile categories with their smiles", func(c *gin.Context) {
+		Controllers.GetSmileTree(c, Services.DB)
 	})
 	publicRouter.GET("/user/profile/:userID", "Get user profile details", func(c *gin.Context) {
 		Controllers.GetUserProfile(c, Services.DB)
@@ -89,6 +100,10 @@ func main() {
 	})
 	publicRouter.POST("/update-password", "Update user password via recovery flow", func(c *gin.Context) {
 		Controllers.UpdatePassword(c, Services.DB)
+	})
+	wipeRateLimiter := Middlewares.NewRateLimiter(5, time.Hour)
+	r.POST("/user/wipe", wipeRateLimiter.Middleware(), func(c *gin.Context) {
+		Controllers.WipeOutMyUser(c, Services.DB)
 	})
 	publicRouter.GET("/character/field-list/:machine_name", "Get distinct values of a string character custom field", func(c *gin.Context) {
 		Controllers.CustomFieldList(c, Services.DB)
@@ -130,13 +145,6 @@ func main() {
 			"message": "pong",
 		})
 	})
-	optionalAuthRouter.GET("/install", "Install default database tables", func(c *gin.Context) {
-		err := Install.ExecuteSQLFile(Services.DB, "./src/Install/default_tables.sql")
-		if err != nil {
-			fmt.Println(err.Error())
-			return
-		}
-	})
 	optionalAuthRouter.GET("/viewforum/:subforum/:page", "Get topics in a subforum by page", func(c *gin.Context) {
 		Controllers.GetTopicsBySubforum(c, Services.DB)
 	})
@@ -163,6 +171,15 @@ func main() {
 	})
 	optionalAuthRouter.POST("/claim-record/create", "Create a new claim record for a wanted character or claim", func(c *gin.Context) {
 		Controllers.CreateClaimRecord(c, Services.DB)
+	})
+	optionalAuthRouter.POST("/claim-record/revoke", "Revoke an active claim record", func(c *gin.Context) {
+		Controllers.RevokeClaim(c, Services.DB)
+	})
+	optionalAuthRouter.POST("/faction/create-pending", "Create a new faction in pending status", func(c *gin.Context) {
+		Controllers.CreatePendingFaction(c, Services.DB)
+	})
+	optionalAuthRouter.POST("/role-claim/create", "Create a new role claim with character name and faction", func(c *gin.Context) {
+		Controllers.CreateNewRoleClaim(c, Services.DB)
 	})
 	optionalAuthRouter.GET("/factions/get", "Get faction tree", func(c *gin.Context) {
 		Controllers.GetActiveFactionTree(c, Services.DB)
@@ -216,7 +233,7 @@ func main() {
 	protectedGroup.Use(Middlewares.PermissionsMiddleware(Services.DB))
 	protectedRouter := Router.NewProtectedCustomRouter(protectedGroup)
 
-	protectedRouter.GET("/features", "Get list of all feature flags", func(c *gin.Context) {
+	optionalAuthRouter.GET("/features", "Get list of all feature flags", func(c *gin.Context) {
 		Features.GetFeaturesHandler(c)
 	})
 	protectedRouter.POST("/features/:key/toggle", "Toggle a feature flag on or off", func(c *gin.Context) {
@@ -224,9 +241,6 @@ func main() {
 	})
 	protectedRouter.GET("/currency/income-types", "Get list of currency income types", func(c *gin.Context) {
 		Features.GetCurrencyIncomeTypesHandler(c, Services.DB)
-	})
-	protectedRouter.GET("/currency/settings", "Get currency settings", func(c *gin.Context) {
-		Features.GetCurrencySettingsHandler(c, Services.DB)
 	})
 	protectedRouter.POST("/currency/settings/update", "Update currency settings", func(c *gin.Context) {
 		Features.UpdateCurrencySettingsHandler(c, Services.DB)
@@ -279,8 +293,8 @@ func main() {
 	protectedRouter.POST("/faction/update/:id", "Update faction by ID", func(c *gin.Context) {
 		Controllers.UpdateFactionById(c, Services.DB)
 	})
-	protectedRouter.GET("/global-settings", "Get all global settings", func(c *gin.Context) {
-		Controllers.GetGlobalSettings(c, Services.DB)
+	protectedRouter.GET("/faction/delete/:id", "Delete faction by ID", func(c *gin.Context) {
+		Controllers.DeleteFaction(c, Services.DB)
 	})
 	protectedRouter.POST("/global-settings/update", "Update global settings", func(c *gin.Context) {
 		Controllers.UpdateGlobalSettings(c, Services.DB)
@@ -332,8 +346,35 @@ func main() {
 	protectedRouter.POST("/topic/update/:id", "Update topic by ID", func(c *gin.Context) {
 		Controllers.UpdateTopic(c, Services.DB)
 	})
+	publicRouter.GET("/lore-topic/:id/pages", "Get lore pages by topic ID", func(c *gin.Context) {
+		Controllers.GetLorePagesByTopic(c, Services.DB)
+	})
+	protectedRouter.GET("/lore-topic/:id/posts", "Get posts of a lore topic with lore page data", func(c *gin.Context) {
+		Controllers.GetLoreTopicPosts(c, Services.DB)
+	})
+	protectedRouter.POST("/lore-topic/create", "Create lore topic", func(c *gin.Context) {
+		Controllers.CreateLoreTopic(c, Services.DB)
+	})
+	protectedRouter.POST("/lore-topic/update/:id", "Update lore topic by ID", func(c *gin.Context) {
+		Controllers.UpdateLoreTopic(c, Services.DB)
+	})
+	protectedRouter.POST("/lore-page/create", "Create a lore page", func(c *gin.Context) {
+		Controllers.CreateLorePage(c, Services.DB)
+	})
+	protectedRouter.POST("/lore-page/update/:post_id", "Update lore page by post ID", func(c *gin.Context) {
+		Controllers.UpdateLorePage(c, Services.DB)
+	})
+	protectedRouter.GET("/lore-page/delete/:post_id", "Delete lore page by post ID", func(c *gin.Context) {
+		Controllers.DeleteLorePage(c, Services.DB)
+	})
 	protectedRouter.POST("/topics/move", "Move topics to a different subforum", func(c *gin.Context) {
 		Controllers.MoveTopics(c, Services.DB)
+	})
+	protectedRouter.POST("/topics/bulk-update", "Bulk update topics", func(c *gin.Context) {
+		Controllers.BulkUpdateTopics(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/topics/delete", "Batch delete topics (sets status to deleted)", func(c *gin.Context) {
+		Controllers.BatchDeleteTopics(c, Services.DB)
 	})
 	publicRouter.GET("/notifications/types", "Get list of notification types", func(c *gin.Context) {
 		Controllers.GetNotificationTypes(c)
@@ -356,6 +397,12 @@ func main() {
 	protectedRouter.POST("/character/deactivate/:id", "Deactivate a character", func(c *gin.Context) {
 		Controllers.DeactivateCharacter(c, Services.DB)
 	})
+	protectedRouter.POST("/character/decline/:id", "Decline a pending character", func(c *gin.Context) {
+		Controllers.DeclineCharacter(c, Services.DB)
+	})
+	protectedRouter.POST("/character/pending/:id", "Set a character to pending state", func(c *gin.Context) {
+		Controllers.PendingCharacter(c, Services.DB)
+	})
 	protectedRouter.POST("/character/activate/:id", "Activate a character", func(c *gin.Context) {
 		Controllers.ActivateCharacter(c, Services.DB)
 	})
@@ -373,6 +420,15 @@ func main() {
 	})
 	protectedRouter.POST("/user/settings/update", "Update user settings", func(c *gin.Context) {
 		Controllers.UpdateSettings(c, Services.DB)
+	})
+	protectedRouter.POST("/user/archive", "Archive the current user's account and deactivate all their characters", func(c *gin.Context) {
+		Controllers.ArchiveAccount(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/user/ban/:id", "Ban a user by ID and deactivate all their characters", func(c *gin.Context) {
+		Controllers.BanUser(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/user/reactivate/:id", "Reactivate an archived user by ID", func(c *gin.Context) {
+		Controllers.ReactivateUser(c, Services.DB)
 	})
 	protectedRouter.GET("/admin/user-list", "Get full user list for admin panel", func(c *gin.Context) {
 		Controllers.GetAdminUserList(c, Services.DB)
@@ -525,8 +581,44 @@ func main() {
 	protectedRouter.GET("/admin/additional-navlink/list", "Get admin list of all additional navlinks", func(c *gin.Context) {
 		Controllers.GetAdditionalNavlinkList(c, Services.DB)
 	})
+	protectedRouter.GET("/admin/additional-navlink/delete/:id", "Delete additional navlink by ID", func(c *gin.Context) {
+		Controllers.DeleteAdditionalNavlink(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/smile/list", "Get flat list of all smiles", func(c *gin.Context) {
+		Controllers.GetSmileList(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/smile/upload", "Upload a smile image", func(c *gin.Context) {
+		Controllers.UploadSmile(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/smile/delete/:id", "Delete smile by ID", func(c *gin.Context) {
+		Controllers.DeleteSmile(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/smile/update-category/:id", "Update smile's category by ID", func(c *gin.Context) {
+		Controllers.UpdateCategoryId(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/smile-category/list", "Get list of all smile categories", func(c *gin.Context) {
+		Controllers.GetSmileCategoryList(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/smile-category/create", "Create a new smile category", func(c *gin.Context) {
+		Controllers.CreateSmileCategory(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/smile-category/update/:id", "Update smile category by ID", func(c *gin.Context) {
+		Controllers.UpdateSmileCategory(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/smile-category/delete/:id", "Delete smile category by ID", func(c *gin.Context) {
+		Controllers.DeleteSmileCategory(c, Services.DB)
+	})
 	protectedRouter.GET("/admin/role/list", "Get list of all roles", func(c *gin.Context) {
 		Controllers.GetRoleList(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/home", "Get admin home categories (all, including empty)", func(c *gin.Context) {
+		Controllers.GetAdminHomeCategories(c, Services.DB)
+	})
+	protectedRouter.GET("/admin/user/roles/:id", "Get user roles", func(c *gin.Context) {
+		Controllers.GetUserRoles(c, Services.DB)
+	})
+	protectedRouter.POST("/admin/user/roles/update", "Update user roles", func(c *gin.Context) {
+		Controllers.UpdateUserRoles(c, Services.DB)
 	})
 
 	// WebSocket route with special authentication

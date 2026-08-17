@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -53,6 +54,13 @@ func GetCharacter(c *gin.Context, db *sql.DB) {
 	}
 
 	if character, ok := entity.(*Entities.Character); ok {
+		var topicStatus Entities.TopicStatus
+		if err := db.QueryRow("SELECT status FROM topics WHERE id = ?", character.TopicId).Scan(&topicStatus); err == nil && topicStatus == Entities.DeletedTopic {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character not found"})
+			c.Abort()
+			return
+		}
+
 		// Fetch episodes for this character
 		query := `
 			SELECT e.id, e.name, e.topic_id, t.date_last_post, u.username as last_post_author_username
@@ -60,10 +68,10 @@ func GetCharacter(c *gin.Context, db *sql.DB) {
 			JOIN episode_character ec ON e.id = ec.episode_id
 			JOIN topics t ON e.topic_id = t.id
 			LEFT JOIN users u ON t.last_post_author_user_id = u.id
-			WHERE ec.character_id = ?
+			WHERE ec.character_id = ? AND t.status != ?
 			ORDER BY t.date_last_post DESC
 		`
-		rows, err := db.Query(query, character.Id)
+		rows, err := db.Query(query, character.Id, Entities.DeletedTopic)
 		if err == nil {
 			defer rows.Close()
 			var episodes []Entities.EpisodeListItem
@@ -135,6 +143,8 @@ func GetCharacter(c *gin.Context, db *sql.DB) {
 		if err == nil {
 			character.ClaimRecord = &cr
 		}
+
+		character.UserInfo = fetchUserInfo(character.UserId, db)
 
 		c.JSON(http.StatusOK, character)
 		return
@@ -243,25 +253,41 @@ func CreateCharacter(c *gin.Context, db *sql.DB) {
 			claimId = *characterClaimId
 		}
 
+		// Expire the existing standalone claim record if present
 		var existingRecordId int
-		err := tx.QueryRow("SELECT id FROM claim_record WHERE claim_id = ? AND user_id = ?", claimId, userID).Scan(&existingRecordId)
+		err := tx.QueryRow("SELECT id FROM claim_record WHERE claim_id = ? AND user_id = ? AND character_id IS NULL", claimId, userID).Scan(&existingRecordId)
 		if err == nil {
-			if _, err := tx.Exec("UPDATE claim_record SET character_id = ? WHERE id = ?", characterID, existingRecordId); err != nil {
-				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update claim record: " + err.Error()})
+			if _, err := tx.Exec("UPDATE claim_record SET claim_expiration_date = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE id = ?", existingRecordId); err != nil {
+				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to expire old claim record: " + err.Error()})
 				c.Abort()
 				return
 			}
-		} else if err == sql.ErrNoRows {
-			if _, err := tx.Exec(
-				"INSERT INTO claim_record (claim_id, user_id, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet) VALUES (?, ?, false, NOW(), NOW(), ?, true)",
-				claimId, userID, characterID,
-			); err != nil {
-				_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
-				c.Abort()
-				return
-			}
-		} else {
+		} else if err != sql.ErrNoRows {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to check claim record: " + err.Error()})
+			c.Abort()
+			return
+		}
+
+		// Create a new claim record associated with the character sheet
+		newClaimRes, err := tx.Exec(
+			"INSERT INTO claim_record (claim_id, user_id, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet) VALUES (?, ?, false, NOW(), DATE_ADD(NOW(), INTERVAL 5 DAY), ?, true)",
+			claimId, userID, characterID,
+		)
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
+			c.Abort()
+			return
+		}
+		newClaimRecordId, err := newClaimRes.LastInsertId()
+		if err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get new claim record ID"})
+			c.Abort()
+			return
+		}
+
+		// Update character_claim so the new record shows in the character list
+		if _, err := tx.Exec("UPDATE character_claim SET claim_record_id = ? WHERE id = ?", newClaimRecordId, claimId); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update character claim: " + err.Error()})
 			c.Abort()
 			return
 		}
@@ -503,6 +529,11 @@ func UpdateCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	_, _ = db.Exec(
+		"UPDATE subforums SET last_post_topic_name = ? WHERE last_post_topic_id = ?",
+		req.Name, topicID,
+	)
+
 	// 6. Fetch updated character and return
 	updatedCharacter, err := Services.GetEntity(int64(characterID), "character", db)
 	if err != nil {
@@ -566,11 +597,12 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 			FROM character_base c
 			JOIN character_faction cf ON c.id = cf.character_id
 			JOIN factions f ON cf.faction_id = f.id
+			JOIN topics t ON t.id = c.topic_id AND t.status != ?
 			WHERE c.character_status = 0
 		)
 		SELECT id, name, faction_id FROM RankedFactions WHERE rn = 1
 	`
-	charRows, err := db.Query(charQuery)
+	charRows, err := db.Query(charQuery, Entities.DeletedTopic)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get characters: " + err.Error()})
 		c.Abort()
@@ -593,26 +625,62 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 		}
 	}
 
-	// 4. Fetch character claims with their deepest faction and associated wanted character
+	// 4. Collect current user identity for pending faction exception
+	userID := Services.GetUserIdFromContext(c)
+	userTimezone := Services.GetUserTimezone(userID, db)
+	guestHashes := make([]string, 3)
+	for i := 1; i <= 3; i++ {
+		if hash, err := c.Cookie(fmt.Sprintf("claim_hash_%d", i)); err == nil {
+			guestHashes[i-1] = hash
+		}
+	}
+
+	// 5. Fetch character claims with their deepest faction and associated wanted character.
+	//    Pending factions are included only when the claim belongs to the current user.
 	claimQuery := `
 		WITH RankedFactions AS (
 			SELECT
 				cc.id,
 				cc.name,
+				cc.show_only_with_active_claim,
+				cc.claim_record_id,
 				f.id AS faction_id,
+				f.name AS faction_name,
+				f.faction_status,
 				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
 			FROM character_claim cc
 			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
 			JOIN factions f ON ccf.faction_id = f.id
+			LEFT JOIN claim_record cr ON cr.id = cc.claim_record_id
 			WHERE cc.is_claimed IS NOT TRUE
+			  AND (f.faction_status != 2
+			       OR (? > 0 AND cr.user_id = ?)
+			       OR (cr.guest_hash IS NOT NULL AND cr.guest_hash != '' AND cr.guest_hash IN (?, ?, ?)))
 		)
-		SELECT r.id, r.name, r.faction_id, wc.topic_id AS wanted_character_id
+		SELECT r.id, r.name, r.faction_id, r.faction_name, r.faction_status, wc.topic_id AS wanted_character_id,
+		       cr.id AS claim_record_id, cr.user_id AS claim_author_id, u.username AS claim_author_username, cr.guest_hash AS claim_guest_hash, cr.claim_expiration_date
 		FROM RankedFactions r
-		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = r.id
+		LEFT JOIN (
+			SELECT character_claim_id,
+			       MIN(id) AS id,
+			       MIN(wanted_character_status) AS wanted_character_status,
+			       MIN(CASE WHEN wanted_character_status = 0 THEN topic_id END) AS topic_id
+			FROM wanted_character_base
+			GROUP BY character_claim_id
+		) wc ON wc.character_claim_id = r.id
+		LEFT JOIN claim_record cr ON cr.id = r.claim_record_id AND cr.claim_expiration_date > NOW()
+		LEFT JOIN users u ON u.id = cr.user_id
+		LEFT JOIN character_base cb ON cb.id = cr.character_id
 		WHERE r.rn = 1
-		  AND (wc.id IS NULL OR wc.wanted_character_status = 0)
+		  AND (wc.id IS NULL OR (wc.wanted_character_status = 0 AND EXISTS (
+		      SELECT 1 FROM wanted_character_base wcb2
+		      JOIN topics t_wc ON t_wc.id = wcb2.topic_id AND t_wc.status != ?
+		      WHERE wcb2.character_claim_id = r.id AND wcb2.wanted_character_status = 0
+		  )))
+		  AND (r.show_only_with_active_claim = false OR cr.id IS NOT NULL)
+		  AND (cr.character_id IS NULL OR cb.character_status = 2)
 	`
-	claimRows, err := db.Query(claimQuery)
+	claimRows, err := db.Query(claimQuery, userID, userID, guestHashes[0], guestHashes[1], guestHashes[2], Entities.DeletedTopic)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get character claims: " + err.Error()})
 		c.Abort()
@@ -623,15 +691,29 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 	for claimRows.Next() {
 		var item Entities.CharacterListItem
 		var factionID int
-		if err := claimRows.Scan(&item.Id, &item.Name, &factionID, &item.WantedCharacterId); err != nil {
+		var factionName string
+		var factionStatus Entities.FactionStatus
+		var claimExpirationDate *time.Time
+		if err := claimRows.Scan(&item.Id, &item.Name, &factionID, &factionName, &factionStatus, &item.WantedCharacterId, &item.ClaimRecordId, &item.ClaimAuthorId, &item.ClaimAuthorUsername, &item.ClaimGuestHash, &claimExpirationDate); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
 			c.Abort()
 			return
 		}
 		item.IsClaim = true
-		if faction, ok := factionMap[factionID]; ok {
-			faction.Characters = append(faction.Characters, item)
+		if claimExpirationDate != nil {
+			item.ClaimExpirationDate = Services.LocalizeTime(*claimExpirationDate, userTimezone)
 		}
+		if _, ok := factionMap[factionID]; !ok {
+			// Pending faction only visible to the current user — add it on-the-fly
+			factions = append(factions, Entities.Faction{
+				Id:            factionID,
+				Name:          factionName,
+				FactionStatus: factionStatus,
+				Characters:    []Entities.CharacterListItem{},
+			})
+			factionMap[factionID] = &factions[len(factions)-1]
+		}
+		factionMap[factionID].Characters = append(factionMap[factionID].Characters, item)
 	}
 
 	noFaction := Entities.Faction{Id: 0, Name: "No Faction", Characters: []Entities.CharacterListItem{}}
@@ -657,10 +739,21 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 	noFactionClaimRows, err := db.Query(`
 		SELECT cc.id, cc.name, wc.topic_id
 		FROM character_claim cc
-		LEFT JOIN wanted_character_base wc ON wc.character_claim_id = cc.id
+		LEFT JOIN (
+			SELECT character_claim_id,
+			       MIN(id) AS id,
+			       MIN(wanted_character_status) AS wanted_character_status,
+			       MIN(CASE WHEN wanted_character_status = 0 THEN topic_id END) AS topic_id
+			FROM wanted_character_base
+			GROUP BY character_claim_id
+		) wc ON wc.character_claim_id = cc.id
+		LEFT JOIN claim_record cr ON cr.id = cc.claim_record_id
+		LEFT JOIN character_base cb ON cb.id = cr.character_id
 		WHERE cc.is_claimed IS NOT TRUE
 		AND cc.id NOT IN (SELECT character_claim_id FROM character_claim_faction)
 		AND (wc.id IS NULL OR wc.wanted_character_status = 0)
+		AND (cc.show_only_with_active_claim = false OR (cr.id IS NOT NULL AND cr.claim_expiration_date > NOW()))
+		AND (cr.character_id IS NULL OR cb.character_status = 2)
 	`)
 	if err == nil {
 		defer noFactionClaimRows.Close()
@@ -682,9 +775,11 @@ func GetCharacterList(c *gin.Context, db *sql.DB) {
 
 func GetCharacterAutocomplete(c *gin.Context, db *sql.DB) {
 	query := `
-		SELECT id, name FROM character_base WHERE name LIKE ? AND character_status = 0 ORDER BY name ASC LIMIT 10
+		SELECT cb.id, cb.name FROM character_base cb
+		JOIN topics t ON t.id = cb.topic_id AND t.status != ?
+		WHERE cb.name LIKE ? AND cb.character_status = 0 ORDER BY cb.name ASC LIMIT 10
 	`
-	rows, err := db.Query(query, "%"+c.Param("term")+"%")
+	rows, err := db.Query(query, Entities.DeletedTopic, "%"+c.Param("term")+"%")
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get characters: " + err.Error()})
 		c.Abort()
@@ -736,8 +831,8 @@ func GetUserCharacters(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	query := "SELECT id, name FROM character_base WHERE user_id = ?"
-	rows, err := db.Query(query, userID)
+	query := "SELECT cb.id, cb.name FROM character_base cb JOIN topics t ON t.id = cb.topic_id AND t.status != ? WHERE cb.user_id = ?"
+	rows, err := db.Query(query, Entities.DeletedTopic, userID)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get user characters: " + err.Error()})
 		c.Abort()
@@ -1327,7 +1422,7 @@ func GetUserMasks(c *gin.Context, db *sql.DB) {
 }
 
 func GetCharacterClaims(c *gin.Context, db *sql.DB) {
-	factions, err := Services.GetFactionTree(db)
+	factions, err := Services.GetFullFactionTree(db)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get faction tree: " + err.Error()})
 		c.Abort()
@@ -1358,14 +1453,16 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 				cc.name,
 				cc.description,
 				cc.is_claimed,
+				cc.claim_record_id,
 				cc.can_change_name,
+				cc.show_only_with_active_claim,
 				f.id AS faction_id,
 				ROW_NUMBER() OVER(PARTITION BY cc.id ORDER BY f.level DESC) AS rn
 			FROM character_claim cc
 			JOIN character_claim_faction ccf ON cc.id = ccf.character_claim_id
 			JOIN factions f ON ccf.faction_id = f.id
 		)
-		SELECT id, name, description, is_claimed, can_change_name, faction_id
+		SELECT id, name, description, is_claimed, claim_record_id, can_change_name, show_only_with_active_claim, faction_id
 		FROM RankedFactions
 		WHERE rn = 1
 	`
@@ -1380,7 +1477,7 @@ func GetCharacterClaims(c *gin.Context, db *sql.DB) {
 	for claimRows.Next() {
 		var claim Entities.CharacterClaim
 		var factionID int
-		if err := claimRows.Scan(&claim.Id, &claim.Name, &claim.Description, &claim.IsClaimed, &claim.CanChangeName, &factionID); err != nil {
+		if err := claimRows.Scan(&claim.Id, &claim.Name, &claim.Description, &claim.IsClaimed, &claim.ClaimRecordId, &claim.CanChangeName, &claim.ShowOnlyWithActiveClaim, &factionID); err != nil {
 			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to scan character claim: " + err.Error()})
 			c.Abort()
 			return
@@ -1415,8 +1512,8 @@ func CreateCharacterClaim(c *gin.Context, db *sql.DB) {
 	defer tx.Rollback()
 
 	res, err := tx.Exec(
-		"INSERT INTO character_claim (name, description, is_claimed, can_change_name) VALUES (?, ?, ?, ?)",
-		req.Claim.Name, req.Claim.Description, req.Claim.IsClaimed, req.Claim.CanChangeName,
+		"INSERT INTO character_claim (name, description, is_claimed, can_change_name, show_only_with_active_claim) VALUES (?, ?, ?, ?, ?)",
+		req.Claim.Name, req.Claim.Description, req.Claim.IsClaimed, req.Claim.CanChangeName, req.Claim.ShowOnlyWithActiveClaim,
 	)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to insert character claim: " + err.Error()})
@@ -1498,6 +1595,8 @@ func DeactivateCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	Events.Publish(db, Events.CharacterDeactivated, Events.CharacterDeactivatedEvent{CharacterID: id})
+
 	var topicStatus Entities.TopicStatus
 	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", id).Scan(&topicStatus)
 
@@ -1505,6 +1604,108 @@ func DeactivateCharacter(c *gin.Context, db *sql.DB) {
 		"character_status": Entities.InactiveCharacter,
 		"topic_status":     topicStatus,
 	})
+}
+
+func DeclineCharacter(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid character ID"})
+		c.Abort()
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to start transaction"})
+		c.Abort()
+		return
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec("UPDATE character_base SET character_status = ? WHERE id = ?", Entities.DeclinedCharacter, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to decline character: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character not found"})
+		c.Abort()
+		return
+	}
+
+	_, err = tx.Exec("UPDATE topics SET status = ? WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", Entities.InactiveTopic, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to deactivate character topic: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	// Expire the claim record and free up the claim slot
+	var claimRecordId int
+	var claimId int
+	if err := tx.QueryRow("SELECT id, claim_id FROM claim_record WHERE character_id = ? ORDER BY claim_date DESC LIMIT 1", id).Scan(&claimRecordId, &claimId); err == nil {
+		if _, err := tx.Exec("UPDATE claim_record SET claim_expiration_date = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE id = ?", claimRecordId); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to expire claim record: " + err.Error()})
+			c.Abort()
+			return
+		}
+		if _, err := tx.Exec("UPDATE character_claim SET claim_record_id = NULL WHERE id = ?", claimId); err != nil {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to reset character claim: " + err.Error()})
+			c.Abort()
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to commit transaction"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"character_status": Entities.DeclinedCharacter})
+}
+
+func PendingCharacter(c *gin.Context, db *sql.DB) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid character ID"})
+		c.Abort()
+		return
+	}
+
+	var currentStatus Entities.CharacterStatus
+	if err := db.QueryRow("SELECT character_status FROM character_base WHERE id = ?", id).Scan(&currentStatus); err != nil {
+		if err == sql.ErrNoRows {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character not found"})
+		} else {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch character: " + err.Error()})
+		}
+		c.Abort()
+		return
+	}
+
+	if currentStatus != Entities.InactiveCharacter && currentStatus != Entities.DeclinedCharacter {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "Only inactive or declined characters can be moved to pending"})
+		c.Abort()
+		return
+	}
+
+	result, err := db.Exec("UPDATE character_base SET character_status = ? WHERE id = ?", Entities.PendingCharacter, id)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to set character to pending: " + err.Error()})
+		c.Abort()
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Character not found"})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"character_status": Entities.PendingCharacter})
 }
 
 func ActivateCharacter(c *gin.Context, db *sql.DB) {
@@ -1559,6 +1760,8 @@ func ActivateCharacter(c *gin.Context, db *sql.DB) {
 		c.Abort()
 		return
 	}
+
+	Events.Publish(db, Events.CharacterActivated, Events.CharacterActivatedEvent{CharacterID: id})
 
 	var topicStatus Entities.TopicStatus
 	_ = db.QueryRow("SELECT status FROM topics WHERE id = (SELECT topic_id FROM character_base WHERE id = ?)", id).Scan(&topicStatus)

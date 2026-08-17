@@ -220,12 +220,13 @@ func ReactToPost(c *gin.Context, db *sql.DB) {
 	_ = db.QueryRow("SELECT url FROM reactions WHERE id = ?", req.ReactionId).Scan(&reactionUrl)
 
 	Events.Publish(db, Events.ReactionCreated, Events.ReactionCreatedEvent{
-		TopicID:    topicID,
-		TopicName:  topicName,
-		PostID:     req.PostId,
-		ReactionID: req.ReactionId,
-		Url:        reactionUrl,
-		UserID:     userID,
-		UserName:   userName,
+		TopicID:      topicID,
+		TopicName:    topicName,
+		PostID:       req.PostId,
+		PostAuthorID: postAuthorID,
+		ReactionID:   req.ReactionId,
+		Url:          reactionUrl,
+		UserID:       userID,
+		UserName:     userName,
 	})
 }

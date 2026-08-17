@@ -15,6 +15,7 @@ type Character struct {
 	Episodes        []EpisodeListItem `json:"episodes" db:"-"`
 	CanEdit         *bool             `json:"can_edit,omitempty" db:"-"`
 	ClaimRecord     *ClaimRecord      `json:"claim_record,omitempty" db:"-"`
+	UserInfo        *UserInfo         `json:"user_info,omitempty" db:"-"`
 }
 
 type EpisodeListItem struct {
@@ -41,6 +42,7 @@ const (
 	ActiveCharacter   CharacterStatus = 0
 	InactiveCharacter CharacterStatus = 1
 	PendingCharacter  CharacterStatus = 2
+	DeclinedCharacter CharacterStatus = 3
 )
 
 type ClaimRecord struct {
@@ -53,15 +55,18 @@ type ClaimRecord struct {
 	ClaimExpirationDate            time.Time `json:"claim_expiration_date"`
 	CharacterId                    *int      `json:"character_id"`
 	ClaimCreatedWithCharacterSheet *bool     `json:"claim_created_with_character_sheet"`
+	ClaimAuthorId                  *int      `json:"claim_author_id"`
+	ClaimAuthorUsername            *string   `json:"claim_author_username"`
 }
 
 type CharacterClaim struct {
-	Id            int     `json:"id"`
-	Name          string  `json:"name"`
-	Description   *string `json:"description"`
-	IsClaimed     bool    `json:"is_claimed"`
-	ClaimRecordId *int    `json:"claim_record_id"`
-	CanChangeName bool    `json:"can_change_name"`
+	Id                      int     `json:"id"`
+	Name                    string  `json:"name"`
+	Description             *string `json:"description"`
+	IsClaimed               bool    `json:"is_claimed"`
+	ClaimRecordId           *int    `json:"claim_record_id"`
+	CanChangeName           bool    `json:"can_change_name"`
+	ShowOnlyWithActiveClaim bool    `json:"show_only_with_active_claim"`
 }
 
 type WantedCharacterStatus int
@@ -84,6 +89,7 @@ type WantedCharacter struct {
 	CustomFields          CustomFieldEntity     `json:"custom_fields" db:"-"`
 	Factions              []Faction             `json:"factions" db:"-"`
 	ClaimRecord           *ClaimRecord          `json:"claim_record,omitempty" db:"-"`
+	UserInfo              *UserInfo             `json:"user_info,omitempty" db:"-"`
 }
 
 func (w *WantedCharacter) GetBaseFields() []string {
@@ -91,8 +97,13 @@ func (w *WantedCharacter) GetBaseFields() []string {
 }
 
 type CharacterListItem struct {
-	Id                int    `json:"id"`
-	Name              string `json:"name"`
-	IsClaim           bool   `json:"is_claim"`
-	WantedCharacterId *int   `json:"wanted_character_id"`
+	Id                  int     `json:"id"`
+	Name                string  `json:"name"`
+	IsClaim             bool    `json:"is_claim"`
+	WantedCharacterId   *int    `json:"wanted_character_id"`
+	ClaimRecordId       *int    `json:"claim_record_id,omitempty"`
+	ClaimAuthorId       *int    `json:"claim_author_id,omitempty"`
+	ClaimAuthorUsername *string `json:"claim_author_username,omitempty"`
+	ClaimGuestHash      *string `json:"claim_guest_hash,omitempty"`
+	ClaimExpirationDate string  `json:"claim_expiration_date,omitempty"`
 }

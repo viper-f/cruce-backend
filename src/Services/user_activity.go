@@ -30,16 +30,18 @@ func (s *UserActivityStorage) AddUser(userID int, username string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.users[userID]; !exists {
+	if existing, exists := s.users[userID]; !exists {
 		s.users[userID] = &UserActivity{
 			UserID:      userID,
 			Username:    username,
 			LastActive:  time.Now(),
-			IsVisible:   true,
+			IsVisible:   false,
 			connections: 1,
 		}
 	} else {
-		s.users[userID].connections++
+		existing.connections++
+		existing.LastActive = time.Now()
+		// CurrentPageType, CurrentPageId and IsVisible are intentionally preserved
 	}
 }
 
@@ -56,7 +58,8 @@ func (s *UserActivityStorage) RemoveUser(userID int) bool {
 	}
 	user.connections--
 	if user.connections <= 0 {
-		delete(s.users, userID)
+		user.connections = 0
+		user.IsVisible = false
 		return true
 	}
 	return false
@@ -74,6 +77,8 @@ func (s *UserActivityStorage) EvictInactiveUsers(timeout time.Duration) []int {
 		if user.IsVisible && user.LastActive.Before(cutoff) {
 			user.IsVisible = false
 			evicted = append(evicted, userID)
+		} else if !user.IsVisible && user.connections == 0 && user.LastActive.Before(cutoff) {
+			delete(s.users, userID)
 		}
 	}
 	return evicted
@@ -129,7 +134,7 @@ func (s *UserActivityStorage) GetUsersOnPage(pageType string, pageId string) []*
 
 	usersOnPage := make([]*UserActivity, 0)
 	for _, user := range s.users {
-		if user.CurrentPageType == pageType && user.CurrentPageId == pageId {
+		if user.IsVisible && user.CurrentPageType == pageType && user.CurrentPageId == pageId {
 			usersOnPage = append(usersOnPage, user)
 		}
 	}

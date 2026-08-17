@@ -45,17 +45,18 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 	}
 
 	baseWhere := `
-		FROM wanted_character_base
-		WHERE is_claimed = false AND (is_deleted IS NULL OR is_deleted = false) AND wanted_character_status = 0`
+		FROM wanted_character_base wcb
+		JOIN topics t_wc ON t_wc.id = wcb.topic_id AND t_wc.status != ?
+		WHERE wcb.is_claimed = false AND (wcb.is_deleted IS NULL OR wcb.is_deleted = false) AND wcb.wanted_character_status = 0`
 
-	var args []interface{}
+	args := []interface{}{Entities.DeletedTopic}
 	if len(req.FactionIDs) > 0 {
 		placeholders := make([]string, len(req.FactionIDs))
 		for i, id := range req.FactionIDs {
 			placeholders[i] = "?"
 			args = append(args, id)
 		}
-		baseWhere += " AND character_claim_id IN (SELECT character_claim_id FROM character_claim_faction WHERE faction_id IN (" + strings.Join(placeholders, ",") + "))"
+		baseWhere += " AND wcb.character_claim_id IN (SELECT character_claim_id FROM character_claim_faction WHERE faction_id IN (" + strings.Join(placeholders, ",") + "))"
 	}
 
 	var totalCount int
@@ -73,8 +74,8 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 	offset := (page - 1) * limit
 	totalPages := (totalCount + limit - 1) / limit
 
-	query := "SELECT id, name, is_claimed, author_user_id, date_created, character_claim_id, is_deleted, topic_id" +
-		baseWhere + " ORDER BY date_created DESC LIMIT ? OFFSET ?"
+	query := "SELECT wcb.id, wcb.name, wcb.is_claimed, wcb.author_user_id, wcb.date_created, wcb.character_claim_id, wcb.is_deleted, wcb.topic_id" +
+		baseWhere + " ORDER BY wcb.date_created DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
 	rows, err := db.Query(query, args...)
@@ -108,6 +109,7 @@ func GetWantedCharacterList(c *gin.Context, db *sql.DB) {
 		} else {
 			wc.Factions = []Entities.Faction{}
 		}
+		wc.UserInfo = fetchUserInfo(wc.AuthorUserId, db)
 	}
 
 	if list == nil {
@@ -149,11 +151,12 @@ func GetWantedCharacterTreeList(c *gin.Context, db *sql.DB) {
 		SELECT r.id, r.name, r.faction_id, wc.topic_id
 		FROM RankedFactions r
 		JOIN wanted_character_base wc ON wc.character_claim_id = r.id
+		JOIN topics t_wc ON t_wc.id = wc.topic_id AND t_wc.status != ?
 		WHERE r.rn = 1
 		  AND wc.is_claimed = false
 		  AND (wc.is_deleted IS NULL OR wc.is_deleted = false)
 		  AND wc.wanted_character_status = 0
-	`)
+	`, Entities.DeletedTopic)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted characters: " + err.Error()})
 		c.Abort()
@@ -207,12 +210,13 @@ func GetWantedCharacterTreeList(c *gin.Context, db *sql.DB) {
 		SELECT cc.id, cc.name, wc.topic_id
 		FROM character_claim cc
 		JOIN wanted_character_base wc ON wc.character_claim_id = cc.id
+		JOIN topics t_wc ON t_wc.id = wc.topic_id AND t_wc.status != ?
 		WHERE cc.is_claimed IS NOT TRUE
 		AND wc.is_claimed = false
 		AND (wc.is_deleted IS NULL OR wc.is_deleted = false)
 		AND wc.wanted_character_status = 0
 		AND cc.id NOT IN (SELECT character_claim_id FROM character_claim_faction)
-	`)
+	`, Entities.DeletedTopic)
 	if err == nil {
 		defer noFactionRows.Close()
 		for noFactionRows.Next() {
@@ -251,6 +255,13 @@ func GetWantedCharacter(c *gin.Context, db *sql.DB) {
 	}
 
 	if wc, ok := entity.(*Entities.WantedCharacter); ok {
+		var topicStatus Entities.TopicStatus
+		if err := db.QueryRow("SELECT status FROM topics WHERE id = ?", wc.TopicId).Scan(&topicStatus); err == nil && topicStatus == Entities.DeletedTopic {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Wanted character not found"})
+			c.Abort()
+			return
+		}
+
 		if wc.CharacterClaimId != nil {
 			wc.Factions, _ = Services.GetFactionTreeByCharacterClaim(*wc.CharacterClaimId, db)
 			wc.ClaimRecord = fetchActiveClaimRecord(*wc.CharacterClaimId, db)
@@ -500,6 +511,11 @@ func UpdateWantedCharacter(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	_, _ = db.Exec(
+		"UPDATE subforums SET last_post_topic_name = ? WHERE last_post_topic_id = ?",
+		req.Name, topicID,
+	)
+
 	updatedEntity, err := Services.GetEntity(int64(wantedCharacterID), "wanted_character", db)
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to fetch updated wanted character: " + err.Error()})
@@ -649,6 +665,7 @@ func GetWantedCharacterAutocomplete(c *gin.Context, db *sql.DB) {
 	query := `
 		SELECT wcb.id, wcb.name, cr.user_id, cr.guest_hash, cr.claim_expiration_date
 		FROM wanted_character_base wcb
+		JOIN topics t_wc ON t_wc.id = wcb.topic_id AND t_wc.status != ?
 		LEFT JOIN character_claim cc ON cc.id = wcb.character_claim_id
 		LEFT JOIN claim_record cr ON cr.claim_id = cc.id
 			AND cr.claim_expiration_date > NOW()
@@ -656,7 +673,7 @@ func GetWantedCharacterAutocomplete(c *gin.Context, db *sql.DB) {
 		WHERE wcb.name LIKE ? AND (wcb.is_deleted IS NULL OR wcb.is_deleted = false) AND wcb.wanted_character_status = 0
 		ORDER BY wcb.name ASC LIMIT 10
 	`
-	rows, err := db.Query(query, "%"+c.Param("term")+"%")
+	rows, err := db.Query(query, Entities.DeletedTopic, "%"+c.Param("term")+"%")
 	if err != nil {
 		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to get wanted characters: " + err.Error()})
 		c.Abort()
@@ -674,7 +691,7 @@ func GetClaimAutocomplete(c *gin.Context, db *sql.DB) {
 		LEFT JOIN claim_record cr ON cr.claim_id = cc.id
 			AND cr.claim_expiration_date > NOW()
 			AND cr.id = (SELECT MAX(id) FROM claim_record WHERE claim_id = cc.id AND claim_expiration_date > NOW())
-		WHERE cc.name LIKE ? AND wcb.id IS NULL
+		WHERE cc.name LIKE ? AND wcb.id IS NULL AND cc.is_claimed IS NOT TRUE AND cr.id IS NULL
 		ORDER BY cc.name ASC LIMIT 10
 	`
 	rows, err := db.Query(query, "%"+c.Param("term")+"%")
@@ -687,19 +704,89 @@ func GetClaimAutocomplete(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, scanClaimAutocompleteRows(c, rows, "Failed to scan claim: "))
 }
 
+func fetchUserInfo(userId int, db *sql.DB) *Entities.UserInfo {
+	var info Entities.UserInfo
+	err := db.QueryRow(`
+		SELECT u.id, u.username, u.user_status, u.date_registered, u.date_last_visit, u.total_posts,
+		       COUNT(cb.id)
+		FROM users u
+		LEFT JOIN character_base cb ON cb.user_id = u.id AND cb.character_status = ?
+		WHERE u.id = ?
+		GROUP BY u.id, u.username, u.user_status, u.date_registered, u.date_last_visit, u.total_posts
+	`, Entities.ActiveCharacter, userId).Scan(
+		&info.UserId, &info.Username, &info.UserStatus,
+		&info.DateRegistered, &info.DateLastVisit, &info.TotalPosts, &info.ActiveCharacters,
+	)
+	if err != nil {
+		return nil
+	}
+	return &info
+}
+
 func fetchActiveClaimRecord(characterClaimId int, db *sql.DB) *Entities.ClaimRecord {
 	var cr Entities.ClaimRecord
 	err := db.QueryRow(`
-		SELECT id, claim_id, user_id, guest_hash, is_guest, claim_date, claim_expiration_date, character_id, claim_created_with_character_sheet
-		FROM claim_record
-		WHERE claim_id = ? AND claim_expiration_date > NOW()
-		ORDER BY claim_date DESC
+		SELECT cr.id, cr.claim_id, cr.user_id, cr.guest_hash, cr.is_guest, cr.claim_date, cr.claim_expiration_date, cr.character_id, cr.claim_created_with_character_sheet, u.id, u.username
+		FROM claim_record cr
+		LEFT JOIN users u ON u.id = cr.user_id
+		WHERE cr.claim_id = ? AND cr.claim_expiration_date > NOW()
+		ORDER BY cr.claim_date DESC
 		LIMIT 1
-	`, characterClaimId).Scan(&cr.Id, &cr.ClaimId, &cr.UserId, &cr.GuestHash, &cr.IsGuest, &cr.ClaimDate, &cr.ClaimExpirationDate, &cr.CharacterId, &cr.ClaimCreatedWithCharacterSheet)
+	`, characterClaimId).Scan(&cr.Id, &cr.ClaimId, &cr.UserId, &cr.GuestHash, &cr.IsGuest, &cr.ClaimDate, &cr.ClaimExpirationDate, &cr.CharacterId, &cr.ClaimCreatedWithCharacterSheet, &cr.ClaimAuthorId, &cr.ClaimAuthorUsername)
 	if err != nil {
 		return nil
 	}
 	return &cr
+}
+
+type RevokeClaimRequest struct {
+	ClaimRecordId int `json:"claim_record_id" binding:"required"`
+}
+
+func RevokeClaim(c *gin.Context, db *sql.DB) {
+	var req RevokeClaimRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var recordUserID *int
+	var guestHash *string
+	if err := db.QueryRow("SELECT user_id, guest_hash FROM claim_record WHERE id = ?", req.ClaimRecordId).Scan(&recordUserID, &guestHash); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusNotFound, Message: "Claim record not found"})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+	authorized := false
+
+	if userID != 0 {
+		authorized = recordUserID != nil && *recordUserID == userID
+	} else if guestHash != nil {
+		for i := 1; i <= 3; i++ {
+			if hash, err := c.Cookie(fmt.Sprintf("claim_hash_%d", i)); err == nil && hash == *guestHash {
+				authorized = true
+				break
+			}
+		}
+	}
+
+	if !authorized {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusForbidden, Message: "You are not authorized to revoke this claim"})
+		c.Abort()
+		return
+	}
+
+	_, err := db.Exec("UPDATE claim_record SET claim_expiration_date = NOW() - INTERVAL 1 SECOND WHERE id = ?", req.ClaimRecordId)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to revoke claim: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Claim revoked"})
 }
 
 type CreateClaimRecordRequest struct {
@@ -745,9 +832,10 @@ func CreateClaimRecord(c *gin.Context, db *sql.DB) {
 	}
 	expirationDate := time.Now().AddDate(0, 0, expirationDays)
 
-	var guestHash string
+	var guestHash *string
 	if isGuest {
-		guestHash = generateGuestHash()
+		h := generateGuestHash()
+		guestHash = &h
 	}
 
 	var userIdParam *int
@@ -766,6 +854,109 @@ func CreateClaimRecord(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
+		"guest_hash":            guestHash,
+		"claim_expiration_date": expirationDate,
+	})
+}
+
+type CreateNewRoleClaimRequest struct {
+	CharacterName string `json:"character_name" binding:"required"`
+	FactionId     int    `json:"faction_id" binding:"required"`
+}
+
+func CreateNewRoleClaim(c *gin.Context, db *sql.DB) {
+	var req CreateNewRoleClaimRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Invalid request body: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var factionExists int
+	if err := db.QueryRow("SELECT id FROM factions WHERE id = ?", req.FactionId).Scan(&factionExists); err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Faction not found"})
+		c.Abort()
+		return
+	}
+
+	userID := Services.GetUserIdFromContext(c)
+	isGuest := userID == 0
+	expirationDays := 5
+	if isGuest {
+		expirationDays = 3
+	}
+	expirationDate := time.Now().AddDate(0, 0, expirationDays)
+
+	var guestHash *string
+	var cookieSlot string
+	if isGuest {
+		for i := 1; i <= 3; i++ {
+			slotName := fmt.Sprintf("claim_hash_%d", i)
+			if _, err := c.Cookie(slotName); err != nil {
+				cookieSlot = slotName
+				break
+			}
+		}
+		if cookieSlot == "" {
+			_ = c.Error(&Middlewares.AppError{Code: http.StatusBadRequest, Message: "Maximum number of guest claims reached"})
+			c.Abort()
+			return
+		}
+		h := generateGuestHash()
+		guestHash = &h
+	}
+
+	claimRes, err := db.Exec(
+		"INSERT INTO character_claim (name, show_only_with_active_claim) VALUES (?, true)",
+		req.CharacterName,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim: " + err.Error()})
+		c.Abort()
+		return
+	}
+	claimId, _ := claimRes.LastInsertId()
+
+	_, err = db.Exec(
+		"INSERT INTO character_claim_faction (character_claim_id, faction_id) VALUES (?, ?)",
+		claimId, req.FactionId,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to link faction to claim: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	var userIdParam *int
+	if !isGuest {
+		userIdParam = &userID
+	}
+
+	recordRes, err := db.Exec(
+		"INSERT INTO claim_record (claim_id, user_id, guest_hash, is_guest, claim_date, claim_expiration_date) VALUES (?, ?, ?, ?, NOW(), ?)",
+		claimId, userIdParam, guestHash, isGuest, expirationDate,
+	)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to create claim record: " + err.Error()})
+		c.Abort()
+		return
+	}
+	recordId, _ := recordRes.LastInsertId()
+
+	_, err = db.Exec("UPDATE character_claim SET claim_record_id = ? WHERE id = ?", recordId, claimId)
+	if err != nil {
+		_ = c.Error(&Middlewares.AppError{Code: http.StatusInternalServerError, Message: "Failed to update claim record reference: " + err.Error()})
+		c.Abort()
+		return
+	}
+
+	if isGuest && guestHash != nil {
+		c.SetCookie(cookieSlot, *guestHash, expirationDays*24*60*60, "/", "", false, true)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"claim_id":              claimId,
+		"claim_record_id":       recordId,
 		"guest_hash":            guestHash,
 		"claim_expiration_date": expirationDate,
 	})

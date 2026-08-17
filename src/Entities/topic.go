@@ -9,6 +9,7 @@ const (
 	EpisodeTopic         TopicType = 1
 	CharacterSheetTopic  TopicType = 2
 	WantedCharacterTopic TopicType = 3
+	LoreTopic            TopicType = 4
 )
 
 type TopicStatus int
@@ -17,6 +18,7 @@ const (
 	ActiveTopic   TopicStatus = 0
 	InactiveTopic TopicStatus = 1
 	FullTopic     TopicStatus = 2
+	DeletedTopic  TopicStatus = 3
 )
 
 const TopicPostCap = 1000
@@ -35,6 +37,8 @@ type Topic struct {
 	LastPostAuthorUserId  int                  `json:"last_post_author_user_id"`
 	LastPostAuthorName    *string              `json:"last_post_author_name"`
 	SubforumId            int                  `json:"subforum_id"`
+	IsSticky              bool                 `json:"is_sticky"`
+	IsStickyFirstPost     bool                 `json:"is_sticky_first_post"`
 	Episode               *Episode             `json:"episode"`
 	Character             *Character           `json:"character"`
 	WantedCharacter       *WantedCharacter     `json:"wanted_character"`

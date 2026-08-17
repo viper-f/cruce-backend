@@ -2,6 +2,7 @@ package Entities
 
 import (
 	"golang.org/x/crypto/bcrypt"
+	"time"
 )
 
 type User struct {
@@ -13,6 +14,8 @@ type User struct {
 	InterfaceTimezone    *string                   `json:"interface_timezone"`
 	InterfaceFontSize    float64                   `json:"interface_font_size"`
 	UserStatus           UserStatus                `json:"user_status"`
+	ArchiveDate          *time.Time                `json:"archive_date"`
+	ArchiveReason        *string                   `json:"archive_reason"`
 	TotalPosts           int                       `json:"total_posts"`
 	TotalGeneralPosts    int                       `json:"total_general_posts"`
 	InterfaceDesign      *string                   `json:"interface_design"`
@@ -37,8 +40,8 @@ type UserProfile struct {
 type UserStatus int
 
 const (
-	ActiveUser  UserStatus = 0
-	BlockedUser UserStatus = 1
+	ActiveUser   UserStatus = 0
+	ArchivedUser UserStatus = 1
 )
 
 type PrivateKey struct {
@@ -52,6 +55,16 @@ type PrivateKey struct {
 type PublicKey struct {
 	UserId    int    `json:"user_id"`
 	PublicKey string `json:"public_key"`
+}
+
+type UserInfo struct {
+	UserId           int        `json:"user_id"`
+	Username         string     `json:"username"`
+	UserStatus       UserStatus `json:"user_status"`
+	DateRegistered   time.Time  `json:"date_registered"`
+	DateLastVisit    *time.Time `json:"date_last_visit"`
+	TotalPosts       int        `json:"total_posts"`
+	ActiveCharacters int        `json:"active_characters"`
 }
 
 func (u *User) HashPassword(password string) error {
